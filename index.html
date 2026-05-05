@@ -798,26 +798,18 @@ function renderDashboard(){
         });
       });
       if(missingRows.length){
+        const byOrder={};
+        missingRows.forEach(r=>{if(!byOrder[r.orderId])byOrder[r.orderId]={custName:r.custName,date:r.date,orderId:r.orderId,items:[]};byOrder[r.orderId].items.push(r.item);});
         incSec.innerHTML=`<div class="card" style="margin-bottom:12px;">
-          <div style="font-size:14px;font-weight:700;margin-bottom:10px;">⚠️ 尚未完成 缺少商品（${missingRows.length}項）</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:10px;">⚠️ 尚未完成（${Object.keys(byOrder).length}）</div>
           <div class="table-wrap"><table>
-            <thead><tr><th colspan="3">客戶／缺少商品</th><th></th></tr></thead>
-            <tbody>${(()=>{
-              // Group by order
-              const byOrder={};
-              missingRows.forEach(r=>{if(!byOrder[r.orderId])byOrder[r.orderId]={custName:r.custName,date:r.date,orderId:r.orderId,items:[]};byOrder[r.orderId].items.push(r.item);});
-              return Object.values(byOrder).map(g=>`
-                <tr style="background:var(--surface2);">
-                  <td colspan="3" style="font-weight:700;padding:6px 11px;">${g.custName} <span style="font-size:11px;color:var(--text3);">${g.date}</span></td>
-                  <td style="padding:6px 11px;"><button class="btn btn-xs btn-primary" onclick="viewOrder('${g.orderId}')">繼續撿貨</button></td>
-                </tr>
-                ${g.items.map(item=>`<tr>
-                  <td style="padding:4px 11px 4px 20px;color:var(--red);">• ${item.name}${item.variant?' ('+item.variant+')':''}</td>
-                  <td colspan="2" style="color:var(--text2);font-size:12px;"></td>
-                  <td style="font-size:12px;">× ${item.qty}</td>
-                </tr>`).join('')}
-              `).join('');
-            })()}</tbody>
+            <thead><tr><th>客戶</th><th>日期</th><th>缺少商品</th><th></th></tr></thead>
+            <tbody>${Object.values(byOrder).map(g=>`<tr>
+              <td><strong>${g.custName}</strong></td>
+              <td>${g.date}</td>
+              <td style="font-size:12px;color:var(--red);">${g.items.map(i=>i.name+(i.variant?' ('+i.variant+')':'')+' ×'+i.qty).join('、')}</td>
+              <td><button class="btn btn-sm btn-primary" onclick="viewOrder('${g.orderId}')">撿貨</button></td>
+            </tr>`).join('')}</tbody>
           </table></div>
         </div>`;
       } else incSec.innerHTML='';
@@ -1346,18 +1338,35 @@ function toggleBCSummary(){
 function showMissingItems(){
   const items=window._pickItems||[];
   const savedState=(db.pickingState||{})[window._pickOrderId]||{};
-  const missing=items.filter((_,idx)=>!savedState[idx]);
+  const missingIdxs=items.map((_,i)=>i).filter(i=>!savedState[i]);
   const el=G('missing-items-list');if(!el)return;
   if(el.style.display==='none'){
     el.style.display='block';
-    if(!missing.length){el.innerHTML='<div style="color:var(--green);font-size:13px;padding:8px;">✅ 所有商品已撿貨完成</div>';return;}
-    el.innerHTML=`<div style="background:var(--red-bg);border-radius:8px;padding:10px;font-size:13px;">
-      <div style="font-weight:700;margin-bottom:6px;color:var(--red);">尚未撿貨（${missing.length}項）</div>
-      ${missing.map(i=>`<div style="padding:3px 0;">• ${i.name}${i.variant?' ('+i.variant+')':''} × ${i.qty}</div>`).join('')}
+    if(!missingIdxs.length){el.innerHTML='<div style="color:var(--green);font-size:13px;padding:8px;">✅ 所有商品已撿貨完成</div>';return;}
+    el.innerHTML=`<div style="background:var(--red-bg);border-radius:8px;padding:8px;font-size:13px;">
+      <div style="font-weight:700;margin-bottom:6px;color:var(--red);">尚未撿貨（${missingIdxs.length}項）</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>存放地點</th><th>商檢標</th><th>商品名稱</th><th>種類</th><th>數量</th><th></th></tr></thead>
+        <tbody>${missingIdxs.map(i=>{
+          const item=items[i];
+          return `<tr style="cursor:pointer;" onclick="scrollToPickRow(${i})">
+            <td><span class="badge badge-blue">${item.location||'—'}</span></td>
+            <td>${item.hasInspMark!==false?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(item.batchNo||'—')+'</span>'}</td>
+            <td><strong>${item.name}</strong>${item.specialPacking?` <span class='badge badge-orange'>${item.specialPacking}</span>`:''}</td>
+            <td>${item.variant||'—'}</td>
+            <td>${item.qty}</td>
+            <td><span style="color:var(--blue);font-size:11px;">▲ 跳至</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
     </div>`;
   } else {
     el.style.display='none';
   }
+}
+function scrollToPickRow(idx){
+  const row=G('pick-row-'+idx);
+  if(row){row.scrollIntoView({behavior:'smooth',block:'center'});row.style.outline='2px solid var(--accent)';setTimeout(()=>row.style.outline='',1500);}
 }
 
 async function markPacked(orderId){
