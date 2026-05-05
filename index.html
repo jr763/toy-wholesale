@@ -146,10 +146,10 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       <div style="font-size:14px;font-weight:700;">📅 行程日曆</div>
       <div style="display:flex;align-items:center;gap:8px;">
         <div id="cal-today-summary" style="font-size:12px;color:var(--text2);"></div>
-        <span id="cal-toggle-icon" style="font-size:16px;">▾</span>
+        <span id="cal-toggle-icon" style="font-size:16px;">▸</span>
       </div>
     </div>
-    <div id="cal-body" style="margin-top:10px;">
+    <div id="cal-body" style="display:none;margin-top:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();calPrev()">‹</button>
         <div style="font-size:15px;font-weight:700;" id="cal-title"></div>
@@ -170,9 +170,26 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   </div>
   <!-- 尚未撿貨 -->
   <div id="unpicked-section"></div>
+  <!-- 尚未裝箱 -->
+  <div id="unboxed-section"></div>
   <!-- 尚未完成 -->
   <div id="incomplete-section"></div>
 
+</div>
+
+<!-- 裝箱確認 Modal -->
+<div class="modal-overlay" id="modal-boxing">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header"><h3 id="boxing-title">裝箱確認</h3><button class="modal-close" onclick="closeModal('modal-boxing')">×</button></div>
+    <div class="modal-body">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px;">以下為此次裝箱的條碼列印數量，確認後狀態將更新為「已完成」。</div>
+      <div id="boxing-summary"></div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-green" id="boxing-confirm-btn" onclick="confirmBoxing()">✓ 確認裝箱完成</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-boxing')">取消</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Calendar Visit Modal -->
@@ -232,7 +249,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <button class="tab-inner-btn active" onclick="filterOrders('all',this)">全部</button>
     <button class="tab-inner-btn" onclick="filterOrders('draft',this)">草稿</button>
     <button class="tab-inner-btn" onclick="filterOrders('confirmed',this)">已確認</button>
-    <button class="tab-inner-btn" onclick="filterOrders('packed',this)">已裝箱</button>
+    <button class="tab-inner-btn" onclick="filterOrders('picked',this)">已撿貨</button>
     <button class="tab-inner-btn" onclick="filterOrders('completed',this)">已完成</button>
     <button class="tab-inner-btn" onclick="filterOrders('shipped',this)">已出貨</button>
   </div>
@@ -656,7 +673,7 @@ function stopScan(){
 // ── DASHBOARD ─────────────────────────────────
 // ── CALENDAR ─────────────────────────────────
 let calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
-let calEditDate=null, calVisible=true, calVisitCusts=[];
+let calEditDate=null, calVisible=false, calVisitCusts=[];
 
 function toggleCal(){
   calVisible=!calVisible;
@@ -782,8 +799,27 @@ function renderDashboard(){
     <button class="btn btn-sm btn-danger" onclick="switchTab('restock',G('nav-restock'))">查看補貨清單</button>
   </div>`:'';
   renderCalendar();updateTodaySummary();
+  // 尚未裝箱（已撿貨，等待裝箱確認）
+  const unboxed=db.orders.filter(o=>o.status==='picked');
+  const unboxSec=G('unboxed-section');
+  if(unboxSec){
+    if(unboxed.length){
+      unboxSec.innerHTML=`<div class="card" style="margin-bottom:12px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📦 尚未裝箱（${unboxed.length}）</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>客戶</th><th>日期</th><th>金額</th><th></th></tr></thead>
+          <tbody>${unboxed.map(o=>{
+            const cust=db.customers.find(x=>x.id===o.customerId);
+            const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
+            return `<tr><td><strong>${cust?cust.name:'—'}</strong></td><td>${o.date}</td><td>$${fmt(total)}</td>
+              <td><button class="btn btn-sm btn-green" onclick="openBoxingModal('${o.id}')">裝箱確認</button></td></tr>`;
+          }).join('')}</tbody>
+        </table></div>
+      </div>`;
+    } else unboxSec.innerHTML='';
+  }
   // 尚未完成（已裝箱但有缺漏商品的）
-  const incomplete=db.orders.filter(o=>o.status==='packed');
+  // 尚未完成: no longer needed - partial picking stays in 尚未撿貨
   const incSec=G('incomplete-section');
   if(incSec){
     if(incomplete.length){
@@ -1246,7 +1282,7 @@ function renderOrders(){
   if(orderFilter!=='all')rows=rows.filter(o=>o.status===orderFilter);
   if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>沒有符合的抄貨單</div>';return;}
   const sm={draft:'草稿',confirmed:'已確認',packed:'已裝箱',completed:'已完成',shipped:'已出貨'};
-  const bm={draft:'badge-orange',confirmed:'badge-green',packed:'badge-orange',completed:'badge-blue',shipped:'badge-blue'};
+  const bm={draft:'badge-orange',confirmed:'badge-green',packed:'badge-green',completed:'badge-blue',shipped:'badge-blue'};
   list.innerHTML=rows.map(o=>{
     const c=db.customers.find(x=>x.id===o.customerId);
     const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
@@ -1265,7 +1301,7 @@ function renderOrders(){
       </div>
       <div style="margin-top:9px;display:flex;gap:5px;flex-wrap:wrap;">
         <button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${o.id}')">查看撿貨</button>
-        ${['draft','confirmed','packed'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
+        ${['draft','confirmed','picked'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
         ${o.status==='completed'?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
         ${o.status==='draft'?`<button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>`:''}
       </div>
@@ -1341,12 +1377,12 @@ function viewOrder(id){
     <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>
     <div class="btn-row" style="margin-top:8px;">
       <button class="btn btn-secondary" onclick="showMissingItems()">📋 缺少商品</button>
-      <button class="btn btn-green" onclick="markPacked('${id}')">📦 裝箱完成</button>
+      <button class="btn btn-green" onclick="markPacked('${id}')">✅ 撿貨完成</button>
     </div>
     <div id="missing-items-list" style="display:none;margin-top:8px;"></div>`;
   // Restore saved picking states
   const savedState=(db.pickingState||{})[id]||{};
-  const isPacked=o.status==='packed'||o.status==='completed';
+  const isPacked=o.status==='picked'||o.status==='completed';
   Object.entries(savedState).forEach(([idx,checked])=>{
     const cb=G('pick-cb-'+idx);
     const row=G('pick-row-'+idx);
@@ -1409,14 +1445,13 @@ async function markPacked(orderId){
   const savedState=(db.pickingState||{})[orderId]||{};
   const items=o.items||[];
   const missing=items.filter((_,i)=>!savedState[i]);
-  const allDone=missing.length===0;
-  const msg=allDone?'所有商品已撿齊，確認裝箱完成？':`有 ${missing.length} 項商品缺漏，確認裝箱（標記為已裝箱）？`;
-  if(!confirm(msg))return;
-  const idx=db.orders.findIndex(x=>x.id===orderId);
-  if(idx>=0){
-    db.orders[idx].packed=true;
-    db.orders[idx].status=allDone?'completed':'packed';
+  if(missing.length>0){
+    alert(`還有 ${missing.length} 項尚未撿貨：${missing.map(i=>i.name).join('、')}\n請先完成所有撿貨再確認。`);
+    return;
   }
+  if(!confirm('所有商品已撿齊，確認撿貨完成？'))return;
+  const idx=db.orders.findIndex(x=>x.id===orderId);
+  if(idx>=0){db.orders[idx].picked=true;db.orders[idx].status='picked';}
   await saveData();
   closeModal('modal-order-detail');
   renderDashboard();renderOrders();
@@ -1455,6 +1490,12 @@ async function togglePicked(idx,cb){
   if(!db.pickingState[oid])db.pickingState[oid]={};
   db.pickingState[oid][idx]=cb.checked;
   await saveData();
+  // Auto-refresh barcode summary if open
+  const bcEl=G('bc-summary-inline');
+  if(bcEl&&bcEl.style.display!=='none') showBCSummary();
+  // Auto-refresh missing items if open
+  const misEl=G('missing-items-list');
+  if(misEl&&misEl.style.display!=='none') showMissingItems();
 }
 
 // ── SHIPMENTS 出貨單 ──────────────────────────
