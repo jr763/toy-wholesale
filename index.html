@@ -1264,10 +1264,10 @@ function renderOrders(){
         </div>
       </div>
       <div style="margin-top:9px;display:flex;gap:5px;flex-wrap:wrap;">
-        <button class="btn btn-sm btn-secondary" onclick="viewOrder('${o.id}')">查看撿貨</button>
-        <button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>
-        <button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>
+        <button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${o.id}')">查看撿貨</button>
+        ${['draft','confirmed','packed'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
+        ${o.status==='completed'?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
+        ${o.status==='draft'?`<button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>`:''}
       </div>
     </div>`;
   }).join('');
