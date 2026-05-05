@@ -1084,7 +1084,7 @@ function viewOrder(id){
       <div><div style="font-size:11px;color:var(--text2);">日期</div><strong>${o.date}</strong></div>
     </div>
     <div style="margin-bottom:12px;">
-      <button class="btn btn-primary btn-sm" onclick="showBCSummary()">🏷 顯示條碼列印清單</button>
+      <button class="btn btn-primary btn-sm" id="bc-toggle-btn" onclick="toggleBCSummary()">🏷 顯示條碼列印清單</button>
     </div>
     <div id="bc-summary-inline" style="display:none;margin-bottom:12px;"></div>
     <div class="table-wrap"><table>
@@ -1100,6 +1100,17 @@ function viewOrder(id){
       </tr>`).join('')}</tbody></table></div>
     <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>`;
   openModal('modal-order-detail');
+}
+function toggleBCSummary(){
+  const el=G('bc-summary-inline');
+  const btn=G('bc-toggle-btn');
+  if(el.style.display==='none'){
+    showBCSummary();
+    btn.textContent='🏷 收起條碼列印清單';
+  } else {
+    el.style.display='none';
+    btn.textContent='🏷 顯示條碼列印清單';
+  }
 }
 function showBCSummary(){
   const items=window._pickItems||[];
