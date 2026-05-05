@@ -170,6 +170,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   </div>
   <!-- 尚未撿貨 -->
   <div id="unpicked-section"></div>
+  <!-- 尚未完成 -->
+  <div id="incomplete-section"></div>
 
 </div>
 
@@ -778,6 +780,31 @@ function renderDashboard(){
     <button class="btn btn-sm btn-danger" onclick="switchTab('restock',G('nav-restock'))">查看補貨清單</button>
   </div>`:'';
   renderCalendar();updateTodaySummary();
+  // 尚未完成（已裝箱但有缺漏商品的）
+  const incomplete=db.orders.filter(o=>o.packed&&o.status!=='shipped');
+  const incSec=G('incomplete-section');
+  if(incSec){
+    if(incomplete.length){
+      incSec.innerHTML=`<div class="card" style="margin-bottom:12px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">⚠️ 尚未完成（${incomplete.length}）</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>客戶</th><th>日期</th><th>缺漏商品</th><th></th></tr></thead>
+          <tbody>${incomplete.map(o=>{
+            const cust=db.customers.find(x=>x.id===o.customerId);
+            const savedState=(db.pickingState||{})[o.id]||{};
+            const items=[...(o.items||[])];
+            const missing=items.filter((_,idx)=>!savedState[idx]);
+            const missingText=missing.length?missing.map(i=>i.name+(i.variant?' ('+i.variant+')':'')).join('、'):'無';
+            return `<tr>
+              <td><strong>${cust?cust.name:'—'}</strong></td>
+              <td>${o.date}</td>
+              <td style="font-size:12px;color:var(--red);">${missingText}</td>
+              <td><button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button></td>
+            </tr>`;
+          }).join('')}</tbody></table></div>
+      </div>`;
+    } else incSec.innerHTML='';
+  }
   // 尚未撿貨清單（已確認但未出貨的抄貨單）
   const unpicked=db.orders.filter(o=>o.status==='confirmed'&&!o.packed);
   const sec=G('unpicked-section');
@@ -1325,8 +1352,9 @@ async function markPacked(orderId){
 function showBCSummary(){
   const items=window._pickItems||[];
   // Only include checked items, if none checked include all
-  const checkedIdxs=[...document.querySelectorAll('[id^="pick-cb-"]')].filter(cb=>cb.checked).map(cb=>parseInt(cb.id.replace('pick-cb-','')));
-  const selected=checkedIdxs.length>0?checkedIdxs.map(i=>items[i]):items;
+  const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')];
+  const checkedIdxs=allCbs.filter(cb=>cb.checked).map(cb=>parseInt(cb.id.replace('pick-cb-','')));
+  const selected=checkedIdxs.length>0?checkedIdxs.map(i=>items[i]):[];
   const cust=window._pickOrderId?db.customers.find(x=>x.id===db.orders.find(o=>o.id===window._pickOrderId)?.customerId):null;
   const custBarcode=cust?.labelBarcode||'—';
   // Group by price
@@ -1335,8 +1363,9 @@ function showBCSummary(){
   const bcRows=Object.entries(priceMap).map(([price,qty])=>`<tr><td style="font-weight:700;color:var(--accent);">${price}</td><td style="font-size:15px;font-weight:700;">${qty} 張</td></tr>`).join('');
   const el=G('bc-summary-inline');
   el.style.display='block';
+  if(!selected.length){el.innerHTML='<div style="color:var(--text3);font-size:13px;padding:8px;">請先勾選要列印的商品</div>';return;}
   el.innerHTML=`<div style="background:var(--blue-bg);border:1px solid #b3d4f0;border-radius:8px;padding:10px 13px;">
-    <div style="font-size:12px;color:var(--blue);margin-bottom:7px;">條碼：<strong>${custBarcode}</strong>${checkedIdxs.length>0?' （已勾選商品）':' （全部商品）'}</div>
+    <div style="font-size:12px;color:var(--blue);margin-bottom:7px;">條碼：<strong>${custBarcode}</strong>（已勾選商品）</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;">
       <thead><tr><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">售價</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">數量</th></tr></thead>
       <tbody>${bcRows}</tbody>
