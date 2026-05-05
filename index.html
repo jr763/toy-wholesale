@@ -1272,6 +1272,38 @@ function renderOrders(){
     </div>`;
   }).join('');
 }
+function viewOrderReadonly(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  const cust=db.customers.find(x=>x.id===o.customerId);
+  const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
+  G('od-title').textContent=cust?cust.name:'撿貨單';
+  const locOrder=['地下室','一樓','樓梯間','二樓','其他',''];
+  const items=[...(o.items||[])].map(i=>{
+    const p=db.products.find(x=>x.id===i.productId);
+    return {...i,location:i.location||p?.location||'',hasInspMark:p?p.hasInspectionMark!==false:true,batchNo:p?.inspectionBatchNo||''};
+  }).sort((a,b)=>{
+    const la=locOrder.indexOf(a.location);const lb=locOrder.indexOf(b.location);
+    return (la<0?99:la)-(lb<0?99:lb);
+  });
+  const savedState=(db.pickingState||{})[id]||{};
+  G('od-body').innerHTML=`
+    <div class="table-wrap"><table>
+      <thead><tr><th>✓</th><th>存放地點</th><th>商檢標</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
+      <tbody>${items.map((i,idx)=>{
+        const checked=!!savedState[idx];
+        return `<tr style="${checked?'opacity:0.35;text-decoration:line-through;':''}">
+          <td>${checked?'✓':'□'}</td>
+          <td><span class="badge badge-blue">${i.location||'—'}</span></td>
+          <td>${i.hasInspMark!==false?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'—')+'</span>'}</td>
+          <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}</td>
+          <td>${i.variant||'—'}</td>
+          <td>${i.qty}</td>
+          <td>$${fmt(i.price)}</td>
+        </tr>`;
+      }).join('')}</tbody></table></div>
+    <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>`;
+  openModal('modal-order-detail');
+}
 function viewOrder(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
   const cust=db.customers.find(x=>x.id===o.customerId);
@@ -1314,12 +1346,15 @@ function viewOrder(id){
     <div id="missing-items-list" style="display:none;margin-top:8px;"></div>`;
   // Restore saved picking states
   const savedState=(db.pickingState||{})[id]||{};
+  const isPacked=o.status==='packed'||o.status==='completed';
   Object.entries(savedState).forEach(([idx,checked])=>{
     const cb=G('pick-cb-'+idx);
     const row=G('pick-row-'+idx);
     if(cb&&checked){
       cb.checked=true;
       if(row){row.style.opacity='0.35';row.style.textDecoration='line-through';}
+      // Lock checked items if order is packed
+      if(isPacked){cb.disabled=true;cb.title='已裝箱，無法變更';}
     }
   });
   openModal('modal-order-detail');
