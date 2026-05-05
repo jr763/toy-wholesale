@@ -182,7 +182,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   <div class="modal" style="max-width:460px;">
     <div class="modal-header"><h3 id="boxing-title">裝箱確認</h3><button class="modal-close" onclick="closeModal('modal-boxing')">×</button></div>
     <div class="modal-body">
-      <div style="font-size:13px;color:var(--text2);margin-bottom:10px;">以下為此次裝箱的條碼列印數量，確認後狀態將更新為「已完成」。</div>
       <div id="boxing-summary"></div>
       <div class="btn-row" style="margin-top:12px;">
         <button class="btn btn-green" id="boxing-confirm-btn" onclick="confirmBoxing()">✓ 確認裝箱完成</button>
@@ -1348,7 +1347,7 @@ function viewOrder(id){
     <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>
     <div class="btn-row" style="margin-top:8px;">
       <button class="btn btn-secondary" onclick="showMissingItems()">📋 缺少商品</button>
-      <button class="btn btn-green" onclick="markPacked('${id}')">✅ 撿貨完成</button>
+      <button class="btn btn-green" id="pick-done-btn" onclick="markPacked('${id}')" disabled style="opacity:0.5;cursor:not-allowed;">✅ 撿貨完成</button>
     </div>
     <div id="missing-items-list" style="display:none;margin-top:8px;"></div>`;
   // Restore saved picking states
@@ -1874,7 +1873,6 @@ function openBoxingModal(orderId){
   const rows=Object.entries(priceMap);
   G('boxing-title').textContent=(cust?cust.name:'')+'  裝箱確認';
   G('boxing-summary').innerHTML=`
-    <div style="font-size:12px;color:var(--blue);margin-bottom:8px;">條碼：<strong>${cust?.labelBarcode||'—'}</strong></div>
     <div class="table-wrap"><table>
       <thead><tr><th>售價</th><th>數量（張）</th></tr></thead>
       <tbody>${rows.map(([p,q])=>`<tr><td style="font-weight:700;color:var(--accent);">${p}</td><td style="font-size:16px;font-weight:700;">${q}</td></tr>`).join('')}</tbody>
