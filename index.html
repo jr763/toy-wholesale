@@ -189,7 +189,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div class="modal-body">
       <div id="boxing-summary"></div>
       <div class="btn-row" style="margin-top:12px;">
-        <button class="btn btn-green" id="boxing-confirm-btn" onclick="confirmBoxing()">✓ 確認裝箱完成</button>
+        <button class="btn btn-green" id="boxing-confirm-btn" onclick="confirmBoxing()" disabled style="opacity:0.5;cursor:not-allowed;">✓ 確認裝箱完成</button>
         <button class="btn btn-secondary" onclick="closeModal('modal-boxing')">取消</button>
       </div>
     </div>
@@ -604,7 +604,7 @@ async function loadData(btn=false){
     const snap=await DOC_REF.get();
     if(snap.exists){
       const data=snap.data();
-      db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},pickingState:{},...data};
+      db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},pickingState:{},boxingState:{},...data};
     }
     setSyncStatus('ok','雲端同步・所有人共用');
     G('loading-overlay').style.display='none';
@@ -627,7 +627,7 @@ DOC_REF.onSnapshot(snap=>{
   if(isSaving)return;
   if(snap.exists){
     const data=snap.data();
-    db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},pickingState:{},...data};
+    db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},pickingState:{},boxingState:{},...data};
   }
   renderAll();
 }, err=>{
@@ -1805,9 +1805,7 @@ function printShipment(id){
   const cust=o?db.customers.find(x=>x.id===o.customerId):null;
   const disc=cust?.discount||0;
   const note=cust?.note||'';
-  const factMatch=note.match(/廠編[：:]\s*(\S+)/);
-  const factCode=factMatch?factMatch[1]:'';
-  const custNote=note.replace(/廠編[：:]\s*\S+/,'').trim();
+  const noteLines=note.split('\n').map(l=>l.trim()).filter(Boolean);
   const dateStr=(s.date||'').replace(/-/g,'/');
   const TOTAL_ROWS=20;
   const rows=(s.items||[]);
@@ -1838,6 +1836,12 @@ function printShipment(id){
       <td style="border:1px solid #000;"></td>
     </tr>`;
   }
+  // Note layout:
+  // 1 line: date row right
+  // 2 lines: line1 → address row right, line2 → date row right
+  const addrRight = noteLines.length>=2 ? noteLines[0] : '';
+  const dateRight = noteLines.length>=2 ? noteLines[1] : (noteLines[0]||'');
+
   G('print-area').innerHTML=`
     <div style="font-family:'標楷體','DFKai-SB',serif;width:540px;font-size:12px;margin:0 auto;">
       <div style="text-align:center;font-size:24px;font-weight:bold;letter-spacing:4px;margin-bottom:2px;">奧斯卡商行</div>
@@ -1848,10 +1852,13 @@ function printShipment(id){
         <span style="width:72%;">客戶名稱：${cust?cust.name:''}</span>
         <span>電話：${cust?.phone||''}</span>
       </div>
-      <div style="font-size:12px;margin-bottom:2px;">客戶地址：${cust?.address||''}</div>
+      <div style="font-size:12px;margin-bottom:2px;display:flex;">
+        <span style="width:72%;">客戶地址：${cust?.address||''}</span>
+        <span>${addrRight}</span>
+      </div>
       <div style="font-size:12px;margin-bottom:6px;display:flex;">
         <span style="width:72%;">銷貨日期：${dateStr}</span>
-        <span>${custNote?custNote+'　':''}${factCode?'廠編：'+factCode:''}</span>
+        <span>${dateRight}</span>
       </div>
       <table style="width:100%;border-collapse:collapse;">
         <colgroup>
@@ -1893,14 +1900,45 @@ function openBoxingModal(orderId){
   const priceMap={};
   pickedItems.forEach(item=>{const k='$'+fmt(item.price);priceMap[k]=(priceMap[k]||0)+item.qty;});
   const rows=Object.entries(priceMap);
+  // Load boxing state
+  if(!db.boxingState)db.boxingState={};
+  const boxState=db.boxingState[orderId]||{};
   G('boxing-title').textContent=(cust?cust.name:'')+'  裝箱確認';
   G('boxing-summary').innerHTML=`
     <div class="table-wrap"><table>
-      <thead><tr><th>售價</th><th>數量（張）</th></tr></thead>
-      <tbody>${rows.map(([p,q])=>`<tr><td style="font-weight:700;color:var(--accent);">${p}</td><td style="font-size:16px;font-weight:700;">${q}</td></tr>`).join('')}</tbody>
+      <thead><tr><th>✓</th><th>售價</th><th>數量（張）</th></tr></thead>
+      <tbody>${rows.map(([p,q],i)=>`<tr id="box-row-${i}">
+        <td><input type="checkbox" id="box-cb-${i}" ${boxState[i]?'checked':''} onchange="toggleBoxing(${i},this)" style="${boxState[i]?'opacity:0.5;':''}" ></td>
+        <td style="font-weight:700;color:var(--accent);${boxState[i]?'opacity:0.5;text-decoration:line-through;':''}">${p}</td>
+        <td style="font-size:16px;font-weight:700;${boxState[i]?'opacity:0.5;text-decoration:line-through;':''}">${q}</td>
+      </tr>`).join('')}</tbody>
     </table></div>
     <div style="text-align:right;margin-top:8px;font-size:13px;color:var(--text2);">合計 ${rows.reduce((s,[,q])=>s+q,0)} 張</div>`;
+  // Restore confirm button state
+  setTimeout(()=>updateBoxingBtn(rows.length),50);
   openModal('modal-boxing');
+}
+function updateBoxingBtn(total){
+  const btn=G('boxing-confirm-btn');if(!btn)return;
+  const allChecked=[...document.querySelectorAll('[id^="box-cb-"]')].every(cb=>cb.checked);
+  btn.disabled=!allChecked;
+  btn.style.opacity=allChecked?'1':'0.5';
+  btn.style.cursor=allChecked?'pointer':'not-allowed';
+}
+async function toggleBoxing(idx,cb){
+  const row=G('box-row-'+idx);
+  if(row){
+    row.querySelectorAll('td:not(:first-child)').forEach(td=>{
+      td.style.opacity=cb.checked?'0.5':'1';
+      td.style.textDecoration=cb.checked?'line-through':'none';
+    });
+  }
+  if(!db.boxingState)db.boxingState={};
+  if(!db.boxingState[_boxingOrderId])db.boxingState[_boxingOrderId]={};
+  db.boxingState[_boxingOrderId][idx]=cb.checked;
+  await saveData();
+  const total=document.querySelectorAll('[id^="box-cb-"]').length;
+  updateBoxingBtn(total);
 }
 async function confirmBoxing(){
   if(!_boxingOrderId)return;
