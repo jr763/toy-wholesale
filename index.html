@@ -1828,12 +1828,10 @@ function printShipment(id){
       <td style="border:1px solid #000;"></td>
     </tr>`;
   }
-  // Calculate column widths: seq=5%, name=auto, qty=8%, price=10%, amount=10%
-  // 客戶簽收 aligned under 數量 column = left edge of qty column
   G('print-area').innerHTML=`
     <div style="font-family:'標楷體','DFKai-SB',serif;width:100%;font-size:12px;">
       <div style="text-align:center;font-size:24px;font-weight:bold;letter-spacing:4px;margin-bottom:2px;">奧斯卡商行</div>
-      <div style="text-align:center;font-size:18px;font-weight:bold;letter-spacing:6px;margin-bottom:8px;border-bottom:3px double #000;display:inline-block;width:100%;padding-bottom:2px;">銷 貨 單 據 一 覽 表</div>
+      <div style="text-align:center;font-size:18px;font-weight:bold;letter-spacing:6px;padding-bottom:3px;margin-bottom:8px;border-bottom:3px double #000;">銷 貨 單 據 一 覽 表</div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:3px;">
         <tr>
           <td style="width:55%;font-size:12px;">客戶名稱：${cust?cust.name:''}</td>
@@ -1845,7 +1843,7 @@ function printShipment(id){
           <td style="font-size:12px;">${custNote?custNote+'　':''}${factCode?'廠編：'+factCode:''}</td>
         </tr>
       </table>
-      <table style="width:100%;border-collapse:collapse;" id="ship-main-table">
+      <table style="width:100%;border-collapse:collapse;">
         <colgroup>
           <col style="width:5%">
           <col style="width:67%">
@@ -1863,21 +1861,12 @@ function printShipment(id){
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
-      </table>
-      <table style="width:100%;border-collapse:collapse;margin-top:-1px;">
-        <colgroup>
-          <col style="width:5%">
-          <col style="width:67%">
-          <col style="width:8%">
-          <col style="width:10%">
-          <col style="width:10%">
-        </colgroup>
-        <tr>
-          <td style="border:1px solid #000;padding:3px;" colspan="3" style="text-align:right;font-size:12px;font-weight:bold;">總計：</td>
-          <td style="border:1px solid #000;padding:3px;text-align:right;font-size:12px;font-weight:bold;" colspan="2">${Math.round(total*10)/10}</td>
+        <tr style="background:#d0d0d0;">
+          <td style="border:1px solid #000;padding:3px;text-align:right;font-size:12px;font-weight:bold;" colspan="4">總計：</td>
+          <td style="border:1px solid #000;padding:3px;text-align:right;font-size:12px;font-weight:bold;">${Math.round(total*10)/10}</td>
         </tr>
       </table>
-      <div style="margin-top:12px;font-size:18px;font-weight:bold;width:72%;text-align:left;">客戶簽收：____________________</div>
+      <div style="margin-top:12px;font-size:18px;font-weight:bold;padding-left:72%;">客戶簽收：____________________</div>
     </div>`;
   window.print();
 }
