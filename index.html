@@ -785,24 +785,30 @@ function renderDashboard(){
   const incSec=G('incomplete-section');
   if(incSec){
     if(incomplete.length){
-      incSec.innerHTML=`<div class="card" style="margin-bottom:12px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">⚠️ 尚未完成（${incomplete.length}）</div>
-        <div class="table-wrap"><table>
-          <thead><tr><th>客戶</th><th>日期</th><th>缺漏商品</th><th></th></tr></thead>
-          <tbody>${incomplete.map(o=>{
-            const cust=db.customers.find(x=>x.id===o.customerId);
-            const savedState=(db.pickingState||{})[o.id]||{};
-            const items=[...(o.items||[])];
-            const missing=items.filter((_,idx)=>!savedState[idx]);
-            const missingText=missing.length?missing.map(i=>i.name+(i.variant?' ('+i.variant+')':'')).join('、'):'無';
-            return `<tr>
-              <td><strong>${cust?cust.name:'—'}</strong></td>
-              <td>${o.date}</td>
-              <td style="font-size:12px;color:var(--red);">${missingText}</td>
-              <td><button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button></td>
-            </tr>`;
-          }).join('')}</tbody></table></div>
-      </div>`;
+      // Build missing items list across all packed orders
+      const missingRows=[];
+      incomplete.forEach(o=>{
+        const cust=db.customers.find(x=>x.id===o.customerId);
+        const savedState=(db.pickingState||{})[o.id]||{};
+        const missing=(o.items||[]).filter((_,idx)=>!savedState[idx]);
+        missing.forEach(item=>{
+          missingRows.push({custName:cust?cust.name:'—',date:o.date,orderId:o.id,item});
+        });
+      });
+      if(missingRows.length){
+        incSec.innerHTML=`<div class="card" style="margin-bottom:12px;">
+          <div style="font-size:14px;font-weight:700;margin-bottom:10px;">⚠️ 尚未完成 缺少商品（${missingRows.length}項）</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>客戶</th><th>日期</th><th>商品</th><th>數量</th></tr></thead>
+            <tbody>${missingRows.map(r=>`<tr>
+              <td><strong>${r.custName}</strong></td>
+              <td>${r.date}</td>
+              <td>${r.item.name}${r.item.variant?' ('+r.item.variant+')':''}</td>
+              <td>${r.item.qty}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </div>`;
+      } else incSec.innerHTML='';
     } else incSec.innerHTML='';
   }
   // 尚未撿貨清單（已確認但未出貨的抄貨單）
