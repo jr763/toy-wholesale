@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>玩具批發管理系統</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#f5f2ed;--surface:#fff;--surface2:#faf8f5;--border:#e0dbd2;
+  --accent:#c8401a;--accent2:#e8956d;--text:#1a1714;--text2:#6b6560;--text3:#9e9890;
+  --green:#2a7a4f;--green-bg:#edf7f2;--blue:#1a5c8a;--blue-bg:#eaf3fb;
+  --orange:#e07020;--orange-bg:#fff4ee;--red:#c0392b;--red-bg:#fdecea;
+  --shadow:0 2px 12px rgba(0,0,0,.07);--radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.sync-bar{background:var(--text);color:#aaa;font-size:12px;padding:5px 12px;display:flex;align-items:center;justify-content:center;gap:8px}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#aaa;display:inline-block;transition:background .3s}
+.sync-dot.ok{background:#4caf50}.sync-dot.loading{background:#ff9800;animation:pulse 1s infinite}.sync-dot.error{background:#f44336}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.loading-overlay{position:fixed;inset:0;background:rgba(245,242,237,.95);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-overlay p{color:var(--text2);font-size:14px}
+.nav{background:var(--text);padding:0 12px;display:flex;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.nav-logo{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--accent2);padding:12px 12px 12px 0;border-right:1px solid #333;margin-right:4px;white-space:nowrap}
+.nav-tabs{display:flex;overflow-x:auto;flex:1;justify-content:center}
+.nav-tab{padding:13px 10px;font-size:12px;font-weight:500;color:#aaa;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;transition:all .2s}
+.nav-tab:hover{color:#fff}.nav-tab.active{color:var(--accent2);border-bottom-color:var(--accent2)}
+.page{display:none;padding:18px 14px;max-width:980px;margin:0 auto}.page.active{display:block}
+.card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.form-grid.cols3{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}.form-group.full{grid-column:1/-1}
+label{font-size:12px;font-weight:500;color:var(--text2)}.req{color:var(--accent)}
+input,select,textarea{border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:14px;font-family:inherit;background:var(--surface2);color:var(--text);transition:border-color .2s;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);background:#fff}
+textarea{resize:vertical;min-height:60px}
+.btn{padding:8px 15px;border-radius:7px;border:none;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#a83415}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{background:var(--border)}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{background:#1e5e3a}
+.btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{background:#144a70}
+.btn-danger{background:var(--red-bg);color:var(--red);border:1px solid #f5c6c2}.btn-danger:hover{background:#f5c6c2}
+.btn-sm{padding:4px 10px;font-size:12px}.btn-xs{padding:2px 7px;font-size:11px}
+.btn-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}.btn:disabled{opacity:.5;cursor:not-allowed}
+.scan-btn{background:var(--blue);color:#fff;border:none;border-radius:7px;padding:8px 12px;font-size:14px;cursor:pointer;flex-shrink:0}
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--surface2);padding:8px 11px;text-align:left;font-weight:600;font-size:12px;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 11px;border-bottom:1px solid #f0ece6;vertical-align:middle}
+tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
+.mono{font-family:'Space Mono',monospace;font-size:12px;color:var(--text2)}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:var(--green-bg);color:var(--green)}.badge-blue{background:var(--blue-bg);color:var(--blue)}
+.badge-orange{background:var(--orange-bg);color:var(--orange)}.badge-red{background:var(--red-bg);color:var(--red)}
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.page-header h2{font-size:18px;font-weight:700}.page-header p{font-size:12px;color:var(--text2);margin-top:2px}
+.search-bar{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap}.search-bar input{flex:1;min-width:150px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:12px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:14px;width:100%;max-width:560px;max-height:93vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-header{padding:16px 20px 0;display:flex;justify-content:space-between;align-items:center}
+.modal-header h3{font-size:15px;font-weight:700}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2);line-height:1}
+.modal-body{padding:16px 20px 20px}
+.variant-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.vtag{padding:5px 12px;border-radius:20px;border:1.5px solid var(--border);font-size:12px;font-weight:500;cursor:pointer;background:var(--surface2);color:var(--text2);transition:all .15s;display:inline-flex;align-items:center;gap:4px}
+.vtag.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.vtag.dash{border-style:dashed;color:var(--text3);background:transparent}
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px;text-align:center}
+.stat-num{font-family:'Space Mono',monospace;font-size:21px;font-weight:700;color:var(--accent)}
+.stat-label{font-size:11px;color:var(--text2);margin-top:3px}
+.tab-inner{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.tab-inner-btn{padding:5px 13px;border-radius:20px;border:1px solid var(--border);font-size:12px;font-weight:500;cursor:pointer;background:var(--surface2);color:var(--text2)}
+.tab-inner-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.empty-state{text-align:center;padding:34px 20px;color:var(--text3);font-size:14px}
+.empty-icon{font-size:32px;margin-bottom:8px}
+.stock-ok{color:var(--green)}.stock-warn{color:var(--orange)}.stock-bad{color:var(--red);font-weight:700}
+.restock-card{background:var(--surface);border-radius:var(--radius);border:2px solid var(--red-bg);padding:13px 15px;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.restock-card.warn{border-color:#ffe4c4}
+.radio-row{display:flex;gap:16px;margin-top:6px}
+.radio-row label{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;color:var(--text)}
+#scanner-video{width:100%;border-radius:8px;background:#000;max-height:280px;object-fit:cover}
+.print-area{display:none}
+@media print{
+  body>*:not(.print-area){display:none!important}.print-area{display:block!important}
+  .barcode-label{display:inline-block;border:1px solid #ccc;padding:8px 12px;margin:5px;text-align:center;vertical-align:top}
+  .barcode-label svg{display:block;margin:0 auto}
+  .label-name{font-size:10px;margin-bottom:4px}.label-price{font-size:12px;font-weight:bold;margin-top:3px}
+  .doc-header{font-size:18px;font-weight:bold;margin-bottom:10px}
+  .doc-meta{font-size:12px;margin-bottom:10px;color:#333}
+  .doc-table{width:100%;border-collapse:collapse;font-size:12px}
+  .doc-table th,.doc-table td{border:1px solid #888;padding:5px 8px}
+  .doc-table th{background:#f0f0f0;font-weight:600}
+  .doc-total{text-align:right;font-weight:bold;margin-top:8px}
+}
+@media(max-width:600px){
+  .form-grid{grid-template-columns:1fr}.form-grid.cols3{grid-template-columns:1fr 1fr}
+  .stat-row{grid-template-columns:repeat(2,1fr)}
+  .nav-tab{padding:11px 8px;font-size:11px}.page{padding:12px 10px}
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <p id="loading-text">載入雲端資料中…</p>
+</div>
+
+<div class="sync-bar">
+  <span class="sync-dot" id="sync-dot"></span>
+  <span id="sync-text">連線中…</span>
+</div>
+
+<nav class="nav">
+  <div class="nav-logo">🧸批發</div>
+  <div class="nav-tabs">
+    <div class="nav-tab active" onclick="switchTab('dashboard',this)">總覽</div>
+    <div class="nav-tab" onclick="switchTab('products',this)">商品</div>
+    <div class="nav-tab" onclick="switchTab('customers',this)">客戶</div>
+    <div class="nav-tab" onclick="switchTab('orders',this)">抄貨單</div>
+    <div class="nav-tab" onclick="switchTab('shipments',this)">出貨單</div>
+    <div class="nav-tab" onclick="switchTab('returns',this)">退貨</div>
+    <div class="nav-tab" onclick="switchTab('restock',this)" id="nav-restock">補貨</div>
+  </div>
+</nav>
+
+<!-- DASHBOARD -->
+<div id="tab-dashboard" class="page active">
+  <div class="page-header">
+    <div><h2>總覽</h2><p>玩具批發管理系統</p></div>
+    <button class="btn btn-secondary btn-sm" onclick="loadData(true)" id="btn-refresh">🔄 重新整理</button>
+  </div>
+  <div class="stat-row" id="stats"></div>
+  <div id="dash-alert"></div>
+  <div class="card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📋 最近抄貨單</div>
+    <div id="recent-orders"></div>
+  </div>
+</div>
+
+<!-- PRODUCTS -->
+<div id="tab-products" class="page">
+  <div class="page-header">
+    <div><h2>商品資料庫</h2></div>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-secondary btn-sm" onclick="openModal('modal-variants')">⚙ 管理種類</button>
+      <button class="btn btn-primary" onclick="openProductModal()">＋ 新增商品</button>
+    </div>
+  </div>
+  <div class="search-bar"><input id="product-search" placeholder="搜尋商品名稱或條碼…" oninput="renderProducts()"></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>商品名稱</th><th>EAN條碼</th><th>成本</th><th>庫存</th><th>安全量</th><th>商檢標</th><th>種類</th><th>分類</th><th>存放地點</th><th></th></tr></thead>
+    <tbody id="product-table"></tbody>
+  </table></div>
+</div>
+
+<!-- CUSTOMERS -->
+<div id="tab-customers" class="page">
+  <div class="page-header">
+    <div><h2>客戶資料庫</h2></div>
+    <button class="btn btn-primary" onclick="openCustomerModal()">＋ 新增客戶</button>
+  </div>
+  <div class="search-bar"><input id="customer-search" placeholder="搜尋客戶名稱…" oninput="renderCustomers()"></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>客戶名稱</th><th>電話</th><th>地址</th><th>折扣</th><th>客戶條碼</th><th>自訂售價</th><th></th></tr></thead>
+    <tbody id="customer-table"></tbody>
+  </table></div>
+</div>
+
+<!-- ORDERS 抄貨單 -->
+<div id="tab-orders" class="page">
+  <div class="page-header">
+    <div><h2>抄貨單</h2></div>
+    <button class="btn btn-primary" onclick="openOrderModal()">＋ 新增抄貨單</button>
+  </div>
+  <div class="tab-inner">
+    <button class="tab-inner-btn active" onclick="filterOrders('all',this)">全部</button>
+    <button class="tab-inner-btn" onclick="filterOrders('draft',this)">草稿</button>
+    <button class="tab-inner-btn" onclick="filterOrders('confirmed',this)">已確認</button>
+    <button class="tab-inner-btn" onclick="filterOrders('shipped',this)">已出貨</button>
+  </div>
+  <div id="orders-list"></div>
+</div>
+
+<!-- SHIPMENTS 出貨單 -->
+<div id="tab-shipments" class="page">
+  <div class="page-header"><div><h2>出貨單</h2></div></div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    <select id="ship-filter-cust" onchange="renderShipments()" style="flex:1;min-width:130px;"><option value="">全部客戶</option></select>
+    <select id="ship-filter-month" onchange="renderShipments()" style="flex:1;min-width:110px;"><option value="">全部月份</option></select>
+  </div>
+  <div id="shipments-list"></div>
+</div>
+
+<!-- RETURNS 退貨 -->
+<div id="tab-returns" class="page">
+  <div class="page-header">
+    <div><h2>退貨管理</h2></div>
+    <button class="btn btn-primary" onclick="openReturnModal()">＋ 新增退貨</button>
+  </div>
+  <div style="margin-bottom:12px;"><input id="return-search" placeholder="依商品名稱篩選…" oninput="renderReturns()" style="max-width:300px;"></div>
+  <div id="returns-list"></div>
+  <div id="returns-charts-wrap" style="display:none;margin-top:16px;">
+    <div style="display:grid;grid-template-columns:1fr;gap:12px;max-width:420px;">
+      <div class="card" style="padding:12px;"><div style="font-weight:700;font-size:13px;margin-bottom:8px;">退貨原因分布</div><canvas id="chart-reasons" height="200"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- RESTOCK 補貨 -->
+<div id="tab-restock" class="page">
+  <div class="page-header"><div><h2>補貨通知</h2><p>庫存低於安全庫存量的商品</p></div><button class="btn btn-green" onclick="sendRestockNotify()">📢 發送補貨通知到LINE</button></div>
+  <div id="restock-list"></div>
+</div>
+
+<!-- ======= MODALS ======= -->
+
+<!-- Product -->
+<div class="modal-overlay" id="modal-product">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header"><h3 id="p-modal-title">新增商品</h3><button class="modal-close" onclick="closeModal('modal-product')">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full"><label>商品名稱 <span class="req">*</span></label><input id="p-name" placeholder="例：水槍 36cm"></div>
+        <div class="form-group">
+          <label>EAN條碼 <span class="req">*</span></label>
+          <div style="display:flex;gap:6px;"><input id="p-barcode" placeholder="4901234567890" class="mono"><button class="scan-btn" onclick="startScan('p-barcode',null)">📷</button></div>
+        </div>
+        <div class="form-group"><label>成本（元）<span class="req">*</span></label><input id="p-cost" type="number" placeholder="0" min="0"></div>
+        <div class="form-group"><label>現有庫存 <span class="req">*</span></label><input id="p-stock" type="number" placeholder="0" min="0"></div>
+        <div class="form-group"><label>安全庫存量 <span class="req">*</span></label><input id="p-safety" type="number" placeholder="0" min="0"></div>
+        <div class="form-group"><label>商品分類</label>
+          <select id="p-cat"><option>積木/拼裝</option><option>遙控/電動</option><option>娃娃/布偶</option><option>益智/桌遊</option><option>戶外玩具</option><option>模型/公仔</option><option>其他</option></select>
+        </div>
+        <div class="form-group"><label>存放地點 <span class="req">*</span></label>
+          <select id="p-loc"><option value="地下室">地下室</option><option value="一樓">一樓</option><option value="樓梯間">樓梯間</option><option value="二樓">二樓</option><option value="其他">其他</option></select>
+        </div>
+      </div>
+      <!-- 商檢標 -->
+      <div style="margin-top:13px;">
+        <label>商檢標 <span class="req">*</span></label>
+        <div class="radio-row">
+          <label><input type="radio" name="p-insp" value="1" checked onchange="toggleInsp()"> 有</label>
+          <label><input type="radio" name="p-insp" value="0" onchange="toggleInsp()"> 無</label>
+        </div>
+        <div id="p-batch-wrap" style="display:none;margin-top:7px;"><input id="p-batch" placeholder="商檢批號 *"></div>
+      </div>
+      <!-- 種類 -->
+      <div style="margin-top:13px;">
+        <label>種類（可複選）</label>
+        <div class="variant-tags" id="p-vtags"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-save-p" onclick="saveProduct()">儲存商品</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-product')">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Customer -->
+<div class="modal-overlay" id="modal-customer">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-header"><h3 id="c-modal-title">新增客戶</h3><button class="modal-close" onclick="closeModal('modal-customer')">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full"><label>客戶名稱 <span class="req">*</span></label><input id="c-name" placeholder="例：小熊玩具行"></div>
+        <div class="form-group"><label>聯絡人</label><input id="c-contact" placeholder="姓名"></div>
+        <div class="form-group"><label>電話 <span class="req">*</span></label><input id="c-phone" placeholder="0912-345-678"></div>
+        <div class="form-group full"><label>地址 <span class="req">*</span></label><input id="c-address" placeholder="縣市地址"></div>
+        <div class="form-group"><label>折扣（%）<span class="req">*</span></label><input id="c-discount" type="number" placeholder="0" min="0" max="100" value="0"></div>
+        <div class="form-group"><label>客戶條碼 <span class="req">*</span></label>
+          <select id="c-barcode"><option value="7990341">7990341</option><option value="2003751">2003751</option></select>
+        </div>
+        <div class="form-group full"><label>備註</label><textarea id="c-note" placeholder="付款條件、交貨注意事項…"></textarea></div>
+      </div>
+      <!-- 個別售價 -->
+      <div style="margin-top:14px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:7px;">🏷️ 個別售價設定（選填）</div>
+        <input id="c-price-search" placeholder="搜尋商品名稱…" oninput="renderCPriceSearch()" style="margin-bottom:8px;">
+        <div id="c-price-results" style="max-height:160px;overflow-y:auto;"></div>
+        <div id="c-price-list" style="margin-top:8px;"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-save-c" onclick="saveCustomer()">儲存客戶</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-customer')">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Order 抄貨單 -->
+<div class="modal-overlay" id="modal-order">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header"><h3 id="o-modal-title">新增抄貨單</h3><button class="modal-close" onclick="closeModal('modal-order')">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group" style="position:relative;">
+          <label>客戶 <span class="req">*</span></label>
+          <input id="o-cust-input" placeholder="輸入客戶名稱搜尋…" oninput="onCustSearch()" autocomplete="off" style="width:100%;">
+          <input type="hidden" id="o-cust">
+          <div id="o-cust-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:7px;z-index:50;max-height:160px;overflow-y:auto;box-shadow:var(--shadow);"></div>
+        </div>
+        <div class="form-group"><label>日期</label><input id="o-date" type="date"></div>
+        <div class="form-group full"><label>備註</label><input id="o-note" placeholder="備注…"></div>
+      </div>
+      <!-- 搜尋/掃描輸入區 -->
+      <div style="margin-top:13px;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">📦 加入商品</div>
+        <div style="display:flex;gap:5px;margin-bottom:7px;">
+          <input id="o-search" placeholder="輸入商品名稱搜尋 或 直接掃/輸入條碼後按Enter" oninput="onOrderSearch()" onkeydown="if(event.key==='Enter'){onOrderBarcode();event.preventDefault()}" style="flex:1;">
+          <button class="scan-btn" onclick="startScan('o-search', onOrderBarcode)">📷</button>
+        </div>
+        <div id="o-search-results" style="max-height:140px;overflow-y:auto;margin-bottom:8px;"></div>
+        <div id="o-add-row" style="display:none;background:#fff;border:1px solid var(--border);border-radius:7px;padding:10px;margin-bottom:6px;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:7px;" id="o-selected-name"></div>
+          <div id="o-packing-row" style="margin-bottom:8px;padding:7px 10px;background:var(--orange-bg);border-radius:6px;border:1px solid #ffd5aa;">
+            <div style="font-size:12px;font-weight:600;margin-bottom:5px;color:var(--orange);">📦 特殊出貨方式</div>
+            <div style="display:flex;gap:20px;">
+              <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;white-space:nowrap;">
+                <input type="checkbox" id="o-pack-box"> 盒裝
+              </label>
+              <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;white-space:nowrap;">
+                <input type="checkbox" id="o-pack-card"> 吊卡
+              </label>
+            </div>
+          </div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;">
+            <div class="form-group" style="flex:0 0 80px;"><label>數量</label><input id="o-qty" type="number" value="1" min="1"></div>
+            <div class="form-group" style="flex:0 0 90px;"><label>售價</label><input id="o-price" type="number" placeholder="0" min="0"></div>
+            <div class="form-group" style="flex:1;min-width:90px;"><label>種類</label><select id="o-variant"><option value="">無</option></select></div>
+            <button class="btn btn-green" onclick="addOrderItem()" style="align-self:flex-end;">＋ 加入</button>
+          </div>
+        </div>
+      </div>
+      <div id="o-items" style="margin-top:11px;"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-o-draft" onclick="saveOrder('draft')">儲存草稿</button>
+        <button class="btn btn-green" id="btn-o-confirm" onclick="saveOrder('confirmed')">確認抄貨單</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-order')">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scanner -->
+<div class="modal-overlay" id="modal-scanner">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header"><h3>掃描條碼</h3><button class="modal-close" onclick="stopScan()">×</button></div>
+    <div class="modal-body">
+      <video id="scanner-video" autoplay playsinline muted></video>
+      <p id="scan-status" style="text-align:center;margin-top:10px;color:var(--text2);font-size:13px;">對準條碼…</p>
+      <div class="btn-row" style="justify-content:center;"><button class="btn btn-secondary" onclick="stopScan()">取消</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Barcode Summary -->
+<div class="modal-overlay" id="modal-barcode">
+  <div class="modal" style="max-width:580px;">
+    <div class="modal-header"><h3>條碼列印清單</h3><button class="modal-close" onclick="closeModal('modal-barcode')">×</button></div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">以下為此次需要列印的條碼數量，請依據清單操作條碼印製程式。</p>
+      <div id="bc-summary"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="closeModal('modal-barcode')">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Variants Management -->
+<div class="modal-overlay" id="modal-variants">
+  <div class="modal">
+    <div class="modal-header"><h3>管理種類選項</h3><button class="modal-close" onclick="closeModal('modal-variants')">×</button></div>
+    <div class="modal-body">
+      <div style="display:flex;gap:7px;margin-bottom:12px;">
+        <input id="new-variant" placeholder="新增種類，例：紫色" onkeydown="if(event.key==='Enter')addVariant()" style="flex:1;">
+        <button class="btn btn-primary" onclick="addVariant()">新增</button>
+      </div>
+      <div id="variant-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Order Detail -->
+<div class="modal-overlay" id="modal-order-detail">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header"><h3 id="od-title">撿貨單</h3><button class="modal-close" onclick="closeModal('modal-order-detail')">×</button></div>
+    <div class="modal-body" id="od-body"></div>
+  </div>
+</div>
+
+<!-- Shipment Edit -->
+<div class="modal-overlay" id="modal-shipment">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header"><h3>建立出貨單</h3><button class="modal-close" onclick="closeModal('modal-shipment')">×</button></div>
+    <div class="modal-body" id="ship-body"></div>
+  </div>
+</div>
+
+<!-- Return -->
+<div class="modal-overlay" id="modal-return">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header"><h3>新增退貨</h3><button class="modal-close" onclick="closeModal('modal-return')">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label>客戶 <span class="req">*</span></label><select id="r-cust"><option value="">-- 選擇客戶 --</option></select></div>
+        <div class="form-group"><label>日期</label><input id="r-date" type="date"></div>
+        <div class="form-group full">
+          <label>退貨原因 <span class="req">*</span></label>
+          <select id="r-reason" onchange="onReasonChange()">
+            <option value="">-- 選擇原因 --</option>
+            <option value="故障">故障</option>
+            <option value="外包裝破損">外包裝破損</option>
+            <option value="商品缺件">商品缺件</option>
+            <option value="尺寸/顏色不符">尺寸/顏色不符</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>詳細說明（選填）</label>
+          <textarea id="r-detail" placeholder="請描述退貨的詳細情況…" style="min-height:70px;"></textarea>
+        </div>
+        <div class="form-group full">
+          <label>處置方式 <span class="req">*</span></label>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:6px;">
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;color:var(--text);white-space:nowrap;"><input type="radio" name="r-disp" value="退庫" checked> 退庫</label>
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;color:var(--text);white-space:nowrap;"><input type="radio" name="r-disp" value="報廢"> 報廢</label>
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;color:var(--text);white-space:nowrap;"><input type="radio" name="r-disp" value="待修理"> 待修理</label>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:13px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">退貨商品</div>
+        <div style="margin-bottom:9px;">
+          <div style="display:flex;gap:5px;margin-bottom:6px;">
+            <input id="r-search" placeholder="輸入商品名稱 或 掃描條碼" oninput="onReturnSearch()" onkeydown="if(event.key==='Enter'){onReturnBarcode();event.preventDefault()}" style="flex:1;">
+            <button class="scan-btn" onclick="startScan('r-search', onReturnBarcode)">📷</button>
+          </div>
+          <div id="r-search-results" style="max-height:130px;overflow-y:auto;margin-bottom:6px;"></div>
+          <div style="display:flex;gap:7px;align-items:flex-end;">
+            <div class="form-group" style="flex:1;"><label>已選商品</label><input id="r-selected-name" readonly placeholder="尚未選擇" style="background:#f5f5f5;"></div>
+            <div class="form-group" style="flex:0 0 80px;"><label>數量</label><input id="r-qty" type="number" value="1" min="1"></div>
+            <button class="btn btn-green" onclick="addReturnItem()" style="align-self:flex-end;">＋</button>
+          </div>
+        </div>
+        <div id="r-items"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-save-r" onclick="saveReturn()">儲存退貨</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-return')">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="print-area" id="print-area"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────
+firebase.initializeApp({
+  apiKey: "AIzaSyC2uTpifBeWqKxBYrS6XUA-FxLerZCl-mM",
+  authDomain: "toy-wholesale.firebaseapp.com",
+  projectId: "toy-wholesale",
+  storageBucket: "toy-wholesale.firebasestorage.app",
+  messagingSenderId: "1058358181383",
+  appId: "1:1058358181383:web:47efb231eb3b4a975474a2"
+});
+const fsdb = firebase.firestore();
+const DOC_REF = fsdb.collection('data').doc('main');
+
+// ── LINE NOTIFY ──────────────────────────────
+const LINE_WEBHOOK = 'https://hook.us2.make.com/uwydctx8x63mim8j6cedh2s24ju6ugix';
+async function sendLineNotify(message){
+  try{
+    const clean=String(message).replace(/[\r\n\t]+/g,' | ').replace(/[\x00-\x1F\x7F]/g,'');
+    const params=new URLSearchParams({message:clean});
+    const resp=await fetch(LINE_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
+    console.log('LINE通知：',resp.status);
+  }catch(e){console.log('LINE通知失敗：',e);}
+}
+
+// ── STATE ─────────────────────────────────────
+let db = { products:[], customers:[], orders:[], shipments:[], returns:[],
+  variantOptions:[] };
+let orderItems=[], returnItemsArr=[], shipmentItems=[];
+let orderFilter='all';
+let editProdId=null, editCustId=null, editOrderId=null;
+let custPrices={}; // {productId: price} for customer modal
+let editingVariants=[];
+let isSaving=false, scanStream=null, scanCb=null, scanTargetId=null;
+
+// ── UTILS ─────────────────────────────────────
+const fmt   = n => Number(n||0).toLocaleString();
+const today = () => new Date().toISOString().slice(0,10);
+const uid   = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const G     = id => document.getElementById(id);
+const V     = id => (G(id)?.value||'').trim();
+
+function setSyncStatus(s,t){ G('sync-dot').className='sync-dot '+s; G('sync-text').textContent=t; }
+function openModal(id){ G(id).classList.add('open'); }
+function closeModal(id){ G(id).classList.remove('open'); }
+
+function switchTab(t,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(n=>n.classList.remove('active'));
+  G('tab-'+t).classList.add('active');
+  if(btn) btn.classList.add('active');
+  ({dashboard:renderDashboard,products:renderProducts,customers:renderCustomers,orders:renderOrders,shipments:renderShipments,returns:renderReturns,restock:renderRestock})[t]?.();
+}
+
+['modal-product','modal-customer','modal-order','modal-order-detail','modal-shipment','modal-barcode','modal-variants','modal-return']
+  .forEach(id=>G(id)?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal(id);}));
+
+// ── FIRESTORE ────────────────────────────────
+function renderAll(){
+  renderDashboard();renderProducts();renderCustomers();renderOrders();renderShipments();renderReturns();renderRestock();
+  updateRestockBadge();
+}
+async function loadData(btn=false){
+  if(btn){ const b=G('btn-refresh');if(b){b.disabled=true;b.textContent='載入中…';} }
+  setSyncStatus('loading','載入中…');
+  try{
+    const snap=await DOC_REF.get();
+    if(snap.exists){
+      const data=snap.data();
+      db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],...data};
+    }
+    setSyncStatus('ok','雲端同步・所有人共用');
+    G('loading-overlay').style.display='none';
+    renderAll();
+  }catch(e){ setSyncStatus('error','連線失敗：'+e.message); G('loading-text').textContent='連線失敗：'+e.message; G('loading-overlay').style.background='rgba(245,242,237,.95)'; console.error('Firebase error:',e); }
+  if(btn){ const b=G('btn-refresh');if(b){b.disabled=false;b.textContent='🔄 重新整理';} }
+}
+async function saveData(){
+  isSaving=true; setSyncStatus('loading','儲存中…');
+  try{
+    await DOC_REF.set(db);
+    setSyncStatus('ok','已儲存・雲端同步'); updateRestockBadge();
+  }catch(e){setSyncStatus('error','儲存失敗：'+e.message);}
+  isSaving=false;
+}
+// 即時監聽（其他人存檔會自動更新）
+DOC_REF.onSnapshot(snap=>{
+  G('loading-overlay').style.display='none';
+  setSyncStatus('ok','雲端同步・所有人共用');
+  if(isSaving)return;
+  if(snap.exists){
+    const data=snap.data();
+    db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],...data};
+  }
+  renderAll();
+}, err=>{
+  console.error('onSnapshot error:',err);
+  G('loading-text').textContent='連線失敗：'+err.message;
+});
+
+// ── CAMERA SCANNER ────────────────────────────
+async function startScan(targetId, callback){
+  scanTargetId=targetId; scanCb=callback;
+  if(!('BarcodeDetector' in window)){
+    const c=prompt('請手動輸入條碼：');
+    if(c){G(targetId).value=c; if(callback)callback();}
+    return;
+  }
+  try{
+    scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    G('scanner-video').srcObject=scanStream;
+    openModal('modal-scanner');
+    G('scan-status').textContent='對準條碼…';
+    doScanLoop();
+  }catch(e){alert('無法開啟相機：'+e.message);}
+}
+async function doScanLoop(){
+  if(!scanStream||!G('modal-scanner').classList.contains('open'))return;
+  try{
+    const det=new BarcodeDetector({formats:['ean_13','ean_8','code_128','code_39','upc_a','upc_e']});
+    const vid=G('scanner-video');
+    if(vid.readyState===vid.HAVE_ENOUGH_DATA){
+      const bc=await det.detect(vid);
+      if(bc.length>0){
+        const code=bc[0].rawValue;
+        stopScan();
+        G(scanTargetId).value=code;
+        if(scanCb)scanCb();
+        return;
+      }
+    }
+  }catch(e){}
+  requestAnimationFrame(doScanLoop);
+}
+function stopScan(){
+  if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}
+  closeModal('modal-scanner');
+}
+
+// ── DASHBOARD ─────────────────────────────────
+function renderDashboard(){
+  const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock).length;
+  G('stats').innerHTML=`
+    <div class="stat-card"><div class="stat-num">${db.products.length}</div><div class="stat-label">商品種類</div></div>
+    <div class="stat-card"><div class="stat-num">${db.customers.length}</div><div class="stat-label">客戶數</div></div>
+    <div class="stat-card"><div class="stat-num">${db.orders.length}</div><div class="stat-label">抄貨單</div></div>
+    <div class="stat-card"><div class="stat-num" style="${low?'color:var(--red)':''}">${low}</div><div class="stat-label">需補貨</div></div>`;
+  G('dash-alert').innerHTML=low?`<div style="background:var(--red-bg);border:1.5px solid #f5c6c2;border-radius:8px;padding:11px 15px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <span>⚠️ 有 <strong>${low}</strong> 項商品庫存不足</span>
+    <button class="btn btn-sm btn-danger" onclick="switchTab('restock',G('nav-restock'))">查看補貨清單</button>
+  </div>`:'';
+  const recent=[...db.orders].reverse().slice(0,5);
+  if(!recent.length){G('recent-orders').innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>尚無抄貨單</div>';return;}
+  const sm={draft:'草稿',confirmed:'已確認',shipped:'已出貨'};
+  const bm={draft:'badge-orange',confirmed:'badge-green',shipped:'badge-blue'};
+  G('recent-orders').innerHTML=`<div class="table-wrap"><table>
+    <thead><tr><th>客戶</th><th>日期</th><th>狀態</th><th>金額</th></tr></thead>
+    <tbody>${recent.map(o=>{
+      const c=db.customers.find(x=>x.id===o.customerId);
+      const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
+      return `<tr><td><strong>${c?c.name:'—'}</strong></td><td>${o.date}</td>
+        <td><span class="badge ${bm[o.status]}">${sm[o.status]}</span></td><td>$${fmt(total)}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+function updateRestockBadge(){
+  const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock).length;
+  G('nav-restock').textContent=low?`補貨 🔴${low}`:'補貨';
+}
+
+// ── VARIANTS ──────────────────────────────────
+function renderVariantList(){
+  G('variant-list').innerHTML=`<div class="variant-tags">${(db.variantOptions||[]).map(v=>`
+    <span class="vtag on" style="gap:6px;">${v}
+      <span onclick="delVariant('${v}')" style="cursor:pointer;font-size:14px;opacity:.7;">×</span>
+    </span>`).join('')}</div>`;
+}
+async function addVariant(){
+  const v=V('new-variant');
+  if(!v)return;
+  if(db.variantOptions.includes(v)){alert('已有此種類');return;}
+  db.variantOptions.push(v);
+  G('new-variant').value='';
+  await saveData(); renderVariantList(); renderPVTags();
+}
+async function delVariant(v){
+  if(!confirm(`確定刪除「${v}」？`))return;
+  db.variantOptions=db.variantOptions.filter(x=>x!==v);
+  db.products.forEach(p=>{if(p.variants)p.variants=p.variants.filter(x=>x!==v);});
+  await saveData(); renderVariantList(); renderPVTags();
+}
+
+// ── PRODUCTS ──────────────────────────────────
+function openProductModal(){
+  editProdId=null; editingVariants=[];
+  G('p-modal-title').textContent='新增商品';
+  ['p-name','p-barcode','p-cost','p-stock','p-safety','p-batch'].forEach(id=>{if(G(id))G(id).value='';});
+  G('p-cat').value='積木/拼裝';
+  if(G('p-loc')) G('p-loc').value='一樓';
+  document.querySelectorAll('input[name="p-insp"]')[0].checked=true;
+  G('p-batch-wrap').style.display='none';
+  renderPVTags(); openModal('modal-product');
+}
+function editProduct(id){
+  const p=db.products.find(x=>x.id===id);if(!p)return;
+  editProdId=id; editingVariants=[...(p.variants||[])];
+  G('p-modal-title').textContent='編輯商品';
+  G('p-name').value=p.name; G('p-barcode').value=p.barcode||''; G('p-cost').value=p.cost||'';
+  G('p-stock').value=p.currentStock??''; G('p-safety').value=p.safetyStock||''; G('p-cat').value=p.category||'其他';
+  if(G('p-loc')) G('p-loc').value=p.location||'一樓';
+
+  const hasM=p.hasInspectionMark!==false;
+  document.querySelectorAll('input[name="p-insp"]')[hasM?0:1].checked=true;
+  G('p-batch-wrap').style.display=hasM?'none':'block';
+  G('p-batch').value=p.inspectionBatchNo||'';
+  renderPVTags(); openModal('modal-product');
+}
+function toggleInsp(){
+  const hasM=document.querySelector('input[name="p-insp"]:checked').value==='1';
+  G('p-batch-wrap').style.display=hasM?'none':'block';
+}
+function renderPVTags(){
+  G('p-vtags').innerHTML=(db.variantOptions||[]).map(v=>`
+    <span class="vtag ${editingVariants.includes(v)?'on':''}" onclick="toggleVTag('${v}')">${v}</span>`).join('')+
+    `<span class="vtag dash" onclick="openModal('modal-variants')">＋ 管理種類</span>`;
+}
+function toggleVTag(v){
+  const i=editingVariants.indexOf(v);
+  if(i>=0)editingVariants.splice(i,1);else editingVariants.push(v);
+  renderPVTags();
+}
+async function saveProduct(){
+  const name=V('p-name'),barcode=V('p-barcode');
+  if(!name){alert('請輸入商品名稱');return;}
+  if(!barcode){alert('請輸入商品條碼');return;}
+  if(G('p-cost').value===''){alert('請輸入成本');return;}
+  if(G('p-stock').value===''){alert('請輸入現有庫存');return;}
+  if(G('p-safety').value===''){alert('請輸入安全庫存量');return;}
+  const hasM=document.querySelector('input[name="p-insp"]:checked').value==='1';
+  if(!hasM&&!V('p-batch')){alert('請輸入商檢批號');return;}
+  const btn=G('btn-save-p');btn.disabled=true;btn.textContent='儲存中…';
+  const data={name,barcode,cost:parseFloat(G('p-cost').value)||0,currentStock:parseFloat(G('p-stock').value)||0,
+    safetyStock:parseFloat(G('p-safety').value)||0,category:G('p-cat').value,
+    location:G('p-loc')?.value||'一樓',
+    hasInspectionMark:hasM,inspectionBatchNo:hasM?'':V('p-batch'),variants:[...editingVariants]};
+  if(editProdId){const i=db.products.findIndex(x=>x.id===editProdId);db.products[i]={...db.products[i],...data};}
+  else db.products.push({id:uid(),...data});
+  await saveData();
+  closeModal('modal-product');renderProducts();renderDashboard();
+  btn.disabled=false;btn.textContent='儲存商品';
+}
+async function deleteProduct(id){
+  if(!confirm('確定刪除此商品？'))return;
+  db.products=db.products.filter(x=>x.id!==id);
+  await saveData();renderProducts();
+}
+function renderProducts(){
+  const q=(G('product-search')?.value||'').toLowerCase();
+  const rows=db.products.filter(p=>!q||p.name.toLowerCase().includes(q)||(p.barcode||'').includes(q));
+  const tb=G('product-table');if(!tb)return;
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📦</div>尚無商品</div></td></tr>`;return;}
+  tb.innerHTML=rows.map(p=>{
+    const s=p.currentStock??0,ss=p.safetyStock||0;
+    const sc=s<=ss&&ss>0?'stock-bad':s<=ss*1.5&&ss>0?'stock-warn':'stock-ok';
+    const insp=p.hasInspectionMark!==false
+      ?'<span class="badge badge-green">有</span>'
+      :`<span class="badge badge-orange">無</span><br><span style="font-size:10px;color:var(--text3);">${p.inspectionBatchNo||''}</span>`;
+    return `<tr>
+      <td><strong>${p.name}</strong></td>
+      <td class="mono">${p.barcode||'—'}</td>
+      <td>$${fmt(p.cost)}</td>
+      <td class="${sc}">${s}</td>
+      <td>${ss}</td>
+      <td>${insp}</td>
+      <td>${(p.variants||[]).map(v=>`<span class="badge badge-blue">${v}</span>`).join(' ')||'—'}</td>
+      <td>${p.category||'—'}</td>
+      <td>${p.location||'—'}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-secondary" onclick="editProduct('${p.id}')">編輯</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')" style="margin-left:3px;">刪除</button>
+      </td></tr>`;
+  }).join('');
+}
+
+// ── CUSTOMERS ─────────────────────────────────
+function openCustomerModal(){
+  editCustId=null;custPrices={};
+  G('c-modal-title').textContent='新增客戶';
+  ['c-name','c-contact','c-phone','c-address','c-note'].forEach(id=>G(id).value='');
+  G('c-discount').value='0';G('c-barcode').value='7990341';
+  G('c-price-search').value='';G('c-price-results').innerHTML='';G('c-price-list').innerHTML='';
+  openModal('modal-customer');
+}
+function editCustomer(id){
+  const c=db.customers.find(x=>x.id===id);if(!c)return;
+  editCustId=id;custPrices={...c.customPrices||{}};
+  G('c-modal-title').textContent='編輯客戶';
+  G('c-name').value=c.name;G('c-contact').value=c.contact||'';G('c-phone').value=c.phone||'';
+  G('c-address').value=c.address||'';G('c-note').value=c.note||'';
+  G('c-discount').value=c.discount||0;G('c-barcode').value=c.labelBarcode||'7990341';
+  G('c-price-search').value='';G('c-price-results').innerHTML='';
+  renderCPriceList();openModal('modal-customer');
+}
+function renderCPriceSearch(){
+  const q=V('c-price-search').toLowerCase();
+  if(!q){G('c-price-results').innerHTML='';return;}
+  const hits=db.products.filter(p=>p.name.toLowerCase().includes(q)&&!custPrices.hasOwnProperty(p.id)).slice(0,7);
+  G('c-price-results').innerHTML=hits.map(p=>`
+    <div onclick="addCPriceEntry('${p.id}')" style="padding:7px 10px;cursor:pointer;border-radius:6px;background:var(--surface2);margin-bottom:3px;border:1px solid var(--border);font-size:13px;display:flex;justify-content:space-between;">
+      <span><strong>${p.name}</strong> <span class="mono">${p.barcode||''}</span></span>
+      <span style="color:var(--text3);">成本$${fmt(p.cost)}</span>
+    </div>`).join('');
+}
+function addCPriceEntry(pid){
+  if(custPrices.hasOwnProperty(pid))return;
+  custPrices[pid]='';
+  G('c-price-search').value='';G('c-price-results').innerHTML='';
+  renderCPriceList();
+}
+function removeCPriceEntry(pid){delete custPrices[pid];renderCPriceList();}
+function renderCPriceList(){
+  const keys=Object.keys(custPrices);
+  if(!keys.length){G('c-price-list').innerHTML='<p style="font-size:12px;color:var(--text3);">搜尋商品後點擊加入</p>';return;}
+  G('c-price-list').innerHTML=keys.map(pid=>{
+    const p=db.products.find(x=>x.id===pid);if(!p)return'';
+    return `<div style="display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid var(--border);">
+      <span style="flex:1;font-size:13px;">${p.name}</span>
+      <input type="number" id="cp-${pid}" value="${custPrices[pid]||''}" placeholder="售價" min="0" style="width:85px;" oninput="custPrices['${pid}']=parseFloat(this.value)||''">
+      <button class="btn btn-xs btn-danger" onclick="removeCPriceEntry('${pid}')">✕</button>
+    </div>`;
+  }).join('');
+}
+async function saveCustomer(){
+  if(!V('c-name')){alert('請輸入客戶名稱');return;}
+  if(!V('c-phone')){alert('請輸入電話');return;}
+  if(!V('c-address')){alert('請輸入地址');return;}
+  const btn=G('btn-save-c');btn.disabled=true;btn.textContent='儲存中…';
+  const prices={};
+  Object.keys(custPrices).forEach(pid=>{const v=parseFloat(G('cp-'+pid)?.value);if(!isNaN(v)&&v>=0)prices[pid]=v;});
+  const data={name:V('c-name'),contact:V('c-contact'),phone:V('c-phone'),address:V('c-address'),note:V('c-note'),
+    discount:parseFloat(G('c-discount').value)||0,labelBarcode:G('c-barcode').value,customPrices:prices};
+  if(editCustId){const i=db.customers.findIndex(x=>x.id===editCustId);db.customers[i]={...db.customers[i],...data};}
+  else db.customers.push({id:uid(),...data});
+  await saveData();
+  closeModal('modal-customer');renderCustomers();renderDashboard();
+  btn.disabled=false;btn.textContent='儲存客戶';
+}
+async function deleteCustomer(id){
+  if(!confirm('確定刪除此客戶？'))return;
+  db.customers=db.customers.filter(x=>x.id!==id);
+  await saveData();renderCustomers();
+}
+function renderCustomers(){
+  const q=(G('customer-search')?.value||'').toLowerCase();
+  const rows=db.customers.filter(c=>!q||c.name.toLowerCase().includes(q));
+  const tb=G('customer-table');if(!tb)return;
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">👥</div>尚無客戶</div></td></tr>`;return;}
+  tb.innerHTML=rows.map(c=>{
+    const cp=Object.keys(c.customPrices||{}).length;
+    return `<tr>
+      <td><strong>${c.name}</strong></td><td>${c.phone||'—'}</td>
+      <td style="font-size:12px;">${c.address||'—'}</td>
+      <td>${c.discount||0}%</td>
+      <td class="mono">${c.labelBarcode||'—'}</td>
+      <td>${cp?`<span class="badge badge-green">${cp} 項</span>`:'<span style="color:var(--text3);font-size:12px;">未設定</span>'}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-secondary" onclick="editCustomer('${c.id}')">編輯</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteCustomer('${c.id}')" style="margin-left:3px;">刪除</button>
+      </td></tr>`;
+  }).join('');
+}
+
+// ── ORDERS 抄貨單 ─────────────────────────────
+function openOrderModal(){
+  editOrderId=null;orderItems=[];
+  G('o-modal-title').textContent='新增抄貨單';
+  G('o-date').value=today();G('o-note').value='';
+  G('o-qty').value=1;G('o-price').value='';
+  if(G('o-cust-input'))G('o-cust-input').value='';
+  if(G('o-cust'))G('o-cust').value='';
+  if(G('o-cust-results'))G('o-cust-results').style.display='none';
+  G('o-variant').innerHTML='<option value="">無</option>';
+  G('o-add-row')&&(G('o-add-row').style.display='none');
+  G('o-search-results')&&(G('o-search-results').innerHTML='');
+  if(G('o-search'))G('o-search').value='';
+  window._oSelPid=null;
+  renderOrderItems();openModal('modal-order');
+}
+function editOrder(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  editOrderId=id;orderItems=(o.items||[]).map(i=>({...i}));
+  G('o-modal-title').textContent='編輯抄貨單';
+  G('o-date').value=o.date;G('o-note').value=o.note||'';
+  if(G('o-search'))G('o-search').value='';
+  G('o-cust').value=o.customerId;
+  const _ec=db.customers.find(x=>x.id===o.customerId);
+  if(G('o-cust-input'))G('o-cust-input').value=_ec?_ec.name:'';
+  G('o-variant').innerHTML='<option value="">無</option>';
+  G('o-add-row')&&(G('o-add-row').style.display='none');
+  G('o-search-results')&&(G('o-search-results').innerHTML='');
+  window._oSelPid=null;
+  renderOrderItems();openModal('modal-order');
+}
+// 記憶功能已移除
+
+// ── 客戶搜尋 ──
+function onCustSearch(){
+  const q=(G('o-cust-input')?.value||'').toLowerCase();
+  const res=G('o-cust-results');
+  G('o-cust').value=''; // clear selection when typing
+  if(!q){res.style.display='none';return;}
+  const hits=db.customers.filter(c=>c.name.toLowerCase().includes(q)).slice(0,8);
+  if(!hits.length){res.style.display='none';return;}
+  res.style.display='block';
+  res.innerHTML=hits.map(c=>`
+    <div onclick="selectCust('${c.id}','${c.name.replace(/'/g,"&#39;")}')"
+      style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      ${c.name}
+    </div>`).join('');
+}
+function selectCust(id,name){
+  G('o-cust').value=id;
+  G('o-cust-input').value=name;
+  G('o-cust-results').style.display='none';
+}
+// Close dropdown when clicking outside
+document.addEventListener('click',e=>{
+  const res=G('o-cust-results');
+  if(res&&!res.contains(e.target)&&e.target!==G('o-cust-input'))res.style.display='none';
+});
+function setVariantSelect(variants){
+  G('o-variant').innerHTML='<option value="">無</option>'+(variants||[]).map(v=>`<option value="${v}">${v}</option>`).join('');
+}
+function getLastPrice(productId, customerId){
+  // First check customer's custom price
+  const cust=db.customers.find(x=>x.id===customerId);
+  if(cust?.customPrices?.[productId]) return cust.customPrices[productId];
+  // Then find last order price for this customer
+  const custOrders=[...db.orders].filter(o=>o.customerId===customerId).sort((a,b)=>b.date.localeCompare(a.date));
+  for(const o of custOrders){
+    const item=(o.items||[]).find(i=>i.productId===productId);
+    if(item&&item.price>0)return item.price;
+  }
+  // Fallback: any order with this product
+  const allOrders=[...db.orders].sort((a,b)=>b.date.localeCompare(a.date));
+  for(const o of allOrders){
+    const item=(o.items||[]).find(i=>i.productId===productId);
+    if(item&&item.price>0)return item.price;
+  }
+  return null;
+}
+function selectOrderProduct(pid){
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  window._oSelPid=pid;
+  G('o-selected-name').textContent=`${p.name}${p.location?' ['+p.location+']':''}`;
+  const custId=G('o-cust').value;
+  const cust=db.customers.find(x=>x.id===custId);
+  const disc=cust?.discount||0;
+  const remembered=getLastPrice(pid,custId);
+  const price=remembered?Math.round(remembered*(disc?1-disc/100:1)):0;
+  G('o-price').value=price||'';
+  if(remembered) G('o-selected-name').textContent+=' ｜ 上次：$'+remembered+(disc?' (折後$'+price+')':'');
+  setVariantSelect(p.variants||[]);
+  G('o-add-row').style.display='block';
+  G('o-search-results').innerHTML='';
+  // Reset packing checkboxes
+  if(G('o-pack-box'))G('o-pack-box').checked=false;
+  if(G('o-pack-card'))G('o-pack-card').checked=false;
+  if(G('o-search'))G('o-search').value='';
+}
+function onOrderSearch(){
+  const q=(G('o-search')?.value||'').toLowerCase().trim();
+  const res=G('o-search-results');if(!q){res.innerHTML='';return;}
+  const hits=db.products.filter(p=>p.name.toLowerCase().includes(q)).slice(0,8);
+  res.innerHTML=hits.map(p=>`
+    <div onclick="selectOrderProduct('${p.id}')" style="padding:7px 10px;cursor:pointer;border-radius:6px;background:var(--surface);margin-bottom:3px;border:1px solid var(--border);font-size:13px;display:flex;justify-content:space-between;align-items:center;">
+      <span><strong>${p.name}</strong> <span style="color:var(--text3);font-size:11px;">${p.location||''}</span></span>
+      <span class="mono" style="color:var(--text3);">${p.barcode||''}</span>
+    </div>`).join('')||'<div style="padding:8px;color:var(--text3);font-size:13px;">找不到商品</div>';
+}
+function onOrderBarcode(){
+  const q=(G('o-search')?.value||'').trim();
+  if(!q)return;
+  // try barcode first
+  const p=db.products.find(x=>x.barcode===q);
+  if(p){selectOrderProduct(p.id);return;}
+  // else treat as name search
+  onOrderSearch();
+}
+function addOrderItem(){
+  const pid=window._oSelPid;
+  if(!pid){alert('請先選擇商品');return;}
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  const qty=parseInt(G('o-qty').value)||1;
+  const price=parseFloat(G('o-price').value)||0;
+  const variant=G('o-variant').value;
+  const chosenPack=G('o-pack-box')?.checked?'盒裝':G('o-pack-card')?.checked?'吊卡':null;
+  const ex=orderItems.find(i=>i.productId===pid&&i.variant===variant);
+  if(ex){ex.qty+=qty;ex.price=price;}
+  else orderItems.push({productId:pid,name:p.name,barcode:p.barcode||'',variant,qty,price,location:p.location||'',specialPacking:chosenPack});
+  if(G('o-search'))G('o-search').value='';
+  G('o-qty').value=1;G('o-price').value='';
+  G('o-variant').innerHTML='<option value="">無</option>';
+  G('o-add-row').style.display='none';
+  G('o-search-results').innerHTML='';
+  if(G('o-pack-box'))G('o-pack-box').checked=false;
+  if(G('o-pack-card'))G('o-pack-card').checked=false;
+  window._oSelPid=null;
+  renderOrderItems();
+}
+function removeOItem(idx){orderItems.splice(idx,1);renderOrderItems();}
+function renderOrderItems(){
+  const el=G('o-items');if(!el)return;
+  if(!orderItems.length){el.innerHTML='<div style="text-align:center;padding:18px;color:var(--text3);font-size:13px;">尚未加入商品</div>';return;}
+  const total=orderItems.reduce((s,i)=>s+i.qty*i.price,0);
+  el.innerHTML=`<div class="table-wrap"><table>
+    <thead><tr><th>售價</th><th>商品名稱</th><th>種類</th><th>數量</th><th>小計</th><th></th></tr></thead>
+    <tbody>${orderItems.map((item,idx)=>`<tr>
+      <td><input type="number" value="${item.price}" min="0" style="width:75px;" onchange="orderItems[${idx}].price=parseFloat(this.value)||0;renderOrderItems()"></td>
+      <td><strong>${item.name}</strong>${item.specialPacking?` <span class='badge badge-orange'>${item.specialPacking}</span>`:''}<br><span class="mono">${item.barcode||''}</span></td>
+      <td>${item.variant||'—'}</td>
+      <td><input type="number" value="${item.qty}" min="1" style="width:60px;" onchange="orderItems[${idx}].qty=parseInt(this.value)||1;renderOrderItems()"></td>
+      <td>$${fmt(item.qty*item.price)}</td>
+      <td><button class="btn btn-xs btn-danger" onclick="removeOItem(${idx})">✕</button></td>
+    </tr>`).join('')}</tbody></table></div>
+    <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;">合計：$${fmt(total)}</div>`;
+}
+async function saveOrder(status){
+  const custId=G('o-cust').value;
+  if(!custId){alert('請選擇客戶');return;}
+  if(!orderItems.length){alert('請加入至少一項商品');return;}
+  const b1=G('btn-o-draft'),b2=G('btn-o-confirm');
+  b1.disabled=b2.disabled=true;
+  const cust=db.customers.find(x=>x.id===custId);
+  const data={customerId:custId,date:G('o-date').value,note:V('o-note'),items:orderItems.map(i=>({...i})),status};
+  const isEdit=!!editOrderId;
+  const wasConfirmed=isEdit&&db.orders.find(x=>x.id===editOrderId)?.status==='confirmed';
+  if(isEdit){const i=db.orders.findIndex(x=>x.id===editOrderId);db.orders[i]={...db.orders[i],...data};}
+  else db.orders.push({id:uid(),...data});
+  await saveData();
+  // LINE 通知
+  if(status==='confirmed'){
+    const total=orderItems.reduce((s,i)=>s+i.qty*i.price,0);
+    const custName=cust?cust.name:'—';
+    const itemList=orderItems.map(i=>i.name+(i.variant?'('+i.variant+')':'')+' x'+i.qty+' $'+i.price).join(' / ');
+    let msg=null;
+    if(!isEdit) msg='📋 【'+custName+'】抄貨單已確認';
+    else if(wasConfirmed) msg='📝 【'+custName+'】抄貨單已修改';
+    else msg='📋 【'+custName+'】抄貨單已確認';
+    sendLineNotify(msg);
+  }
+  closeModal('modal-order');renderOrders();renderDashboard();
+  b1.disabled=b2.disabled=false;
+}
+async function deleteOrder(id){
+  if(!confirm('確定刪除此抄貨單？'))return;
+  db.orders=db.orders.filter(x=>x.id!==id);
+  await saveData();renderOrders();
+}
+function filterOrders(f,btn){
+  orderFilter=f;
+  document.querySelectorAll('.tab-inner-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');renderOrders();
+}
+function renderOrders(){
+  const list=G('orders-list');if(!list)return;
+  let rows=[...db.orders].reverse();
+  if(orderFilter!=='all')rows=rows.filter(o=>o.status===orderFilter);
+  if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>沒有符合的抄貨單</div>';return;}
+  const sm={draft:'草稿',confirmed:'已確認',shipped:'已出貨'};
+  const bm={draft:'badge-orange',confirmed:'badge-green',shipped:'badge-blue'};
+  list.innerHTML=rows.map(o=>{
+    const c=db.customers.find(x=>x.id===o.customerId);
+    const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
+    return `<div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:7px;">
+        <div>
+          <div style="font-size:12px;color:var(--text3);">${o.date}</div>
+          <div style="font-size:15px;font-weight:700;margin:3px 0;">${c?c.name:'未知客戶'}</div>
+          <span class="badge ${bm[o.status]}">${sm[o.status]}</span>
+          ${o.note?`<span style="font-size:12px;color:var(--text3);margin-left:6px;">${o.note}</span>`:''}
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:16px;font-weight:700;color:var(--accent);">$${fmt(total)}</div>
+          <div style="font-size:12px;color:var(--text3);">${(o.items||[]).length} 項</div>
+        </div>
+      </div>
+      <div style="margin-top:9px;display:flex;gap:5px;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-secondary" onclick="viewOrder('${o.id}')">查看撿貨</button>
+        <button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>
+        <button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function viewOrder(id){
+  const o=db.orders.find(x=>x.id===id);if(!o)return;
+  const cust=db.customers.find(x=>x.id===o.customerId);
+  const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
+  G('od-title').textContent=cust?cust.name:'抄貨單詳情';
+  // Sort by location, enrich from product if missing
+  const locOrder=['地下室','一樓','樓梯間','二樓','其他',''];
+  const items=[...(o.items||[])].map(i=>{
+    const p=db.products.find(x=>x.id===i.productId);
+    return {...i,location:i.location||p?.location||''};
+  }).sort((a,b)=>{
+    const la=locOrder.indexOf(a.location);const lb=locOrder.indexOf(b.location);
+    return (la<0?99:la)-(lb<0?99:lb);
+  });
+  // Barcode summary: group by price
+  const priceMap={};
+  items.forEach(i=>{const k='$'+fmt(i.price);priceMap[k]=(priceMap[k]||0)+i.qty;});
+  const bcRows=Object.entries(priceMap).map(([price,qty])=>`<tr><td style="font-weight:700;color:var(--accent);">${price}</td><td style="font-size:15px;font-weight:700;">${qty} 張</td></tr>`).join('');
+  G('od-body').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div><div style="font-size:11px;color:var(--text2);">客戶</div><strong>${cust?cust.name:'—'}</strong></div>
+      <div><div style="font-size:11px;color:var(--text2);">日期</div><strong>${o.date}</strong></div>
+    </div>
+    <div style="background:var(--blue-bg);border:1px solid #b3d4f0;border-radius:8px;padding:10px 13px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;margin-bottom:4px;">🏷 條碼列印清單</div>
+      <div style="font-size:12px;color:var(--blue);margin-bottom:7px;">條碼：<strong>${cust?.labelBarcode||'—'}</strong></div>
+      <table style="width:100%;font-size:13px;border-collapse:collapse;">
+        <thead><tr><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">售價</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">數量</th></tr></thead>
+        <tbody>${bcRows}</tbody>
+      </table>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>✓</th><th>存放地點</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
+      <tbody>${items.map((i,idx)=>`<tr id="pick-row-${idx}" style="transition:opacity .2s;">
+        <td><input type="checkbox" onchange="togglePicked(${idx},this)"></td>
+        <td><span class="badge badge-blue">${i.location||'—'}</span></td>
+        <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}</td>
+        <td>${i.variant||'—'}</td>
+        <td>${i.qty}</td>
+        <td>$${fmt(i.price)}</td>
+      </tr>`).join('')}</tbody></table></div>
+    <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>`;
+  openModal('modal-order-detail');
+}
+function togglePicked(idx,cb){
+  const row=G('pick-row-'+idx);
+  if(cb.checked){row.style.opacity='0.35';row.style.textDecoration='line-through';}
+  else{row.style.opacity='1';row.style.textDecoration='none';}
+}
+
+// ── SHIPMENTS 出貨單 ──────────────────────────
+function openShipModal(orderId){
+  const o=db.orders.find(x=>x.id===orderId);if(!o)return;
+  const c=db.customers.find(x=>x.id===o.customerId);
+  shipmentItems=(o.items||[]).map(i=>({...i}));
+  const calcTotal=()=>shipmentItems.reduce((s,i)=>s+i.qty*i.price,0);
+  G('ship-body').innerHTML=`
+    <div style="background:var(--blue-bg);border-radius:8px;padding:9px 13px;margin-bottom:13px;font-size:13px;">
+      基於抄貨單 · <strong>${c?c.name:''}</strong> · ${o.date}
+    </div>
+    <div class="form-grid" style="margin-bottom:13px;">
+      <div class="form-group"><label>出貨日期</label><input id="s-date" type="date" value="${today()}"></div>
+      <div class="form-group"><label>備註</label><input id="s-note" placeholder="出貨備注…"></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>商品</th><th>種類</th><th>數量</th><th>售價</th><th>小計</th></tr></thead>
+      <tbody>${shipmentItems.map((item,idx)=>`<tr>
+        <td><strong>${item.name}</strong></td>
+        <td>${item.variant||'—'}</td>
+        <td><input type="number" value="${item.qty}" min="0" style="width:60px;" onchange="shipmentItems[${idx}].qty=parseInt(this.value)||0;updShipTotal()"></td>
+        <td><input type="number" value="${item.price}" min="0" style="width:75px;" onchange="shipmentItems[${idx}].price=parseFloat(this.value)||0;updShipTotal()"></td>
+        <td id="ss-${idx}">$${fmt(item.qty*item.price)}</td>
+      </tr>`).join('')}</tbody></table></div>
+    <div id="s-total" style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);">總計：$${fmt(calcTotal())}</div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveShipment('${orderId}')">✓ 確認出貨</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-shipment')">取消</button>
+    </div>`;
+  openModal('modal-shipment');
+}
+function updShipTotal(){
+  shipmentItems.forEach((_,i)=>{const e=G('ss-'+i);if(e)e.textContent='$'+fmt(shipmentItems[i].qty*shipmentItems[i].price);});
+  const t=G('s-total');if(t)t.textContent='總計：$'+fmt(shipmentItems.reduce((s,i)=>s+i.qty*i.price,0));
+}
+async function saveShipment(orderId){
+  const s={id:uid(),orderId,date:V('s-date')||today(),note:V('s-note'),items:shipmentItems.map(i=>({...i}))};
+  db.shipments.push(s);
+  const oi=db.orders.findIndex(x=>x.id===orderId);if(oi>=0)db.orders[oi].status='shipped';
+  // Deduct inventory
+  shipmentItems.forEach(item=>{
+    const pi=db.products.findIndex(x=>x.id===item.productId);
+    if(pi>=0)db.products[pi].currentStock=Math.max(0,(db.products[pi].currentStock||0)-item.qty);
+  });
+  await saveData();
+  closeModal('modal-shipment');renderOrders();renderShipments();renderProducts();renderRestock();renderDashboard();
+}
+function renderShipments(){
+  const list=G('shipments-list');if(!list)return;
+  // Populate filters
+  const custSel=G('ship-filter-cust');
+  const monthSel=G('ship-filter-month');
+  if(custSel&&custSel.options.length<=1){
+    const custs=[...new Set(db.shipments.map(s=>{const o=db.orders.find(x=>x.id===s.orderId);const c=o?db.customers.find(x=>x.id===o.customerId):null;return c?c.id+':'+c.name:null}).filter(Boolean))];
+    custs.forEach(cv=>{const [id,name]=cv.split(':');const opt=document.createElement('option');opt.value=id;opt.textContent=name;custSel.appendChild(opt);});
+  }
+  if(monthSel&&monthSel.options.length<=1){
+    const months=[...new Set(db.shipments.map(s=>s.date?.slice(0,7)).filter(Boolean))].sort().reverse();
+    months.forEach(m=>{const opt=document.createElement('option');opt.value=m;opt.textContent=m;monthSel.appendChild(opt);});
+  }
+  const filterCust=custSel?.value||'';
+  const filterMonth=monthSel?.value||'';
+  let rows=[...db.shipments].reverse().filter(s=>{
+    const o=db.orders.find(x=>x.id===s.orderId);
+    const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+    if(filterCust&&cust?.id!==filterCust)return false;
+    if(filterMonth&&!s.date?.startsWith(filterMonth))return false;
+    return true;
+  });
+  if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">🚚</div>沒有符合的出貨單<br><span style="font-size:12px;">請從抄貨單建立出貨單</span></div>';return;}
+  list.innerHTML=rows.map(s=>{
+    const o=db.orders.find(x=>x.id===s.orderId);
+    const c=o?db.customers.find(x=>x.id===o.customerId):null;
+    const total=(s.items||[]).reduce((a,i)=>a+i.qty*i.price,0);
+    return `<div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:7px;">
+        <div>
+          <div style="font-size:12px;color:var(--text3);">${s.date}</div>
+          <div style="font-size:15px;font-weight:700;margin:3px 0;">${c?c.name:'未知客戶'}</div>
+          <span class="badge badge-blue">已出貨</span>${s.note?`<span style="font-size:12px;color:var(--text3);margin-left:6px;">${s.note}</span>`:''}
+        </div>
+        <div style="text-align:right;"><div style="font-size:16px;font-weight:700;color:var(--green);">$${fmt(total)}</div></div>
+      </div>
+      <div class="table-wrap" style="margin-top:10px;"><table>
+        <thead><tr><th>售價</th><th>商品名稱</th><th>種類</th><th>數量</th><th>小計</th></tr></thead>
+        <tbody>${(s.items||[]).map(i=>`<tr><td>$${fmt(i.price)}</td><td>${i.name}</td><td>${i.variant||'—'}</td><td>${i.qty}</td><td>$${fmt(i.qty*i.price)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <div style="text-align:right;padding:7px 12px;font-weight:700;border-top:1px solid var(--border);">總計：$${fmt(total)}</div>
+      <div class="btn-row"><button class="btn btn-sm btn-blue" onclick="printShipment('${s.id}')">🖨️ 列印出貨單</button></div>
+    </div>`;
+  }).join('');
+}
+
+// ── RETURNS 退貨 ──────────────────────────────
+let retItems=[];
+let _rSelPid=null;
+let editReturnId=null;
+function onReasonChange(){}
+function openReturnModal(editId){
+  editReturnId=editId||null;
+  retItems=[];_rSelPid=null;
+  G('r-cust').innerHTML='<option value="">-- 選擇客戶 --</option>'+db.customers.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  G('r-date').value=today();
+  if(G('r-reason'))G('r-reason').value='';
+  if(G('r-detail'))G('r-detail').value='';
+  if(G('r-search'))G('r-search').value='';
+  if(G('r-selected-name'))G('r-selected-name').value='';
+  if(G('r-search-results'))G('r-search-results').innerHTML='';
+  const defRadio=document.querySelector('input[name="r-disp"][value="退庫"]');if(defRadio)defRadio.checked=true;
+  G('r-items').innerHTML='';
+  if(editId){
+    const r=db.returns.find(x=>x.id===editId);
+    if(r){
+      G('r-cust').value=r.customerId;
+      G('r-date').value=r.date;
+      if(G('r-reason'))G('r-reason').value=r.reason||'';
+      onReasonChange();
+      if(G('r-detail'))G('r-detail').value=r.detail||'';
+      const dVal=r.disposition==='繼續賣'?'退庫':r.disposition;const radio=document.querySelector(`input[name="r-disp"][value="${dVal}"]`);
+      if(radio)radio.checked=true;
+      retItems=r.items.map(i=>({...i}));
+      renderRetItems();
+    }
+  }
+  openModal('modal-return');
+}
+function onReturnSearch(){
+  const q=(G('r-search')?.value||'').toLowerCase().trim();
+  const res=G('r-search-results');if(!q){res.innerHTML='';return;}
+  const hits=db.products.filter(p=>p.name.toLowerCase().includes(q)).slice(0,7);
+  res.innerHTML=hits.map(p=>`
+    <div onclick="selectReturnProduct('${p.id}')" style="padding:7px 10px;cursor:pointer;border-radius:6px;background:var(--surface);margin-bottom:3px;border:1px solid var(--border);font-size:13px;">
+      <strong>${p.name}</strong> <span class="mono" style="color:var(--text3);">${p.barcode||''}</span>
+    </div>`).join('')||'<div style="padding:8px;color:var(--text3);font-size:13px;">找不到商品</div>';
+}
+function onReturnBarcode(){
+  const q=(G('r-search')?.value||'').trim();
+  if(!q)return;
+  const p=db.products.find(x=>x.barcode===q);
+  if(p){selectReturnProduct(p.id);return;}
+  onReturnSearch();
+}
+function selectReturnProduct(pid){
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  _rSelPid=pid;
+  if(G('r-selected-name'))G('r-selected-name').value=p.name;
+  if(G('r-search'))G('r-search').value='';
+  if(G('r-search-results'))G('r-search-results').innerHTML='';
+}
+function addReturnItem(){
+  const pid=_rSelPid;const qty=parseInt(G('r-qty').value)||1;
+  if(!pid){alert('請先選擇商品');return;}
+  const p=db.products.find(x=>x.id===pid);
+  retItems.push({productId:pid,name:p.name,barcode:p.barcode||'',qty});
+  _rSelPid=null;
+  if(G('r-selected-name'))G('r-selected-name').value='';
+  renderRetItems();
+}
+function removeRetItem(idx){retItems.splice(idx,1);renderRetItems();}
+function renderRetItems(){
+  G('r-items').innerHTML=retItems.map((item,idx)=>`
+    <div style="display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid var(--border);">
+      <span style="flex:1;font-size:13px;">${item.name}</span>
+      <input type="number" value="${item.qty}" min="1" style="width:60px;" onchange="retItems[${idx}].qty=parseInt(this.value)||1">
+      <button class="btn btn-xs btn-danger" onclick="removeRetItem(${idx})">✕</button>
+    </div>`).join('');
+}
+async function saveReturn(){
+  if(!G('r-cust').value){alert('請選擇客戶');return;}
+  if(!G('r-reason').value){alert('請選擇退貨原因');return;}
+  if(!retItems.length){alert('請加入至少一項商品');return;}
+  const btn=G('btn-save-r');btn.disabled=true;btn.textContent='儲存中…';
+  const disp=document.querySelector('input[name="r-disp"]:checked').value;
+  const reason=G('r-reason').value;
+  const faultDetail=G('r-detail')?G('r-detail').value.trim():'';
+  if(editReturnId){
+    const old=db.returns.find(x=>x.id===editReturnId);
+    const oldDisp=old?.disposition;
+    const idx=db.returns.findIndex(x=>x.id===editReturnId);
+    db.returns[idx]={...db.returns[idx],customerId:G('r-cust').value,date:G('r-date').value,reason,detail:faultDetail,disposition:disp,items:retItems.map(i=>({...i}))};
+    // If changed from 待修理 to 退庫, add back to inventory
+    if(oldDisp==='待修理'&&disp==='退庫'){
+      retItems.forEach(item=>{
+        const pi=db.products.findIndex(x=>x.id===item.productId);
+        if(pi>=0)db.products[pi].currentStock=(db.products[pi].currentStock||0)+item.qty;
+      });
+    }
+  } else {
+    const ret={id:uid(),customerId:G('r-cust').value,date:G('r-date').value,reason,detail:faultDetail,disposition:disp,items:retItems.map(i=>({...i}))};
+    db.returns.push(ret);
+    if(disp==='退庫'){
+      retItems.forEach(item=>{
+        const pi=db.products.findIndex(x=>x.id===item.productId);
+        if(pi>=0)db.products[pi].currentStock=(db.products[pi].currentStock||0)+item.qty;
+      });
+    }
+  }
+  await saveData();
+  closeModal('modal-return');renderReturns();renderProducts();renderDashboard();
+  btn.disabled=false;btn.textContent='儲存退貨';
+}
+let _retChart1=null;
+function renderReturns(){
+  const list=G('returns-list');if(!list)return;
+  const q=(G('return-search')?.value||'').toLowerCase();
+  let rows=[...db.returns].reverse();
+  if(q) rows=rows.filter(r=>(r.items||[]).some(i=>i.name.toLowerCase().includes(q)));
+  const dispBadge={'退庫':'badge-green',報廢:'badge-red',待修理:'badge-orange'};
+  list.innerHTML=rows.length?rows.map(r=>{
+    const cust=db.customers.find(x=>x.id===r.customerId);
+    return `<div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:7px;">
+        <div>
+          <div style="font-size:12px;color:var(--text3);">${r.date}</div>
+          <div style="font-size:15px;font-weight:700;margin:3px 0;">${cust?cust.name:'—'}</div>
+          <span class="badge ${dispBadge[r.disposition]||'badge-red'}">${r.disposition}</span>
+          <span class="badge badge-blue" style="margin-left:4px;">${r.reason||'—'}</span>${r.detail?`<div style='font-size:12px;color:var(--text2);margin-top:4px;'>📝 ${r.detail}</div>`:''}
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-top:9px;"><table>
+        <thead><tr><th>商品</th><th>數量</th></tr></thead>
+        <tbody>${(r.items||[]).map(i=>`<tr><td>${i.name}</td><td>${i.qty}</td></tr>`).join('')}</tbody>
+      </table></div>
+      ${r.disposition==='待修理'?`<div style="margin-top:8px;"><button class="btn btn-sm btn-orange" onclick="openReturnModal('${r.id}')">✏️ 編輯（修好了）</button></div>`:''}
+    </div>`;
+  }).join(''):'<div class="empty-state"><div class="empty-icon">↩️</div>尚無退貨記錄</div>';
+
+  // ── Pie Charts (only show when search active or data exists) ──
+  const chartsWrap=G('returns-charts-wrap');
+  const c1=G('chart-reasons');
+  if(!c1||!chartsWrap)return;
+  const hasSearch=!!(G('return-search')?.value||'').trim();
+  if(!db.returns.length){chartsWrap.style.display='none';return;}
+  chartsWrap.style.display=hasSearch?'block':'none';
+  if(!hasSearch)return;
+  const allRet=q?rows:[...db.returns];
+  // Chart 1: reasons
+  const reasonMap={};
+  allRet.forEach(r=>{const k=r.reason||'未知';reasonMap[k]=(reasonMap[k]||0)+(r.items||[]).reduce((s,i)=>s+i.qty,0);});
+  const r1labels=Object.keys(reasonMap);const r1data=Object.values(reasonMap);
+  if(_retChart1)_retChart1.destroy();
+  if(r1labels.length){
+    _retChart1=new Chart(c1,{type:'pie',data:{labels:r1labels,datasets:[{data:r1data,backgroundColor:['#c8401a','#1a5c8a','#e07020','#2a7a4f','#9e9890','#e8956d']}]},options:{plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}}});
+  } else { c1.parentElement.innerHTML+='<p style="text-align:center;color:var(--text3);font-size:12px;">尚無資料</p>'; }
+
+}
+
+// ── RESTOCK 補貨 ──────────────────────────────
+function sendRestockNotify(){
+  const rows=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock)
+    .sort((a,b)=>(a.currentStock??0)-(b.currentStock??0));
+  if(!rows.length){alert('目前沒有需要補貨的商品');return;}
+  const list=rows.map(p=>'❌ '+p.name+'，庫存：'+(p.currentStock??0)+'，建議補：'+(p.safetyStock-(p.currentStock??0))).join('\n');
+  const msg='📦 補貨通知，共 '+rows.length+' 項商品需補貨\n'+list;
+  sendLineNotify(msg);
+  alert('補貨通知已發送到LINE群組！');
+}
+function renderRestock(){
+  const list=G('restock-list');if(!list)return;
+  const rows=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock)
+    .sort((a,b)=>(a.currentStock??0)-(b.currentStock??0));
+  if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✅</div>所有商品庫存正常，無需補貨</div>';return;}
+  list.innerHTML=rows.map(p=>{
+    const urgent=(p.currentStock??0)<=0;
+    return `<div class="restock-card ${urgent?'':'warn'}" style="gap:12px;">
+      <div style="display:flex;align-items:center;gap:12px;flex:1;">
+        <input type="checkbox" style="width:20px;height:20px;flex-shrink:0;cursor:pointer;" onchange="onRestockCheck('${p.id}',this)" title="打勾後輸入補貨數量">
+        <div>
+          <div style="font-weight:700;font-size:14px;">${p.name}</div>
+          <div style="font-size:12px;color:var(--text2);">條碼：${p.barcode||'—'} ｜ 存放：${p.location||'—'}</div>
+          ${(p.variants||[]).length?`<div style="font-size:12px;color:var(--text3);">種類：${p.variants.join('、')}</div>`:''}
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:20px;font-weight:700;${urgent?'color:var(--red)':'color:var(--orange)'};">${p.currentStock??0} 件</div>
+        <div style="font-size:12px;color:var(--text3);">安全量：${p.safetyStock}</div>
+        <div style="font-size:12px;font-weight:600;${urgent?'color:var(--red)':'color:var(--orange)'};">建議補：${p.safetyStock-(p.currentStock??0)} 件</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function onRestockCheck(pid, cb){
+  if(!cb.checked)return;
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  const qtyStr=prompt(`「${p.name}」補了多少件？（目前庫存：${p.currentStock??0}）`);
+  cb.checked=false;
+  if(!qtyStr||isNaN(parseInt(qtyStr)))return;
+  const qty=parseInt(qtyStr);if(qty<=0)return;
+  const pi=db.products.findIndex(x=>x.id===pid);
+  db.products[pi].currentStock=(db.products[pi].currentStock||0)+qty;
+  await saveData();
+  renderRestock();renderProducts();renderDashboard();
+}
+
+// ── BARCODE PRINT ─────────────────────────────
+function openBCPrint(orderId){
+  const o=db.orders.find(x=>x.id===orderId);if(!o)return;
+  // Group by barcode+price
+  const grouped={};
+  (o.items||[]).forEach(item=>{
+    if(!item.barcode)return;
+    const key=item.barcode+'|'+item.price;
+    if(!grouped[key]) grouped[key]={barcode:item.barcode,name:item.name,price:item.price,qty:0};
+    grouped[key].qty+=item.qty;
+  });
+  const rows=Object.values(grouped);
+  const cust=db.customers.find(x=>x.id===o.customerId);
+  G('bc-summary').innerHTML=`
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px;">${cust?cust.name:''} · ${o.date}</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>商品名稱</th><th>EAN條碼</th><th>售價</th><th>數量（張）</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td>${r.name}</td>
+        <td class="mono">${r.barcode}</td>
+        <td>$${fmt(r.price)}</td>
+        <td style="font-size:15px;font-weight:700;color:var(--accent);">${r.qty}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div style="margin-top:10px;font-size:12px;color:var(--text2);">共 ${rows.length} 種條碼，合計 ${rows.reduce((s,r)=>s+r.qty,0)} 張</div>`;
+  openModal('modal-barcode');
+}
+function printShipment(id){
+  const s=db.shipments.find(x=>x.id===id);
+  const o=db.orders.find(x=>x.id===s.orderId);
+  const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+  const total=(s.items||[]).reduce((a,i)=>a+i.qty*i.price,0);
+  const factMatch=(cust?.note||'').match(/廠編[：:]\s*(\S+)/);
+  const factCode=factMatch?factMatch[1]:'';
+  const custNote=(cust?.note||'').replace(/廠編[：:]\s*\S+/,'').trim();
+  const dateStr=(s.date||'').replace(/-/g,'/');
+  const custBarcode=cust?.labelBarcode||'';
+  const rows=(s.items||[]);
+  const TOTAL_ROWS=Math.max(20,rows.length);
+  let rowsHtml='';
+  rows.forEach((item,idx)=>{
+    const prodName=item.name+(item.variant?' '+item.variant:'');
+    const displayName=prodName+(custBarcode?' '+custBarcode:'');
+    rowsHtml+=`<tr>
+      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${idx+1}</td>
+      <td style="border:1px solid #000;padding:3px 5px;">${displayName}</td>
+      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${item.qty}</td>
+      <td style="border:1px solid #000;padding:3px 5px;text-align:right;">${item.price}</td>
+      <td style="border:1px solid #000;padding:3px 5px;text-align:right;">${(item.qty*item.price).toLocaleString()}</td>
+    </tr>`;
+  });
+  for(let i=rows.length;i<TOTAL_ROWS;i++){
+    rowsHtml+=`<tr style="height:22px;">
+      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${i+1}</td>
+      <td style="border:1px solid #000;padding:3px 5px;"></td>
+      <td style="border:1px solid #000;padding:3px 5px;"></td>
+      <td style="border:1px solid #000;padding:3px 5px;"></td>
+      <td style="border:1px solid #000;padding:3px 5px;"></td>
+    </tr>`;
+  }
+  G('print-area').innerHTML=`
+    <div style="font-family:'標楷體','DFKai-SB',serif;max-width:680px;margin:0 auto;font-size:13px;">
+      <div style="text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px;">奧斯卡商行</div>
+      <div style="text-align:center;font-size:16px;font-weight:bold;letter-spacing:4px;margin-bottom:10px;">銷 貨 單 據 一 覽 表</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:4px;font-size:13px;">
+        <tr>
+          <td style="width:55%;padding:2px 0;">客戶名稱：${cust?cust.name:''}</td>
+          <td style="padding:2px 0;">電話：${cust?.phone||''}</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="padding:2px 0;">客戶地址：${cust?.address||''}</td>
+        </tr>
+        <tr>
+          <td style="padding:2px 0;">銷貨日期：${dateStr}</td>
+          <td style="padding:2px 0;">${custNote}${factCode?'　廠編：'+factCode:''}</td>
+        </tr>
+      </table>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+          <tr style="background:#f0f0f0;">
+            <th style="border:1px solid #000;padding:4px;width:5%;text-align:center;">序</th>
+            <th style="border:1px solid #000;padding:4px;text-align:center;">商品名稱</th>
+            <th style="border:1px solid #000;padding:4px;width:9%;text-align:center;">數量</th>
+            <th style="border:1px solid #000;padding:4px;width:11%;text-align:center;">進價</th>
+            <th style="border:1px solid #000;padding:4px;width:11%;text-align:center;">金額</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:-1px;">
+        <tr>
+          <td style="border:1px solid #000;padding:4px;" colspan="3"></td>
+          <td style="border:1px solid #000;padding:4px;text-align:center;font-weight:bold;">總計：</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-weight:bold;">${total.toLocaleString()}</td>
+        </tr>
+      </table>
+      <div style="margin-top:16px;font-size:13px;">客戶簽收：____________________</div>
+    </div>`;
+  window.print();
+}
+
+loadData();
+</script>
+</body>
+</html>
