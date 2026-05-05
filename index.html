@@ -91,6 +91,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 #scanner-video{width:100%;border-radius:8px;background:#000;max-height:280px;object-fit:cover}
 .print-area{display:none}
 @media print{
+  @page{margin:10mm;}
+  html,body{-webkit-print-color-adjust:exact;}
+
   body>*:not(.print-area){display:none!important}.print-area{display:block!important}
   .barcode-label{display:inline-block;border:1px solid #ccc;padding:8px 12px;margin:5px;text-align:center;vertical-align:top}
   .barcode-label svg{display:block;margin:0 auto}
@@ -257,7 +260,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 
 <!-- SHIPMENTS 出貨單 -->
 <div id="tab-shipments" class="page">
-  <div class="page-header"><div><h2>出貨單</h2></div></div>
+  <div class="page-header"><div><h2>出貨單</h2></div><button class="btn btn-secondary" onclick="exportShipmentCSV()">📥 匯出 CSV</button></div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
     <select id="ship-filter-cust" onchange="renderShipments()" style="flex:1;min-width:130px;"><option value="">全部客戶</option></select>
     <select id="ship-filter-month" onchange="renderShipments()" style="flex:1;min-width:110px;"><option value="">全部月份</option></select>
@@ -1790,78 +1793,80 @@ function printShipment(id){
   const s=db.shipments.find(x=>x.id===id);
   const o=db.orders.find(x=>x.id===s.orderId);
   const cust=o?db.customers.find(x=>x.id===o.customerId):null;
-  const total=(s.items||[]).reduce((a,i)=>a+i.qty*i.price,0);
-  const factMatch=(cust?.note||'').match(/廠編[：:]\s*(\S+)/);
+  const disc=cust?.discount||0;
+  const note=cust?.note||'';
+  const factMatch=note.match(/廠編[：:]\s*(\S+)/);
   const factCode=factMatch?factMatch[1]:'';
-  const custNote=(cust?.note||'').replace(/廠編[：:]\s*\S+/,'').trim();
+  const custNote=note.replace(/廠編[：:]\s*\S+/,'').trim();
   const dateStr=(s.date||'').replace(/-/g,'/');
-  const custBarcode=cust?.labelBarcode||'';
+  const TOTAL_ROWS=20;
   const rows=(s.items||[]);
-  const TOTAL_ROWS=Math.max(20,rows.length);
+  let total=0;
   let rowsHtml='';
   rows.forEach((item,idx)=>{
-    const prodName=item.name+(item.variant?' '+item.variant:'');
-    const displayName=prodName+(custBarcode?' '+custBarcode:'');
+    const basePrice=item.price;
+    const discPrice=disc?Math.round(basePrice*(1-disc/100)*10)/10:basePrice;
+    const priceBC=getPriceBarcode(basePrice);
+    const name=basePrice+'元玩具 '+priceBC;
+    const qty=item.qty;
+    const amount=Math.round(discPrice*qty*10)/10;
+    total+=amount;
     rowsHtml+=`<tr>
-      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${idx+1}</td>
-      <td style="border:1px solid #000;padding:3px 5px;">${displayName}</td>
-      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${item.qty}</td>
-      <td style="border:1px solid #000;padding:3px 5px;text-align:right;">${item.price}</td>
-      <td style="border:1px solid #000;padding:3px 5px;text-align:right;">${(item.qty*item.price).toLocaleString()}</td>
+      <td style="border:1px solid #000;padding:2px 4px;text-align:center;">${idx+1}</td>
+      <td style="border:1px solid #000;padding:2px 6px;">${name}</td>
+      <td style="border:1px solid #000;padding:2px 4px;text-align:center;">${qty}</td>
+      <td style="border:1px solid #000;padding:2px 4px;text-align:right;">${discPrice}</td>
+      <td style="border:1px solid #000;padding:2px 4px;text-align:right;">${amount}</td>
     </tr>`;
   });
   for(let i=rows.length;i<TOTAL_ROWS;i++){
-    rowsHtml+=`<tr style="height:22px;">
-      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${i+1}</td>
-      <td style="border:1px solid #000;padding:3px 5px;"></td>
-      <td style="border:1px solid #000;padding:3px 5px;"></td>
-      <td style="border:1px solid #000;padding:3px 5px;"></td>
-      <td style="border:1px solid #000;padding:3px 5px;"></td>
+    rowsHtml+=`<tr style="height:20px;">
+      <td style="border:1px solid #000;padding:2px 4px;text-align:center;">${i+1}</td>
+      <td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td>
     </tr>`;
   }
   G('print-area').innerHTML=`
-    <div style="font-family:'標楷體','DFKai-SB',serif;max-width:680px;margin:0 auto;font-size:13px;">
-      <div style="text-align:center;font-size:22px;font-weight:bold;letter-spacing:6px;margin-bottom:4px;">奧斯卡商行</div>
-      <div style="text-align:center;font-size:16px;font-weight:bold;letter-spacing:4px;margin-bottom:10px;">銷 貨 單 據 一 覽 表</div>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:4px;font-size:13px;">
+    <div style="font-family:'標楷體','DFKai-SB',serif;width:100%;font-size:12px;">
+      <div style="text-align:center;font-size:20px;font-weight:bold;letter-spacing:4px;margin-bottom:2px;">奧斯卡商行</div>
+      <div style="text-align:center;font-size:15px;font-weight:bold;letter-spacing:6px;margin-bottom:8px;">銷 貨 單 據 一 覽 表</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:3px;font-size:12px;">
         <tr>
-          <td style="width:55%;padding:2px 0;">客戶名稱：${cust?cust.name:''}</td>
-          <td style="padding:2px 0;">電話：${cust?.phone||''}</td>
+          <td style="width:55%;">客戶名稱：${cust?cust.name:''}</td>
+          <td>電話：${cust?.phone||''}</td>
         </tr>
+        <tr><td colspan="2">客戶地址：${cust?.address||''}</td></tr>
         <tr>
-          <td colspan="2" style="padding:2px 0;">客戶地址：${cust?.address||''}</td>
-        </tr>
-        <tr>
-          <td style="padding:2px 0;">銷貨日期：${dateStr}</td>
-          <td style="padding:2px 0;">${custNote}${factCode?'　廠編：'+factCode:''}</td>
+          <td>銷貨日期：${dateStr}</td>
+          <td>${custNote}${factCode?'　廠編：'+factCode:''}</td>
         </tr>
       </table>
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead>
           <tr style="background:#f0f0f0;">
-            <th style="border:1px solid #000;padding:4px;width:5%;text-align:center;">序</th>
-            <th style="border:1px solid #000;padding:4px;text-align:center;">商品名稱</th>
-            <th style="border:1px solid #000;padding:4px;width:9%;text-align:center;">數量</th>
-            <th style="border:1px solid #000;padding:4px;width:11%;text-align:center;">進價</th>
-            <th style="border:1px solid #000;padding:4px;width:11%;text-align:center;">金額</th>
+            <th style="border:1px solid #000;padding:3px;width:5%;text-align:center;">序</th>
+            <th style="border:1px solid #000;padding:3px;text-align:center;">商品名稱</th>
+            <th style="border:1px solid #000;padding:3px;width:8%;text-align:center;">數量</th>
+            <th style="border:1px solid #000;padding:3px;width:10%;text-align:center;">進價</th>
+            <th style="border:1px solid #000;padding:3px;width:10%;text-align:center;">金額</th>
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
       </table>
       <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:-1px;">
         <tr>
-          <td style="border:1px solid #000;padding:4px;" colspan="3"></td>
-          <td style="border:1px solid #000;padding:4px;text-align:center;font-weight:bold;">總計：</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-weight:bold;">${total.toLocaleString()}</td>
+          <td style="border:1px solid #000;padding:3px;" colspan="3"></td>
+          <td style="border:1px solid #000;padding:3px;text-align:center;font-weight:bold;">總計：</td>
+          <td style="border:1px solid #000;padding:3px;text-align:right;font-weight:bold;">${Math.round(total*10)/10}</td>
         </tr>
       </table>
-      <div style="margin-top:16px;font-size:13px;">客戶簽收：____________________</div>
+      <div style="margin-top:12px;">客戶簽收：____________________</div>
     </div>`;
   window.print();
 }
 
-// ── BOXING ───────────────────────────────────
-let _boxingOrderId=null;
 function openBoxingModal(orderId){
   _boxingOrderId=orderId;
   const o=db.orders.find(x=>x.id===orderId);if(!o)return;
@@ -1887,6 +1892,82 @@ async function confirmBoxing(){
   await saveData();
   closeModal('modal-boxing');
   renderDashboard();renderOrders();
+}
+
+// ── EAN-13 BARCODE CALCULATOR ────────────────
+function calcEAN13(prefix, price){
+  const priceStr=String(price).padStart(5,'0');
+  const digits=(prefix+priceStr).split('').map(Number);
+  let sum=0;
+  digits.forEach((d,i)=>{sum+=i%2===0?d:d*3;});
+  const check=(10-sum%10)%10;
+  return prefix+priceStr+check;
+}
+function getPriceBarcode(price){
+  return calcEAN13('7990341',price);
+}
+
+function exportShipmentCSV(){
+  // Let user pick which shipment to export
+  const rows=db.shipments.map((s,i)=>{
+    const o=db.orders.find(x=>x.id===s.orderId);
+    const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+    return {idx:i,id:s.id,label:(cust?cust.name:'未知')+' '+s.date};
+  });
+  if(!rows.length){alert('尚無出貨單');return;}
+  // Build select options
+  const sel=rows.map(r=>`<option value="${r.id}">${r.label}</option>`).join('');
+  const div=document.createElement('div');
+  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;display:flex;align-items:center;justify-content:center;';
+  div.innerHTML=`<div style="background:#fff;border-radius:12px;padding:20px;width:340px;">
+    <div style="font-weight:700;margin-bottom:10px;">選擇出貨單</div>
+    <select id="csv-sel" style="width:100%;margin-bottom:12px;padding:8px;border:1px solid #ddd;border-radius:6px;">${sel}</select>
+    <div style="display:flex;gap:8px;">
+      <button onclick="doExportCSV(document.getElementById('csv-sel').value);this.closest('div').parentElement.remove();" style="flex:1;padding:8px;background:#c8401a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">匯出</button>
+      <button onclick="this.closest('div').parentElement.remove();" style="flex:1;padding:8px;background:#f0ece6;border:none;border-radius:6px;cursor:pointer;">取消</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+}
+
+function doExportCSV(shipId){
+  const s=db.shipments.find(x=>x.id===shipId);if(!s)return;
+  const o=db.orders.find(x=>x.id===s.orderId);
+  const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+  const disc=cust?.discount||0;
+  const note=cust?.note||'';
+  // 廠編 from note
+  const factMatch=note.match(/廠編[：:]\s*(\S+)/);
+  const factCode=factMatch?factMatch[1]:'';
+  const dateStr=(s.date||'').replace(/-/g,'/');
+  // Build rows
+  const items=(s.items||[]).map(item=>{
+    const basePrice=item.price;
+    const discPrice=disc?Math.round(basePrice*(1-disc/100)*10)/10:basePrice;
+    const priceBC=getPriceBarcode(basePrice);
+    const name=basePrice+'元玩具 '+priceBC;
+    const qty=item.qty;
+    const amount=Math.round(discPrice*qty*10)/10;
+    return [name,qty,discPrice,amount];
+  });
+  // CSV content
+  const BOM='﻿';
+  const lines=[
+    ['客戶名稱',cust?cust.name:'','電話',cust?.phone||''],
+    ['客戶地址',cust?.address||''],
+    ['銷貨日期',dateStr,'廠編',factCode],
+    [],
+    ['序號','商品名稱及編號','數量','進價','金額'],
+    ...items.map((r,i)=>[i+1,...r]),
+    [],
+    ['','','','總計',items.reduce((s,r)=>s+r[3],0).toFixed(1)],
+    ['客戶簽收：']
+  ];
+  const csv=BOM+lines.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=(cust?cust.name:'出貨單')+'_'+s.date+'.csv';
+  a.click();
 }
 
 loadData();
