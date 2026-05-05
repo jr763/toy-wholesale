@@ -1362,10 +1362,20 @@ function viewOrder(id){
     if(cb&&checked){
       cb.checked=true;
       if(row){row.style.opacity='0.35';row.style.textDecoration='line-through';}
-      // Lock checked items if order is packed
       if(isPacked){cb.disabled=true;cb.title='已裝箱，無法變更';}
     }
   });
+  // Enable pick-done-btn if any checkbox is checked
+  setTimeout(()=>{
+    const btn=G('pick-done-btn');
+    if(btn){
+      const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')];
+      const anyChecked=allCbs.some(cb=>cb.checked);
+      btn.disabled=!anyChecked;
+      btn.style.opacity=anyChecked?'1':'0.5';
+      btn.style.cursor=anyChecked?'pointer':'not-allowed';
+    }
+  },50);
   openModal('modal-order-detail');
 }
 function toggleBCSummary(){
@@ -1834,9 +1844,15 @@ function printShipment(id){
       <div style="text-align:center;margin-bottom:8px;">
         <span style="font-size:18px;font-weight:bold;letter-spacing:6px;border-bottom:3px double #000;padding-bottom:2px;">銷 貨 單 據 一 覽 表</span>
       </div>
-      <div style="font-size:12px;margin-bottom:2px;">客戶名稱：${cust?cust.name:''}　　電話：${cust?.phone||''}</div>
+      <div style="font-size:12px;margin-bottom:2px;display:flex;">
+        <span style="width:72%;">客戶名稱：${cust?cust.name:''}</span>
+        <span>電話：${cust?.phone||''}</span>
+      </div>
       <div style="font-size:12px;margin-bottom:2px;">客戶地址：${cust?.address||''}</div>
-      <div style="font-size:12px;margin-bottom:6px;">銷貨日期：${dateStr}　　${custNote?custNote+'　':''}${factCode?'廠編：'+factCode:''}</div>
+      <div style="font-size:12px;margin-bottom:6px;display:flex;">
+        <span style="width:72%;">銷貨日期：${dateStr}</span>
+        <span>${custNote?custNote+'　':''}${factCode?'廠編：'+factCode:''}</span>
+      </div>
       <table style="width:100%;border-collapse:collapse;">
         <colgroup>
           <col style="width:5%">
@@ -1855,12 +1871,15 @@ function printShipment(id){
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
-        <tr style="background:#d0d0d0;">
+        <tr style="background:#c8c8c8;">
           <td style="border:1px solid #000;padding:3px;text-align:right;font-size:12px;font-weight:bold;" colspan="4">總計：</td>
           <td style="border:1px solid #000;padding:3px;text-align:right;font-size:12px;font-weight:bold;">${Math.round(total*10)/10}</td>
         </tr>
       </table>
-      <div style="margin-top:12px;font-size:18px;font-weight:bold;border-bottom:1px solid #000;padding-bottom:2px;">客戶簽收：</div>
+      <div style="margin-top:10px;display:flex;">
+        <span style="width:72%;"></span>
+        <span style="width:28%;font-size:18px;font-weight:bold;border-bottom:1px solid #000;padding-bottom:2px;">客戶簽收：</span>
+      </div>
     </div>`;
   window.print();
 }
