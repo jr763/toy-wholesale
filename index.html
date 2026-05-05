@@ -819,38 +819,9 @@ function renderDashboard(){
     } else unboxSec.innerHTML='';
   }
   // 尚未完成（已裝箱但有缺漏商品的）
-  // 尚未完成: no longer needed - partial picking stays in 尚未撿貨
-  const incSec=G('incomplete-section');
-  if(incSec){
-    if(incomplete.length){
-      // Build missing items list across all packed orders
-      const missingRows=[];
-      incomplete.forEach(o=>{
-        const cust=db.customers.find(x=>x.id===o.customerId);
-        const savedState=(db.pickingState||{})[o.id]||{};
-        const missing=(o.items||[]).filter((_,idx)=>!savedState[idx]);
-        missing.forEach(item=>{
-          missingRows.push({custName:cust?cust.name:'—',date:o.date,orderId:o.id,item});
-        });
-      });
-      if(missingRows.length){
-        const byOrder={};
-        missingRows.forEach(r=>{if(!byOrder[r.orderId])byOrder[r.orderId]={custName:r.custName,date:r.date,orderId:r.orderId,items:[]};byOrder[r.orderId].items.push(r.item);});
-        incSec.innerHTML=`<div class="card" style="margin-bottom:12px;">
-          <div style="font-size:14px;font-weight:700;margin-bottom:10px;">⚠️ 尚未完成（${Object.keys(byOrder).length}）</div>
-          <div class="table-wrap"><table>
-            <thead><tr><th>客戶</th><th>日期</th><th>缺少商品</th><th></th></tr></thead>
-            <tbody>${Object.values(byOrder).map(g=>`<tr>
-              <td><strong>${g.custName}</strong></td>
-              <td>${g.date}</td>
-              <td style="font-size:12px;color:var(--red);">${g.items.map(i=>i.name+(i.variant?' ('+i.variant+')':'')+' ×'+i.qty).join('、')}</td>
-              <td><button class="btn btn-sm btn-primary" onclick="viewOrder('${g.orderId}')">撿貨</button></td>
-            </tr>`).join('')}</tbody>
-          </table></div>
-        </div>`;
-      } else incSec.innerHTML='';
-    } else incSec.innerHTML='';
-  }
+    // 尚未完成 section removed
+  const incSec=G('incomplete-section');if(incSec)incSec.innerHTML='';
+
   // 尚未撿貨清單（已確認但未出貨的抄貨單）
   const unpicked=db.orders.filter(o=>o.status==='confirmed');
   const sec=G('unpicked-section');
