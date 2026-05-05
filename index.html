@@ -93,6 +93,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 @media print{
   @page{margin:10mm;size:A4;}
   @page{margin-top:0;margin-bottom:0;}
+  .print-area *{color:#000!important;border-color:#000!important;}
+  .print-area .total-row{background:#c8c8c8!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 
   body>*:not(.print-area){display:none!important}.print-area{display:block!important}
   .barcode-label{display:inline-block;border:1px solid #ccc;padding:8px 12px;margin:5px;text-align:center;vertical-align:top}
@@ -1428,11 +1430,9 @@ async function markPacked(orderId){
   const savedState=(db.pickingState||{})[orderId]||{};
   const items=o.items||[];
   const missing=items.filter((_,i)=>!savedState[i]);
-  if(missing.length>0){
-    alert(`還有 ${missing.length} 項尚未撿貨：${missing.map(i=>i.name).join('、')}\n請先完成所有撿貨再確認。`);
-    return;
-  }
-  if(!confirm('所有商品已撿齊，確認撿貨完成？'))return;
+  const allDone=missing.length===0;
+  const msg=allDone?'所有商品已撿齊，確認撿貨完成？':`有 ${missing.length} 項商品未撿（${missing.map(i=>i.name).join('、')}），確認撿貨完成？`;
+  if(!confirm(msg))return;
   const idx=db.orders.findIndex(x=>x.id===orderId);
   if(idx>=0){db.orders[idx].picked=true;db.orders[idx].status='picked';}
   await saveData();
@@ -1871,7 +1871,7 @@ function printShipment(id){
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
-        <tr style="background:#c8c8c8;">
+        <tr class="total-row" style="background:#c8c8c8;">
           <td style="border:1px solid #000;padding:3px;text-align:right;font-size:12px;font-weight:bold;" colspan="4">總計：</td>
           <td style="border:1px solid #000;padding:3px;text-align:right;font-size:12px;font-weight:bold;">${Math.round(total*10)/10}</td>
         </tr>
