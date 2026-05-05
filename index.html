@@ -579,7 +579,7 @@ async function loadData(btn=false){
     const snap=await DOC_REF.get();
     if(snap.exists){
       const data=snap.data();
-      db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},...data};
+      db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},pickingState:{},...data};
     }
     setSyncStatus('ok','雲端同步・所有人共用');
     G('loading-overlay').style.display='none';
@@ -602,7 +602,7 @@ DOC_REF.onSnapshot(snap=>{
   if(isSaving)return;
   if(snap.exists){
     const data=snap.data();
-    db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},...data};
+    db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},pickingState:{},...data};
   }
   renderAll();
 }, err=>{
@@ -719,7 +719,7 @@ function renderCalendar(){
     html+=`<div onclick="openCalVisit('${dateStr}')" style="cursor:pointer;border-radius:6px;padding:3px 2px;min-height:44px;background:${bg||'transparent'};border:${border||'1px solid var(--border)'};position:relative;transition:background .15s;" onmouseover="this.style.background=this.style.background||'var(--surface2)'" onmouseout="this.style.background='${bg||'transparent'}'">
       <div style="font-size:12px;font-weight:${isToday?700:400};color:${textColor||'inherit'};text-align:center;">${d}</div>
       ${isHoliday?`<div style="font-size:9px;color:var(--red);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${TW_HOLIDAYS[mmdd]}</div>`:''}
-      ${visit?`<div style="font-size:9px;color:var(--text2);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${visit}</div>`:''}
+      ${visit?`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--orange);margin:0 auto;display:block;"></span>`:''}
       <div style="display:flex;justify-content:center;gap:2px;margin-top:2px;">
         ${od?.order?`<span style="width:6px;height:6px;border-radius:50%;background:var(--orange);display:inline-block;"></span>`:''}
         ${od?.ship?`<span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;"></span>`:''}
@@ -779,7 +779,7 @@ function renderDashboard(){
   </div>`:'';
   renderCalendar();updateTodaySummary();
   // 尚未撿貨清單（已確認但未出貨的抄貨單）
-  const unpicked=db.orders.filter(o=>o.status==='confirmed');
+  const unpicked=db.orders.filter(o=>o.status==='confirmed'&&!o.packed);
   const sec=G('unpicked-section');
   if(sec){
     if(unpicked.length){
@@ -1269,7 +1269,22 @@ function viewOrder(id){
         <td>${i.qty}</td>
         <td>$${fmt(i.price)}</td>
       </tr>`).join('')}</tbody></table></div>
-    <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>`;
+    <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-secondary" onclick="showMissingItems()">📋 缺少商品</button>
+      <button class="btn btn-green" onclick="markPacked('${id}')">📦 裝箱完成</button>
+    </div>
+    <div id="missing-items-list" style="display:none;margin-top:8px;"></div>`;
+  // Restore saved picking states
+  const savedState=(db.pickingState||{})[id]||{};
+  Object.entries(savedState).forEach(([idx,checked])=>{
+    const cb=G('pick-cb-'+idx);
+    const row=G('pick-row-'+idx);
+    if(cb&&checked){
+      cb.checked=true;
+      if(row){row.style.opacity='0.35';row.style.textDecoration='line-through';}
+    }
+  });
   openModal('modal-order-detail');
 }
 function toggleBCSummary(){
@@ -1282,6 +1297,30 @@ function toggleBCSummary(){
     el.style.display='none';
     btn.textContent='🏷 顯示條碼列印清單';
   }
+}
+function showMissingItems(){
+  const items=window._pickItems||[];
+  const savedState=(db.pickingState||{})[window._pickOrderId]||{};
+  const missing=items.filter((_,idx)=>!savedState[idx]);
+  const el=G('missing-items-list');if(!el)return;
+  if(el.style.display==='none'){
+    el.style.display='block';
+    if(!missing.length){el.innerHTML='<div style="color:var(--green);font-size:13px;padding:8px;">✅ 所有商品已撿貨完成</div>';return;}
+    el.innerHTML=`<div style="background:var(--red-bg);border-radius:8px;padding:10px;font-size:13px;">
+      <div style="font-weight:700;margin-bottom:6px;color:var(--red);">尚未撿貨（${missing.length}項）</div>
+      ${missing.map(i=>`<div style="padding:3px 0;">• ${i.name}${i.variant?' ('+i.variant+')':''} × ${i.qty}</div>`).join('')}
+    </div>`;
+  } else {
+    el.style.display='none';
+  }
+}
+async function markPacked(orderId){
+  if(!confirm('確認裝箱完成？此抄貨單將移出尚未撿貨清單。'))return;
+  const idx=db.orders.findIndex(x=>x.id===orderId);
+  if(idx>=0)db.orders[idx].packed=true;
+  await saveData();
+  closeModal('modal-order-detail');
+  renderDashboard();
 }
 function showBCSummary(){
   const items=window._pickItems||[];
@@ -1305,10 +1344,16 @@ function showBCSummary(){
   </div>`;
 }
 
-function togglePicked(idx,cb){
+async function togglePicked(idx,cb){
   const row=G('pick-row-'+idx);
   if(cb.checked){row.style.opacity='0.35';row.style.textDecoration='line-through';}
   else{row.style.opacity='1';row.style.textDecoration='none';}
+  // Auto-save picking state
+  const oid=window._pickOrderId;if(!oid)return;
+  if(!db.pickingState)db.pickingState={};
+  if(!db.pickingState[oid])db.pickingState[oid]={};
+  db.pickingState[oid][idx]=cb.checked;
+  await saveData();
 }
 
 // ── SHIPMENTS 出貨單 ──────────────────────────
