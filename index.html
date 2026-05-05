@@ -138,50 +138,53 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 <div id="tab-dashboard" class="page active">
   <div class="page-header">
     <div><h2>總覽</h2></div>
-    <button class="btn btn-secondary btn-sm" onclick="loadData(true)" id="btn-refresh">🔄 重新整理</button>
   </div>
-  <div class="stat-row" id="stats"></div>
   <div id="dash-alert"></div>
   <!-- Calendar -->
   <div class="card" style="margin-bottom:12px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <button class="btn btn-secondary btn-sm" onclick="calPrev()">‹</button>
-      <div style="font-size:15px;font-weight:700;" id="cal-title"></div>
-      <button class="btn btn-secondary btn-sm" onclick="calNext()">›</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleCal()">
+      <div style="font-size:14px;font-weight:700;">📅 行程日曆</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div id="cal-today-summary" style="font-size:12px;color:var(--text2);"></div>
+        <span id="cal-toggle-icon" style="font-size:16px;">▾</span>
+      </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:12px;margin-bottom:4px;">
-      <div style="color:var(--red);font-weight:600;">日</div><div style="font-weight:600;">一</div><div style="font-weight:600;">二</div>
-      <div style="font-weight:600;">三</div><div style="font-weight:600;">四</div><div style="font-weight:600;">五</div>
-      <div style="color:var(--blue);font-weight:600;">六</div>
-    </div>
-    <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;"></div>
-    <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text2);">
-      <span><span style="display:inline-block;width:10px;height:10px;background:var(--orange);border-radius:50%;margin-right:3px;"></span>抄貨</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:50%;margin-right:3px;"></span>出貨</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:var(--red);border-radius:50%;margin-right:3px;"></span>國定假日</span>
+    <div id="cal-body" style="margin-top:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();calPrev()">‹</button>
+        <div style="font-size:15px;font-weight:700;" id="cal-title"></div>
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();calNext()">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:12px;margin-bottom:4px;">
+        <div style="color:var(--red);font-weight:600;">日</div><div style="font-weight:600;">一</div><div style="font-weight:600;">二</div>
+        <div style="font-weight:600;">三</div><div style="font-weight:600;">四</div><div style="font-weight:600;">五</div>
+        <div style="color:var(--blue);font-weight:600;">六</div>
+      </div>
+      <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;"></div>
+      <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text2);">
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--orange);border-radius:50%;margin-right:3px;"></span>抄貨</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:50%;margin-right:3px;"></span>出貨</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:var(--red);border-radius:50%;margin-right:3px;"></span>國定假日</span>
+      </div>
     </div>
   </div>
   <!-- 尚未撿貨 -->
   <div id="unpicked-section"></div>
-  <!-- Recent orders -->
-  <div class="card">
-    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📋 最近抄貨單（已確認）</div>
-    <div id="recent-orders"></div>
-  </div>
+
 </div>
 
 <!-- Calendar Visit Modal -->
 <div class="modal-overlay" id="modal-cal-visit">
-  <div class="modal" style="max-width:400px;">
+  <div class="modal" style="max-width:420px;">
     <div class="modal-header"><h3 id="cal-visit-title">行程設定</h3><button class="modal-close" onclick="closeModal('modal-cal-visit')">×</button></div>
     <div class="modal-body">
-      <div class="form-group" style="margin-bottom:10px;">
-        <label>客戶（可填多個，用逗號分隔）</label>
-        <input id="cal-visit-note" placeholder="例：大盤大、好鄰居">
-      </div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">安排客戶</div>
+      <input id="cal-cust-search" placeholder="搜尋客戶名稱…" oninput="onCalCustSearch()" style="margin-bottom:6px;" autocomplete="off">
+      <div id="cal-cust-results" style="max-height:120px;overflow-y:auto;margin-bottom:8px;"></div>
+      <div id="cal-visit-list" style="display:flex;flex-wrap:wrap;gap:5px;min-height:30px;padding:6px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);margin-bottom:10px;"></div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="saveCalVisit()">儲存</button>
-        <button class="btn btn-danger" onclick="deleteCalVisit()">刪除</button>
+        <button class="btn btn-danger" onclick="deleteCalVisit()">清除全部</button>
         <button class="btn btn-secondary" onclick="closeModal('modal-cal-visit')">取消</button>
       </div>
     </div>
@@ -455,6 +458,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div class="modal-header"><h3>新增退貨</h3><button class="modal-close" onclick="closeModal('modal-return')">×</button></div>
     <div class="modal-body">
       <div class="form-grid">
+        <div id="o-sched-hint" style="display:none;background:var(--blue-bg);border-radius:6px;padding:7px 10px;font-size:12px;margin-bottom:8px;grid-column:1/-1;"></div>
         <div class="form-group"><label>客戶 <span class="req">*</span></label><select id="r-cust"><option value="">-- 選擇客戶 --</option></select></div>
         <div class="form-group"><label>日期</label><input id="r-date" type="date"></div>
         <div class="form-group full">
@@ -648,7 +652,22 @@ function stopScan(){
 // ── DASHBOARD ─────────────────────────────────
 // ── CALENDAR ─────────────────────────────────
 let calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
-let calEditDate=null;
+let calEditDate=null, calVisible=true, calVisitCusts=[];
+
+function toggleCal(){
+  calVisible=!calVisible;
+  const body=G('cal-body');
+  const icon=G('cal-toggle-icon');
+  if(body)body.style.display=calVisible?'block':'none';
+  if(icon)icon.textContent=calVisible?'▾':'▸';
+  updateTodaySummary();
+}
+function updateTodaySummary(){
+  const el=G('cal-today-summary');if(!el)return;
+  const t=today();
+  const v=(db.calVisits||{})[t];
+  el.textContent=!calVisible&&v?('今天：'+v):(calVisible?'':'今天無行程');
+}
 
 // Taiwan national holidays (MM-DD format)
 const TW_HOLIDAYS={
@@ -693,11 +712,11 @@ function renderCalendar(){
     const visit=visits[dateStr];
     const od=orderDates[dateStr];
     let bg='', border='', textColor='';
-    if(isToday){bg='var(--accent)';textColor='#fff';}
+    if(isToday){bg='transparent';border='2px solid var(--accent)';textColor='var(--accent)';}
     else if(isHoliday){textColor='var(--red)';}
     else if(dayOfWeek===0){textColor='var(--red)';}
     else if(dayOfWeek===6){textColor='var(--blue)';}
-    html+=`<div onclick="openCalVisit('${dateStr}')" style="cursor:pointer;border-radius:6px;padding:3px 2px;min-height:44px;background:${bg||'transparent'};border:${isToday?'none':'1px solid var(--border)'};position:relative;transition:background .15s;" onmouseover="this.style.background=this.style.background||'var(--surface2)'" onmouseout="this.style.background='${bg||'transparent'}'">
+    html+=`<div onclick="openCalVisit('${dateStr}')" style="cursor:pointer;border-radius:6px;padding:3px 2px;min-height:44px;background:${bg||'transparent'};border:${border||'1px solid var(--border)'};position:relative;transition:background .15s;" onmouseover="this.style.background=this.style.background||'var(--surface2)'" onmouseout="this.style.background='${bg||'transparent'}'">
       <div style="font-size:12px;font-weight:${isToday?700:400};color:${textColor||'inherit'};text-align:center;">${d}</div>
       ${isHoliday?`<div style="font-size:9px;color:var(--red);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${TW_HOLIDAYS[mmdd]}</div>`:''}
       ${visit?`<div style="font-size:9px;color:var(--text2);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${visit}</div>`:''}
@@ -710,37 +729,55 @@ function renderCalendar(){
   grid.innerHTML=html;
 }
 
+function onCalCustSearch(){
+  const q=(G('cal-cust-search')?.value||'').toLowerCase();
+  const res=G('cal-cust-results');if(!res)return;
+  if(!q){res.innerHTML='';return;}
+  const hits=db.customers.filter(x=>x.name.toLowerCase().includes(q)&&!calVisitCusts.includes(x.name)).slice(0,6);
+  res.innerHTML=hits.map(x=>`<div onclick="addCalCust('${x.name.replace(/'/g,'&#39;')}')" style="padding:6px 10px;cursor:pointer;border-radius:5px;font-size:13px;border:1px solid var(--border);background:var(--surface);margin-bottom:2px;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${x.name}</div>`).join('')||'<div style="color:var(--text3);font-size:12px;padding:6px;">找不到客戶</div>';
+}
+function addCalCust(name){
+  if(!calVisitCusts.includes(name))calVisitCusts.push(name);
+  G('cal-cust-search').value='';G('cal-cust-results').innerHTML='';
+  renderCalVisitList();
+}
+function removeCalCust(name){
+  calVisitCusts=calVisitCusts.filter(x=>x!==name);
+  renderCalVisitList();
+}
+function renderCalVisitList(){
+  const el=G('cal-visit-list');if(!el)return;
+  el.innerHTML=calVisitCusts.map(n=>`<span style="background:var(--blue-bg);color:var(--blue);padding:3px 8px;border-radius:12px;font-size:12px;display:inline-flex;align-items:center;gap:4px;">${n}<span onclick="removeCalCust('${n.replace(/'/g,'&#39;')}')" style="cursor:pointer;font-size:14px;">×</span></span>`).join('')||'<span style="color:var(--text3);font-size:12px;">尚未加入客戶</span>';
+}
 function openCalVisit(date){
   calEditDate=date;
   G('cal-visit-title').textContent=date+' 行程設定';
-  G('cal-visit-note').value=(db.calVisits||{})[date]||'';
+  const existing=(db.calVisits||{})[date]||'';
+  calVisitCusts=existing?existing.split('、').filter(Boolean):[];
+  G('cal-cust-search').value='';G('cal-cust-results').innerHTML='';
+  renderCalVisitList();
   openModal('modal-cal-visit');
 }
 async function saveCalVisit(){
   if(!db.calVisits)db.calVisits={};
-  const note=G('cal-visit-note').value.trim();
-  if(note)db.calVisits[calEditDate]=note;
+  if(calVisitCusts.length>0)db.calVisits[calEditDate]=calVisitCusts.join('、');
   else delete db.calVisits[calEditDate];
-  await saveData();closeModal('modal-cal-visit');renderCalendar();
+  await saveData();closeModal('modal-cal-visit');renderCalendar();updateTodaySummary();
 }
 async function deleteCalVisit(){
   if(!db.calVisits)return;
   delete db.calVisits[calEditDate];
-  await saveData();closeModal('modal-cal-visit');renderCalendar();
+  await saveData();closeModal('modal-cal-visit');renderCalendar();updateTodaySummary();
 }
 
 function renderDashboard(){
   const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock).length;
-  G('stats').innerHTML=`
-    <div class="stat-card"><div class="stat-num">${db.products.length}</div><div class="stat-label">商品種類</div></div>
-    <div class="stat-card"><div class="stat-num">${db.customers.length}</div><div class="stat-label">客戶數</div></div>
-    <div class="stat-card"><div class="stat-num">${db.orders.length}</div><div class="stat-label">抄貨單</div></div>
-    <div class="stat-card"><div class="stat-num" style="${low?'color:var(--red)':''}">${low}</div><div class="stat-label">需補貨</div></div>`;
+
   G('dash-alert').innerHTML=low?`<div style="background:var(--red-bg);border:1.5px solid #f5c6c2;border-radius:8px;padding:11px 15px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <span>⚠️ 有 <strong>${low}</strong> 項商品庫存不足</span>
     <button class="btn btn-sm btn-danger" onclick="switchTab('restock',G('nav-restock'))">查看補貨清單</button>
   </div>`:'';
-  renderCalendar();
+  renderCalendar();updateTodaySummary();
   // 尚未撿貨清單（已確認但未出貨的抄貨單）
   const unpicked=db.orders.filter(o=>o.status==='confirmed');
   const sec=G('unpicked-section');
@@ -759,21 +796,10 @@ function renderDashboard(){
       </div>`;
     } else sec.innerHTML='';
   }
-  // Recent confirmed orders
-  const recent=[...db.orders].filter(o=>o.status==='confirmed').reverse().slice(0,5);
-  if(!recent.length){G('recent-orders').innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>尚無已確認的抄貨單</div>';return;}
-  G('recent-orders').innerHTML=`<div class="table-wrap"><table>
-    <thead><tr><th>客戶</th><th>日期</th><th>金額</th><th></th></tr></thead>
-    <tbody>${recent.map(o=>{
-      const cust=db.customers.find(x=>x.id===o.customerId);
-      const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
-      return `<tr><td><strong>${cust?cust.name:'—'}</strong></td><td>${o.date}</td><td>$${fmt(total)}</td>
-        <td><button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button></td></tr>`;
-    }).join('')}</tbody></table></div>`;
 }
 function updateRestockBadge(){
   const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock).length;
-  const rt=G('nav-restock');if(rt){rt.textContent=low?`補貨 ${low}`:'補貨';rt.style.color=low?'var(--red)':'';}  
+  const rt=G('nav-restock');if(rt){rt.textContent='補貨';rt.innerHTML=low?'補貨 <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--orange);vertical-align:middle;"></span>':'補貨';}
 }
 
 // ── VARIANTS ──────────────────────────────────
@@ -983,6 +1009,12 @@ function openOrderModal(){
   editOrderId=null;orderItems=[];
   G('o-modal-title').textContent='新增抄貨單';
   G('o-date').value=today();G('o-note').value='';
+  // Show today's scheduled customers
+  const todayVisit=(db.calVisits||{})[today()];
+  if(todayVisit&&G('o-cust-input')){
+    const schedDiv=G('o-sched-hint');
+    if(schedDiv){schedDiv.style.display='block';schedDiv.innerHTML='📅 今日行程：<strong>'+todayVisit+'</strong>';}
+  }
   G('o-qty').value=1;G('o-price').value='';
   if(G('o-cust-input'))G('o-cust-input').value='';
   if(G('o-cust'))G('o-cust').value='';
