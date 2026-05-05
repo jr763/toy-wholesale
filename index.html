@@ -137,14 +137,54 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 <!-- DASHBOARD -->
 <div id="tab-dashboard" class="page active">
   <div class="page-header">
-    <div><h2>總覽</h2><p>玩具批發管理系統</p></div>
+    <div><h2>總覽</h2></div>
     <button class="btn btn-secondary btn-sm" onclick="loadData(true)" id="btn-refresh">🔄 重新整理</button>
   </div>
   <div class="stat-row" id="stats"></div>
   <div id="dash-alert"></div>
+  <!-- Calendar -->
+  <div class="card" style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="calPrev()">‹</button>
+      <div style="font-size:15px;font-weight:700;" id="cal-title"></div>
+      <button class="btn btn-secondary btn-sm" onclick="calNext()">›</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:12px;margin-bottom:4px;">
+      <div style="color:var(--red);font-weight:600;">日</div><div style="font-weight:600;">一</div><div style="font-weight:600;">二</div>
+      <div style="font-weight:600;">三</div><div style="font-weight:600;">四</div><div style="font-weight:600;">五</div>
+      <div style="color:var(--blue);font-weight:600;">六</div>
+    </div>
+    <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;"></div>
+    <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text2);">
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--orange);border-radius:50%;margin-right:3px;"></span>抄貨</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:50%;margin-right:3px;"></span>出貨</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--red);border-radius:50%;margin-right:3px;"></span>國定假日</span>
+    </div>
+  </div>
+  <!-- 尚未撿貨 -->
+  <div id="unpicked-section"></div>
+  <!-- Recent orders -->
   <div class="card">
-    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📋 最近抄貨單</div>
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📋 最近抄貨單（已確認）</div>
     <div id="recent-orders"></div>
+  </div>
+</div>
+
+<!-- Calendar Visit Modal -->
+<div class="modal-overlay" id="modal-cal-visit">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header"><h3 id="cal-visit-title">行程設定</h3><button class="modal-close" onclick="closeModal('modal-cal-visit')">×</button></div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>客戶（可填多個，用逗號分隔）</label>
+        <input id="cal-visit-note" placeholder="例：大盤大、好鄰居">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveCalVisit()">儲存</button>
+        <button class="btn btn-danger" onclick="deleteCalVisit()">刪除</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-cal-visit')">取消</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -535,7 +575,7 @@ async function loadData(btn=false){
     const snap=await DOC_REF.get();
     if(snap.exists){
       const data=snap.data();
-      db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],...data};
+      db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},...data};
     }
     setSyncStatus('ok','雲端同步・所有人共用');
     G('loading-overlay').style.display='none';
@@ -558,7 +598,7 @@ DOC_REF.onSnapshot(snap=>{
   if(isSaving)return;
   if(snap.exists){
     const data=snap.data();
-    db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],...data};
+    db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},...data};
   }
   renderAll();
 }, err=>{
@@ -606,6 +646,89 @@ function stopScan(){
 }
 
 // ── DASHBOARD ─────────────────────────────────
+// ── CALENDAR ─────────────────────────────────
+let calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
+let calEditDate=null;
+
+// Taiwan national holidays (MM-DD format)
+const TW_HOLIDAYS={
+  '01-01':'元旦','02-28':'和平紀念日','04-04':'兒童節','04-05':'清明節',
+  '05-01':'勞動節','06-19':'端午節','09-28':'教師節','10-10':'國慶日','12-25':'行憲紀念日'
+};
+
+function calPrev(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCalendar();}
+function calNext(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalendar();}
+
+function renderCalendar(){
+  const months=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  if(G('cal-title'))G('cal-title').textContent=calYear+'年 '+months[calMonth];
+  const grid=G('cal-grid');if(!grid)return;
+  const firstDay=new Date(calYear,calMonth,1).getDay();
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const today=new Date().toISOString().slice(0,10);
+  const visits=db.calVisits||{};
+  // Get order dates for this month
+  const orderDates={};
+  db.orders.forEach(o=>{
+    if(o.date&&o.date.startsWith(calYear+'-'+(String(calMonth+1).padStart(2,'0')))){
+      if(!orderDates[o.date])orderDates[o.date]={order:false,ship:false};
+      if(o.status==='confirmed'||o.status==='draft')orderDates[o.date].order=true;
+      if(o.status==='shipped')orderDates[o.date].ship=true;
+    }
+  });
+  db.shipments.forEach(s=>{
+    if(s.date&&s.date.startsWith(calYear+'-'+(String(calMonth+1).padStart(2,'0')))){
+      if(!orderDates[s.date])orderDates[s.date]={order:false,ship:false};
+      orderDates[s.date].ship=true;
+    }
+  });
+  let html='';
+  for(let i=0;i<firstDay;i++)html+=`<div></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const mmdd=String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const isToday=dateStr===today;
+    const isHoliday=TW_HOLIDAYS[mmdd];
+    const dayOfWeek=new Date(calYear,calMonth,d).getDay();
+    const visit=visits[dateStr];
+    const od=orderDates[dateStr];
+    let bg='', border='', textColor='';
+    if(isToday){bg='var(--accent)';textColor='#fff';}
+    else if(isHoliday){textColor='var(--red)';}
+    else if(dayOfWeek===0){textColor='var(--red)';}
+    else if(dayOfWeek===6){textColor='var(--blue)';}
+    html+=`<div onclick="openCalVisit('${dateStr}')" style="cursor:pointer;border-radius:6px;padding:3px 2px;min-height:44px;background:${bg||'transparent'};border:${isToday?'none':'1px solid var(--border)'};position:relative;transition:background .15s;" onmouseover="this.style.background=this.style.background||'var(--surface2)'" onmouseout="this.style.background='${bg||'transparent'}'">
+      <div style="font-size:12px;font-weight:${isToday?700:400};color:${textColor||'inherit'};text-align:center;">${d}</div>
+      ${isHoliday?`<div style="font-size:9px;color:var(--red);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${TW_HOLIDAYS[mmdd]}</div>`:''}
+      ${visit?`<div style="font-size:9px;color:var(--text2);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${visit}</div>`:''}
+      <div style="display:flex;justify-content:center;gap:2px;margin-top:2px;">
+        ${od?.order?`<span style="width:6px;height:6px;border-radius:50%;background:var(--orange);display:inline-block;"></span>`:''}
+        ${od?.ship?`<span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;"></span>`:''}
+      </div>
+    </div>`;
+  }
+  grid.innerHTML=html;
+}
+
+function openCalVisit(date){
+  calEditDate=date;
+  G('cal-visit-title').textContent=date+' 行程設定';
+  G('cal-visit-note').value=(db.calVisits||{})[date]||'';
+  openModal('modal-cal-visit');
+}
+async function saveCalVisit(){
+  if(!db.calVisits)db.calVisits={};
+  const note=G('cal-visit-note').value.trim();
+  if(note)db.calVisits[calEditDate]=note;
+  else delete db.calVisits[calEditDate];
+  await saveData();closeModal('modal-cal-visit');renderCalendar();
+}
+async function deleteCalVisit(){
+  if(!db.calVisits)return;
+  delete db.calVisits[calEditDate];
+  await saveData();closeModal('modal-cal-visit');renderCalendar();
+}
+
 function renderDashboard(){
   const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock).length;
   G('stats').innerHTML=`
@@ -617,22 +740,40 @@ function renderDashboard(){
     <span>⚠️ 有 <strong>${low}</strong> 項商品庫存不足</span>
     <button class="btn btn-sm btn-danger" onclick="switchTab('restock',G('nav-restock'))">查看補貨清單</button>
   </div>`:'';
-  const recent=[...db.orders].reverse().slice(0,5);
-  if(!recent.length){G('recent-orders').innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>尚無抄貨單</div>';return;}
-  const sm={draft:'草稿',confirmed:'已確認',shipped:'已出貨'};
-  const bm={draft:'badge-orange',confirmed:'badge-green',shipped:'badge-blue'};
+  renderCalendar();
+  // 尚未撿貨清單（已確認但未出貨的抄貨單）
+  const unpicked=db.orders.filter(o=>o.status==='confirmed');
+  const sec=G('unpicked-section');
+  if(sec){
+    if(unpicked.length){
+      sec.innerHTML=`<div class="card" style="margin-bottom:12px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📦 尚未撿貨（${unpicked.length}）</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>客戶</th><th>日期</th><th>金額</th><th></th></tr></thead>
+          <tbody>${unpicked.map(o=>{
+            const cust=db.customers.find(x=>x.id===o.customerId);
+            const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
+            return `<tr><td><strong>${cust?cust.name:'—'}</strong></td><td>${o.date}</td><td>$${fmt(total)}</td>
+              <td><button class="btn btn-sm btn-primary" onclick="closeModal('modal-cal-visit');viewOrder('${o.id}')">撿貨</button></td></tr>`;
+          }).join('')}</tbody></table></div>
+      </div>`;
+    } else sec.innerHTML='';
+  }
+  // Recent confirmed orders
+  const recent=[...db.orders].filter(o=>o.status==='confirmed').reverse().slice(0,5);
+  if(!recent.length){G('recent-orders').innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>尚無已確認的抄貨單</div>';return;}
   G('recent-orders').innerHTML=`<div class="table-wrap"><table>
-    <thead><tr><th>客戶</th><th>日期</th><th>狀態</th><th>金額</th></tr></thead>
+    <thead><tr><th>客戶</th><th>日期</th><th>金額</th><th></th></tr></thead>
     <tbody>${recent.map(o=>{
-      const c=db.customers.find(x=>x.id===o.customerId);
+      const cust=db.customers.find(x=>x.id===o.customerId);
       const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
-      return `<tr><td><strong>${c?c.name:'—'}</strong></td><td>${o.date}</td>
-        <td><span class="badge ${bm[o.status]}">${sm[o.status]}</span></td><td>$${fmt(total)}</td></tr>`;
+      return `<tr><td><strong>${cust?cust.name:'—'}</strong></td><td>${o.date}</td><td>$${fmt(total)}</td>
+        <td><button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button></td></tr>`;
     }).join('')}</tbody></table></div>`;
 }
 function updateRestockBadge(){
   const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock).length;
-  G('nav-restock').textContent=low?`補貨 🔴${low}`:'補貨';
+  const rt=G('nav-restock');if(rt){rt.textContent=low?`補貨 ${low}`:'補貨';rt.style.color=low?'var(--red)':'';}  
 }
 
 // ── VARIANTS ──────────────────────────────────
@@ -730,8 +871,8 @@ function renderProducts(){
     const s=p.currentStock??0,ss=p.safetyStock||0;
     const sc=s<=ss&&ss>0?'stock-bad':s<=ss*1.5&&ss>0?'stock-warn':'stock-ok';
     const insp=p.hasInspectionMark!==false
-      ?'<span class="badge badge-green">有</span>'
-      :`<span class="badge badge-orange">無</span><br><span style="font-size:10px;color:var(--text3);">${p.inspectionBatchNo||''}</span>`;
+      ?'<span style="color:var(--green);font-size:16px;">✓</span>'
+      :`<span class="mono" style="font-size:12px;">${p.inspectionBatchNo||'—'}</span>`;
     return `<tr>
       <td><strong>${p.name}</strong></td>
       <td class="mono">${p.barcode||'—'}</td>
@@ -1080,9 +1221,7 @@ function viewOrder(id){
   window._pickItems=items;
   window._pickOrderId=id;
   G('od-body').innerHTML=`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <div><div style="font-size:11px;color:var(--text2);">日期</div><strong>${o.date}</strong></div>
-    </div>
+
     <div style="margin-bottom:12px;">
       <button class="btn btn-primary btn-sm" id="bc-toggle-btn" onclick="toggleBCSummary()">🏷 顯示條碼列印清單</button>
     </div>
@@ -1126,7 +1265,6 @@ function showBCSummary(){
   const el=G('bc-summary-inline');
   el.style.display='block';
   el.innerHTML=`<div style="background:var(--blue-bg);border:1px solid #b3d4f0;border-radius:8px;padding:10px 13px;">
-    <div style="font-size:12px;font-weight:700;margin-bottom:4px;">🏷 條碼列印清單</div>
     <div style="font-size:12px;color:var(--blue);margin-bottom:7px;">條碼：<strong>${custBarcode}</strong>${checkedIdxs.length>0?' （已勾選商品）':' （全部商品）'}</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;">
       <thead><tr><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">售價</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">數量</th></tr></thead>
@@ -1148,9 +1286,7 @@ function openShipModal(orderId){
   shipmentItems=(o.items||[]).map(i=>({...i}));
   const calcTotal=()=>shipmentItems.reduce((s,i)=>s+i.qty*i.price,0);
   G('ship-body').innerHTML=`
-    <div style="background:var(--blue-bg);border-radius:8px;padding:9px 13px;margin-bottom:13px;font-size:13px;">
-      基於抄貨單 · <strong>${c?c.name:''}</strong> · ${o.date}
-    </div>
+
     <div class="form-grid" style="margin-bottom:13px;">
       <div class="form-group"><label>出貨日期</label><input id="s-date" type="date" value="${today()}"></div>
       <div class="form-group"><label>備註</label><input id="s-note" placeholder="出貨備注…"></div>
@@ -1160,8 +1296,8 @@ function openShipModal(orderId){
       <tbody>${shipmentItems.map((item,idx)=>`<tr>
         <td><strong>${item.name}</strong></td>
         <td>${item.variant||'—'}</td>
-        <td><input type="number" value="${item.qty}" min="0" style="width:60px;" onchange="shipmentItems[${idx}].qty=parseInt(this.value)||0;updShipTotal()"></td>
-        <td><input type="number" value="${item.price}" min="0" style="width:75px;" onchange="shipmentItems[${idx}].price=parseFloat(this.value)||0;updShipTotal()"></td>
+        <td>${item.qty}</td>
+        <td>$${fmt(item.price)}</td>
         <td id="ss-${idx}">$${fmt(item.qty*item.price)}</td>
       </tr>`).join('')}</tbody></table></div>
     <div id="s-total" style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);">總計：$${fmt(calcTotal())}</div>
