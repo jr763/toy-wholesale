@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>玩具批發管理系統</title>
+<title>奧斯卡管理系統</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -121,7 +122,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 </div>
 
 <nav class="nav">
-  <div class="nav-logo">🧸批發</div>
+  <div class="nav-logo">🧸奧斯卡</div>
   <div class="nav-tabs">
     <div class="nav-tab active" onclick="switchTab('dashboard',this)">總覽</div>
     <div class="nav-tab" onclick="switchTab('products',this)">商品</div>
@@ -483,7 +484,7 @@ const DOC_REF = fsdb.collection('data').doc('main');
 const LINE_WEBHOOK = 'https://hook.us2.make.com/uwydctx8x63mim8j6cedh2s24ju6ugix';
 async function sendLineNotify(message){
   try{
-    const clean=String(message).replace(/[\r\n\t]+/g,' | ').replace(/[\x00-\x1F\x7F]/g,'');
+    const clean=String(message).replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/g,'');
     const params=new URLSearchParams({message:clean});
     const resp=await fetch(LINE_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
     console.log('LINE通知：',resp.status);
@@ -1093,7 +1094,7 @@ function viewOrder(id){
       </table>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>✓</th><th>存放地點</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
+      <thead><tr><th>✓</th><th>存放地點</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th><th>商檢標</th></tr></thead>
       <tbody>${items.map((i,idx)=>`<tr id="pick-row-${idx}" style="transition:opacity .2s;">
         <td><input type="checkbox" onchange="togglePicked(${idx},this)"></td>
         <td><span class="badge badge-blue">${i.location||'—'}</span></td>
@@ -1101,6 +1102,7 @@ function viewOrder(id){
         <td>${i.variant||'—'}</td>
         <td>${i.qty}</td>
         <td>$${fmt(i.price)}</td>
+        <td>${(()=>{const p=db.products.find(x=>x.id===i.productId);if(!p)return'—';return p.hasInspectionMark!==false?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+( p.inspectionBatchNo||'無批號')+'</span>';})()}</td>
       </tr>`).join('')}</tbody></table></div>
     <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>`;
   openModal('modal-order-detail');
