@@ -232,6 +232,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <button class="tab-inner-btn active" onclick="filterOrders('all',this)">全部</button>
     <button class="tab-inner-btn" onclick="filterOrders('draft',this)">草稿</button>
     <button class="tab-inner-btn" onclick="filterOrders('confirmed',this)">已確認</button>
+    <button class="tab-inner-btn" onclick="filterOrders('packed',this)">已裝箱</button>
+    <button class="tab-inner-btn" onclick="filterOrders('completed',this)">已完成</button>
     <button class="tab-inner-btn" onclick="filterOrders('shipped',this)">已出貨</button>
   </div>
   <div id="orders-list"></div>
@@ -781,7 +783,7 @@ function renderDashboard(){
   </div>`:'';
   renderCalendar();updateTodaySummary();
   // 尚未完成（已裝箱但有缺漏商品的）
-  const incomplete=db.orders.filter(o=>o.packed&&o.status!=='shipped');
+  const incomplete=db.orders.filter(o=>o.status==='packed');
   const incSec=G('incomplete-section');
   if(incSec){
     if(incomplete.length){
@@ -807,7 +809,7 @@ function renderDashboard(){
               return Object.values(byOrder).map(g=>`
                 <tr style="background:var(--surface2);">
                   <td colspan="3" style="font-weight:700;padding:6px 11px;">${g.custName} <span style="font-size:11px;color:var(--text3);">${g.date}</span></td>
-                  <td style="padding:6px 11px;"><button class="btn btn-xs btn-green" onclick="markPackedFromList('${g.orderId}')">裝箱完成</button></td>
+                  <td style="padding:6px 11px;"><button class="btn btn-xs btn-primary" onclick="viewOrder('${g.orderId}')">繼續撿貨</button></td>
                 </tr>
                 ${g.items.map(item=>`<tr>
                   <td style="padding:4px 11px 4px 20px;color:var(--red);">• ${item.name}${item.variant?' ('+item.variant+')':''}</td>
@@ -822,7 +824,7 @@ function renderDashboard(){
     } else incSec.innerHTML='';
   }
   // 尚未撿貨清單（已確認但未出貨的抄貨單）
-  const unpicked=db.orders.filter(o=>o.status==='confirmed'&&!o.packed);
+  const unpicked=db.orders.filter(o=>o.status==='confirmed');
   const sec=G('unpicked-section');
   if(sec){
     if(unpicked.length){
@@ -1251,8 +1253,8 @@ function renderOrders(){
   let rows=[...db.orders].reverse();
   if(orderFilter!=='all')rows=rows.filter(o=>o.status===orderFilter);
   if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>沒有符合的抄貨單</div>';return;}
-  const sm={draft:'草稿',confirmed:'已確認',shipped:'已出貨'};
-  const bm={draft:'badge-orange',confirmed:'badge-green',shipped:'badge-blue'};
+  const sm={draft:'草稿',confirmed:'已確認',packed:'已裝箱',completed:'已完成',shipped:'已出貨'};
+  const bm={draft:'badge-orange',confirmed:'badge-green',packed:'badge-orange',completed:'badge-blue',shipped:'badge-blue'};
   list.innerHTML=rows.map(o=>{
     const c=db.customers.find(x=>x.id===o.customerId);
     const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
@@ -1357,19 +1359,23 @@ function showMissingItems(){
     el.style.display='none';
   }
 }
-async function markPackedFromList(orderId){
-  const idx=db.orders.findIndex(x=>x.id===orderId);
-  if(idx>=0)db.orders[idx].packed=true;
-  await saveData();
-  renderDashboard();
-}
+
 async function markPacked(orderId){
-  if(!confirm('確認裝箱完成？此抄貨單將移出尚未撿貨清單。'))return;
+  const o=db.orders.find(x=>x.id===orderId);if(!o)return;
+  const savedState=(db.pickingState||{})[orderId]||{};
+  const items=o.items||[];
+  const missing=items.filter((_,i)=>!savedState[i]);
+  const allDone=missing.length===0;
+  const msg=allDone?'所有商品已撿齊，確認裝箱完成？':`有 ${missing.length} 項商品缺漏，確認裝箱（標記為已裝箱）？`;
+  if(!confirm(msg))return;
   const idx=db.orders.findIndex(x=>x.id===orderId);
-  if(idx>=0)db.orders[idx].packed=true;
+  if(idx>=0){
+    db.orders[idx].packed=true;
+    db.orders[idx].status=allDone?'completed':'packed';
+  }
   await saveData();
   closeModal('modal-order-detail');
-  renderDashboard();
+  renderDashboard();renderOrders();
 }
 function showBCSummary(){
   const items=window._pickItems||[];
