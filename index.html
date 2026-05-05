@@ -1066,47 +1066,64 @@ function viewOrder(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
   const cust=db.customers.find(x=>x.id===o.customerId);
   const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
-  G('od-title').textContent=cust?cust.name:'抄貨單詳情';
-  // Sort by location, enrich from product if missing
+  G('od-title').textContent=cust?cust.name:'撿貨單';
   const locOrder=['地下室','一樓','樓梯間','二樓','其他',''];
   const items=[...(o.items||[])].map(i=>{
     const p=db.products.find(x=>x.id===i.productId);
-    return {...i,location:i.location||p?.location||''};
+    return {...i,location:i.location||p?.location||'',
+      hasInspMark:p?p.hasInspectionMark!==false:true,
+      batchNo:p?.inspectionBatchNo||''};
   }).sort((a,b)=>{
     const la=locOrder.indexOf(a.location);const lb=locOrder.indexOf(b.location);
     return (la<0?99:la)-(lb<0?99:lb);
   });
-  // Barcode summary: group by price
-  const priceMap={};
-  items.forEach(i=>{const k='$'+fmt(i.price);priceMap[k]=(priceMap[k]||0)+i.qty;});
-  const bcRows=Object.entries(priceMap).map(([price,qty])=>`<tr><td style="font-weight:700;color:var(--accent);">${price}</td><td style="font-size:15px;font-weight:700;">${qty} 張</td></tr>`).join('');
+  window._pickItems=items;
+  window._pickOrderId=id;
   G('od-body').innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <div><div style="font-size:11px;color:var(--text2);">客戶</div><strong>${cust?cust.name:'—'}</strong></div>
       <div><div style="font-size:11px;color:var(--text2);">日期</div><strong>${o.date}</strong></div>
     </div>
-    <div style="background:var(--blue-bg);border:1px solid #b3d4f0;border-radius:8px;padding:10px 13px;margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;margin-bottom:4px;">🏷 條碼列印清單</div>
-      <div style="font-size:12px;color:var(--blue);margin-bottom:7px;">條碼：<strong>${cust?.labelBarcode||'—'}</strong></div>
-      <table style="width:100%;font-size:13px;border-collapse:collapse;">
-        <thead><tr><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">售價</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">數量</th></tr></thead>
-        <tbody>${bcRows}</tbody>
-      </table>
+    <div style="margin-bottom:12px;">
+      <button class="btn btn-primary btn-sm" onclick="showBCSummary()">🏷 顯示條碼列印清單</button>
     </div>
+    <div id="bc-summary-inline" style="display:none;margin-bottom:12px;"></div>
     <div class="table-wrap"><table>
-      <thead><tr><th>✓</th><th>存放地點</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th><th>商檢標</th></tr></thead>
+      <thead><tr><th>✓</th><th>存放地點</th><th>商檢標</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
       <tbody>${items.map((i,idx)=>`<tr id="pick-row-${idx}" style="transition:opacity .2s;">
-        <td><input type="checkbox" onchange="togglePicked(${idx},this)"></td>
+        <td><input type="checkbox" id="pick-cb-${idx}" onchange="togglePicked(${idx},this)"></td>
         <td><span class="badge badge-blue">${i.location||'—'}</span></td>
+        <td>${i.hasInspMark?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'無批號')+'</span>'}</td>
         <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}</td>
         <td>${i.variant||'—'}</td>
         <td>${i.qty}</td>
         <td>$${fmt(i.price)}</td>
-        <td>${(()=>{const p=db.products.find(x=>x.id===i.productId);if(!p)return'—';return p.hasInspectionMark!==false?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+( p.inspectionBatchNo||'無批號')+'</span>';})()}</td>
       </tr>`).join('')}</tbody></table></div>
     <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>`;
   openModal('modal-order-detail');
 }
+function showBCSummary(){
+  const items=window._pickItems||[];
+  // Only include checked items, if none checked include all
+  const checkedIdxs=[...document.querySelectorAll('[id^="pick-cb-"]')].filter(cb=>cb.checked).map(cb=>parseInt(cb.id.replace('pick-cb-','')));
+  const selected=checkedIdxs.length>0?checkedIdxs.map(i=>items[i]):items;
+  const cust=window._pickOrderId?db.customers.find(x=>x.id===db.orders.find(o=>o.id===window._pickOrderId)?.customerId):null;
+  const custBarcode=cust?.labelBarcode||'—';
+  // Group by price
+  const priceMap={};
+  selected.forEach(i=>{const k='$'+fmt(i.price);priceMap[k]=(priceMap[k]||0)+i.qty;});
+  const bcRows=Object.entries(priceMap).map(([price,qty])=>`<tr><td style="font-weight:700;color:var(--accent);">${price}</td><td style="font-size:15px;font-weight:700;">${qty} 張</td></tr>`).join('');
+  const el=G('bc-summary-inline');
+  el.style.display='block';
+  el.innerHTML=`<div style="background:var(--blue-bg);border:1px solid #b3d4f0;border-radius:8px;padding:10px 13px;">
+    <div style="font-size:12px;font-weight:700;margin-bottom:4px;">🏷 條碼列印清單</div>
+    <div style="font-size:12px;color:var(--blue);margin-bottom:7px;">條碼：<strong>${custBarcode}</strong>${checkedIdxs.length>0?' （已勾選商品）':' （全部商品）'}</div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse;">
+      <thead><tr><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">售價</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">數量</th></tr></thead>
+      <tbody>${bcRows}</tbody>
+    </table>
+  </div>`;
+}
+
 function togglePicked(idx,cb){
   const row=G('pick-row-'+idx);
   if(cb.checked){row.style.opacity='0.35';row.style.textDecoration='line-through';}
