@@ -799,13 +799,23 @@ function renderDashboard(){
         incSec.innerHTML=`<div class="card" style="margin-bottom:12px;">
           <div style="font-size:14px;font-weight:700;margin-bottom:10px;">⚠️ 尚未完成 缺少商品（${missingRows.length}項）</div>
           <div class="table-wrap"><table>
-            <thead><tr><th>客戶</th><th>日期</th><th>商品</th><th>數量</th></tr></thead>
-            <tbody>${missingRows.map(r=>`<tr>
-              <td><strong>${r.custName}</strong></td>
-              <td>${r.date}</td>
-              <td>${r.item.name}${r.item.variant?' ('+r.item.variant+')':''}</td>
-              <td>${r.item.qty}</td>
-            </tr>`).join('')}</tbody>
+            <thead><tr><th colspan="3">客戶／缺少商品</th><th></th></tr></thead>
+            <tbody>${(()=>{
+              // Group by order
+              const byOrder={};
+              missingRows.forEach(r=>{if(!byOrder[r.orderId])byOrder[r.orderId]={custName:r.custName,date:r.date,orderId:r.orderId,items:[]};byOrder[r.orderId].items.push(r.item);});
+              return Object.values(byOrder).map(g=>`
+                <tr style="background:var(--surface2);">
+                  <td colspan="3" style="font-weight:700;padding:6px 11px;">${g.custName} <span style="font-size:11px;color:var(--text3);">${g.date}</span></td>
+                  <td style="padding:6px 11px;"><button class="btn btn-xs btn-green" onclick="markPackedFromList('${g.orderId}')">裝箱完成</button></td>
+                </tr>
+                ${g.items.map(item=>`<tr>
+                  <td style="padding:4px 11px 4px 20px;color:var(--red);">• ${item.name}${item.variant?' ('+item.variant+')':''}</td>
+                  <td colspan="2" style="color:var(--text2);font-size:12px;"></td>
+                  <td style="font-size:12px;">× ${item.qty}</td>
+                </tr>`).join('')}
+              `).join('');
+            })()}</tbody>
           </table></div>
         </div>`;
       } else incSec.innerHTML='';
@@ -1346,6 +1356,12 @@ function showMissingItems(){
   } else {
     el.style.display='none';
   }
+}
+async function markPackedFromList(orderId){
+  const idx=db.orders.findIndex(x=>x.id===orderId);
+  if(idx>=0)db.orders[idx].packed=true;
+  await saveData();
+  renderDashboard();
 }
 async function markPacked(orderId){
   if(!confirm('確認裝箱完成？此抄貨單將移出尚未撿貨清單。'))return;
