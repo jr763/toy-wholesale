@@ -1287,21 +1287,89 @@ async function saveOrder(status){
   const b1=G('btn-o-draft'),b2=G('btn-o-confirm');
   b1.disabled=b2.disabled=true;
   const cust=db.customers.find(x=>x.id===custId);
-  const data={customerId:custId,date:G('o-date').value,items:orderItems.map(i=>({...i})),status};
   const isEdit=!!editOrderId;
-  const wasConfirmed=isEdit&&db.orders.find(x=>x.id===editOrderId)?.status==='confirmed';
-  if(isEdit){const i=db.orders.findIndex(x=>x.id===editOrderId);db.orders[i]={...db.orders[i],...data};}
-  else db.orders.push({id:uid(),...data});
+  const oldOrder=isEdit?db.orders.find(x=>x.id===editOrderId):null;
+  const wasConfirmed=oldOrder?.status==='confirmed';
+
+  // ── 編輯邏輯 ──────────────────────────────────
+  if(isEdit&&oldOrder){
+    const oldItems=oldOrder.items||[];
+    const savedState=(db.pickingState||{})[editOrderId]||{};
+    const inPickFlow=['picking','picked','boxing','packed','mod_picking','mod_picked','mod_boxing'].includes(oldOrder.status);
+    const isCompleted=oldOrder.status==='completed';
+
+    // 偵測變動
+    const added=[],increased=[],decreased=[],deleted=[];
+    orderItems.forEach(ni=>{
+      const oi=oldItems.find(o=>o.productId===ni.productId&&(o.variant||'')===(ni.variant||''));
+      if(!oi) added.push(ni.name+(ni.variant?' ('+ni.variant+')':''));
+      else if(ni.qty>oi.qty) increased.push(ni.name+' ('+oi.qty+'→'+ni.qty+')');
+      else if(ni.qty<oi.qty) decreased.push(ni.name+' ('+oi.qty+'→'+ni.qty+')');
+    });
+    oldItems.forEach(oi=>{
+      if(!orderItems.find(n=>n.productId===oi.productId&&(n.variant||'')===(oi.variant||'')))
+        deleted.push(oi.name+(oi.variant?' ('+oi.variant+')':''));
+    });
+    const hasAdd=added.length||increased.length;
+    const hasDel=decreased.length||deleted.length;
+
+    // 已完成狀態被編輯
+    if(isCompleted){
+      if(hasDel){
+        const msg='確認減少/刪除以下商品？\n\n'+[...decreased.map(x=>'減少：'+x),...deleted.map(x=>'刪除：'+x)].join('\n');
+        if(!confirm(msg)){b1.disabled=b2.disabled=false;return;}
+      }
+      if(hasAdd){
+        // 需要重新撿貨
+        status='mod_pending';
+        // 清除新增/增加商品的撿貨狀態
+        const newState={};
+        oldItems.forEach((oi,i)=>{
+          const ni=orderItems.find(n=>n.productId===oi.productId&&(n.variant||'')===(oi.variant||''));
+          if(ni&&ni.qty<=oi.qty) newState[i]=savedState[i];
+        });
+        if(!db.pickingState)db.pickingState={};
+        db.pickingState[editOrderId]=newState;
+      } else {
+        status='completed';
+      }
+    }
+
+    // 撿貨中狀態被編輯 - 通知撿貨者已撿項目有變動
+    if(inPickFlow&&(hasAdd||hasDel)){
+      const changedPicked=[];
+      const allChanges=[...added.map(x=>'新增：'+x),...increased.map(x=>'增加：'+x),...decreased.map(x=>'減少：'+x),...deleted.map(x=>'刪除：'+x)];
+      // 找已勾選但被變動的項目
+      oldItems.forEach((oi,i)=>{
+        if(!savedState[i]) return; // 未勾選，不需通知
+        const ni=orderItems.find(n=>n.productId===oi.productId&&(n.variant||'')===(oi.variant||''));
+        if(!ni) changedPicked.push('刪除：'+oi.name+(oi.variant?' ('+oi.variant+')':''));
+        else if(ni.qty!==oi.qty) changedPicked.push((ni.qty>oi.qty?'增加：':'減少：')+oi.name+' ('+oi.qty+'→'+ni.qty+')');
+      });
+      orderItems.forEach(ni=>{
+        if(!oldItems.find(o=>o.productId===ni.productId&&(o.variant||'')===(ni.variant||'')))
+          changedPicked.push('新增：'+ni.name+(ni.variant?' ('+ni.variant+')':''));
+      });
+      if(changedPicked.length>0){
+        const oidx=db.orders.findIndex(x=>x.id===editOrderId);
+        if(oidx>=0) db.orders[oidx].editAlert={changes:changedPicked,confirmed:false};
+      }
+    }
+  }
+  // ────────────────────────────────────────────────
+
+  const data={customerId:custId,date:G('o-date').value,items:orderItems.map(i=>({...i})),status};
+  if(isEdit){
+    const i=db.orders.findIndex(x=>x.id===editOrderId);
+    db.orders[i]={...db.orders[i],...data};
+  } else {
+    db.orders.push({id:uid(),...data});
+  }
   await saveData();
   // LINE 通知
   if(status==='confirmed'){
-    const total=orderItems.reduce((s,i)=>s+i.qty*i.price,0);
     const custName=cust?cust.name:'—';
-    const itemList=orderItems.map(i=>i.name+(i.variant?'('+i.variant+')':'')+' x'+i.qty+' $'+i.price).join(' / ');
-    let msg=null;
-    if(!isEdit) msg='📋 【'+custName+'】抄貨單已確認';
-    else if(wasConfirmed) msg='📝 【'+custName+'】抄貨單已修改';
-    else msg='📋 【'+custName+'】抄貨單已確認';
+    let msg=(!isEdit)?'📋 【'+custName+'】抄貨單已確認':wasConfirmed?'📝 【'+custName+'】抄貨單已修改':'📋 【'+custName+'】抄貨單已確認';
     sendLineNotify(msg);
   }
   closeModal('modal-order');renderOrders();renderDashboard();
