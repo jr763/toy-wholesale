@@ -178,6 +178,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
         <span><span style="display:inline-block;width:10px;height:10px;background:var(--orange);border-radius:50%;margin-right:3px;"></span>抄貨</span>
         <span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:50%;margin-right:3px;"></span>出貨</span>
         <span style="font-size:11px;color:var(--red);">● 放假日</span>
+      <span style="font-size:11px;color:var(--blue);">● 已安排</span>
       </div>
     </div>
   </div>
@@ -877,7 +878,7 @@ async function saveCalVisit(){
   if(!db.calVisits)db.calVisits={};
   if(calVisitCusts.length>0)db.calVisits[calEditDate]=calVisitCusts.join('、');
   else delete db.calVisits[calEditDate];
-  await saveData();closeModal('modal-cal-visit');renderCalendar();
+  await saveData();closeModal('modal-cal-visit');renderCalendar();renderCustStatus();
 }
 async function deleteCalVisit(){
   if(!db.calVisits)return;
@@ -1114,37 +1115,14 @@ function openOrderModal(){
   const _ci=G('o-cust-input');if(_ci)_ci.disabled=false;
   const _di=G('o-date');if(_di)_di.disabled=false;
   // Show scheduled customers as dropdown if any today
-  const todayVisit=(db.calVisits||{})[today()];
   const custInputEl=G('o-cust-input');
   const custResultsEl=G('o-cust-results');
   G('o-cust').value='';
-  if(custInputEl)custInputEl.value='';
+  if(custInputEl){custInputEl.value='';custInputEl.style.display='';custInputEl.disabled=false;}
   if(custResultsEl)custResultsEl.innerHTML='';
   // Remove any previous sched select
   const oldSel=G('o-sched-select');if(oldSel)oldSel.remove();
   const oldHint=G('o-sched-hint-line');if(oldHint)oldHint.remove();
-  if(todayVisit){
-    const schedCusts=todayVisit.split('、').map(n=>n.trim()).filter(Boolean);
-    const custOptions=schedCusts.map(name=>{
-      const cust=db.customers.find(x=>x.name===name);
-      return cust?`<option value="${cust.id}">${cust.name}</option>`:'';
-    }).filter(Boolean).join('');
-    // Insert select before the input
-    const sel=document.createElement('select');
-    sel.id='o-sched-select';
-    sel.style.cssText='width:100%;margin-bottom:6px;';
-    sel.innerHTML=custOptions;
-    sel.onchange=function(){selectSchedCust(this.value);};
-    // Auto-select first option
-    setTimeout(()=>{if(sel.options.length>0){sel.selectedIndex=0;selectSchedCust(sel.options[0].value);}},50);
-    const wrap=custInputEl?.closest('.form-group');
-    if(wrap){
-      wrap.insertBefore(sel,custInputEl);
-      custInputEl.style.display='none';
-    }
-  } else {
-    if(custInputEl)custInputEl.style.display='';
-  }
   G('o-qty').value=1;G('o-price').value='';
   if(G('o-cust-input'))G('o-cust-input').value='';
   if(G('o-cust'))G('o-cust').value='';
@@ -1309,7 +1287,7 @@ async function saveOrder(status){
   const b1=G('btn-o-draft'),b2=G('btn-o-confirm');
   b1.disabled=b2.disabled=true;
   const cust=db.customers.find(x=>x.id===custId);
-  const data={customerId:custId,date:G('o-date').value,note:V('o-note'),items:orderItems.map(i=>({...i})),status};
+  const data={customerId:custId,date:G('o-date').value,items:orderItems.map(i=>({...i})),status};
   const isEdit=!!editOrderId;
   const wasConfirmed=isEdit&&db.orders.find(x=>x.id===editOrderId)?.status==='confirmed';
   if(isEdit){const i=db.orders.findIndex(x=>x.id===editOrderId);db.orders[i]={...db.orders[i],...data};}
@@ -1349,8 +1327,8 @@ function renderOrders(){
     return true;
   });
   if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>沒有符合的抄貨單</div>';return;}
-  const sm={draft:'抄貨中',confirmed:'已抄貨',picking:'撿貨中',picked:'已撿貨',boxing:'裝箱中',packed:'已裝箱',completed:'已完成',shipped:'已出貨'};
-  const bm={draft:'badge-orange',confirmed:'badge-green',picking:'badge-orange',picked:'badge-green',boxing:'badge-orange',packed:'badge-blue',completed:'badge-blue',shipped:'badge-blue'};
+  const sm={draft:'抄貨中',confirmed:'已抄貨',picking:'撿貨中',picked:'已撿貨',boxing:'裝箱中',packed:'已裝箱',completed:'已完成',pending_edit:'待修改',re_picking:'撿貨(修改)',re_boxing:'裝箱(修改)',shipped:'已出貨'};
+  const bm={draft:'badge-orange',confirmed:'badge-green',picking:'badge-orange',picked:'badge-green',boxing:'badge-orange',packed:'badge-blue',completed:'badge-blue',pending_edit:'badge-orange',re_picking:'badge-orange',re_boxing:'badge-orange',shipped:'badge-blue'};
   list.innerHTML=rows.map(o=>{
     const c=db.customers.find(x=>x.id===o.customerId);
     const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
@@ -1369,9 +1347,9 @@ function renderOrders(){
       </div>
       <div style="margin-top:9px;display:flex;gap:5px;flex-wrap:wrap;">
         <button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${o.id}')">查看撿貨</button>
-        ${['draft','confirmed','picking','picked','boxing','packed'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
-        ${['confirmed','picking'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button>`:''}
-        ${['picked','boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">裝箱確認</button>`:''}
+        ${['draft','confirmed','picking','picked','boxing','packed','pending_edit','re_picking','re_boxing'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
+        ${['confirmed','picking','re_picking','pending_edit'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button>`:''}
+        ${['picked','boxing','re_boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">裝箱確認</button>`:''}
         ${o.status==='completed'?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
         ${o.status==='draft'?`<button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>`:''}
       </div>
@@ -1412,6 +1390,17 @@ function viewOrderReadonly(id){
 }
 function viewOrder(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
+  // Show edit alert if exists
+  if(o.editAlert&&!o.editAlert.confirmed){
+    const msg='⚠️ 抄貨單已被修改！\n\n修改項目：\n'+o.editAlert.changes.map(c=>'• '+c).join('\n')+'\n\n請確認上述修改後繼續撿貨。';
+    if(confirm(msg+'\n\n按確定表示已知悉並確認修改。')){
+      const oidx=db.orders.findIndex(x=>x.id===id);
+      if(oidx>=0)db.orders[oidx].editAlert.confirmed=true;
+      saveData();
+    } else {
+      return;
+    }
+  }
   const cust=db.customers.find(x=>x.id===o.customerId);
   const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
   G('od-title').textContent=cust?cust.name:'撿貨單';
@@ -1444,7 +1433,6 @@ function viewOrder(id){
         <td>${i.qty}</td>
         <td>$${fmt(i.price)}</td>
       </tr>`).join('')}</tbody></table></div>
-    <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>
     <div class="btn-row" style="margin-top:8px;">
       <button class="btn btn-secondary" onclick="showMissingItems()">📋 缺少商品</button>
       <button class="btn btn-green" id="pick-done-btn" onclick="markPacked('${id}')" disabled style="opacity:0.5;cursor:not-allowed;">✅ 撿貨完成</button>
@@ -1522,6 +1510,10 @@ function scrollToPickRow(idx){
 
 async function markPacked(orderId){
   const o=db.orders.find(x=>x.id===orderId);if(!o)return;
+  if(o.editAlert&&!o.editAlert.confirmed){
+    alert('⚠️ 抄貨單有未確認的修改！\n\n修改項目：\n'+o.editAlert.changes.map(c=>'• '+c).join('\n')+'\n\n請先開啟撿貨頁面確認修改後才能完成。');
+    return;
+  }
   const savedState=(db.pickingState||{})[orderId]||{};
   const items=o.items||[];
   const missing=items.filter((_,i)=>!savedState[i]);
@@ -1578,8 +1570,9 @@ async function togglePicked(idx,cb){
   db.pickingState[oid][idx]=cb.checked;
   // Update order status to picking
   const oidx=db.orders.findIndex(x=>x.id===oid);
-  if(oidx>=0&&cb.checked&&db.orders[oidx].status==='confirmed'){
-    db.orders[oidx].status='picking';
+  if(oidx>=0&&cb.checked){
+    if(db.orders[oidx].status==='confirmed')db.orders[oidx].status='picking';
+    else if(db.orders[oidx].status==='pending_edit')db.orders[oidx].status='re_picking';
   }
   await saveData();
   // Auto-refresh barcode summary if open
@@ -2005,14 +1998,14 @@ function openBoxingModal(orderId){
   G('boxing-title').textContent=(cust?cust.name:'')+'  裝箱確認';
   G('boxing-summary').innerHTML=`
     <div class="table-wrap"><table>
-      <thead><tr><th>✓</th><th>售價</th><th>數量（張）</th></tr></thead>
+      <thead><tr><th>✓</th><th>售價</th><th>數量</th></tr></thead>
       <tbody>${rows.map(([p,q],i)=>`<tr id="box-row-${i}">
         <td><input type="checkbox" id="box-cb-${i}" ${boxState[i]?'checked':''} onchange="toggleBoxing(${i},this)" style="${boxState[i]?'opacity:0.5;':''}" ></td>
         <td style="font-weight:700;color:var(--accent);${boxState[i]?'opacity:0.5;text-decoration:line-through;':''}">${p}</td>
         <td style="font-size:16px;font-weight:700;${boxState[i]?'opacity:0.5;text-decoration:line-through;':''}">${q}</td>
       </tr>`).join('')}</tbody>
     </table></div>
-    <div style="text-align:right;margin-top:8px;font-size:13px;color:var(--text2);">合計 ${rows.reduce((s,[,q])=>s+q,0)} 張</div>`;
+`;
   // Restore confirm button state
   setTimeout(()=>updateBoxingBtn(rows.length),50);
   openModal('modal-boxing');
@@ -2038,8 +2031,9 @@ async function toggleBoxing(idx,cb){
   // Update order status to boxing if any checked
   if(cb.checked&&_boxingOrderId){
     const oidx=db.orders.findIndex(x=>x.id===_boxingOrderId);
-    if(oidx>=0&&db.orders[oidx].status==='picked'){
-      db.orders[oidx].status='boxing';
+    if(oidx>=0){
+      if(db.orders[oidx].status==='picked')db.orders[oidx].status='boxing';
+      else if(db.orders[oidx].status==='re_picking')db.orders[oidx].status='re_boxing';
     }
   }
   await saveData();
@@ -2050,9 +2044,14 @@ async function toggleBoxing(idx,cb){
 async function confirmBoxing(){
   if(!_boxingOrderId)return;
   const o=db.orders.find(x=>x.id===_boxingOrderId);if(!o)return;
+  if(o.editAlert&&!o.editAlert.confirmed){
+    alert('⚠️ 抄貨單有未確認的修改，請先確認修改後才能裝箱。');
+    return;
+  }
   const savedState=(db.pickingState||{})[_boxingOrderId]||{};
   const missing=(o.items||[]).filter((_,i)=>!savedState[i]);
   const idx=db.orders.findIndex(x=>x.id===_boxingOrderId);
+  const wasRe=['re_boxing','re_picking'].includes(db.orders[idx]?.status);
   if(idx>=0)db.orders[idx].status=missing.length?'packed':'completed';
   await saveData();
   closeModal('modal-boxing');
@@ -2217,10 +2216,10 @@ function renderCustStatus(){
         const order=cust?db.orders.find(o=>o.customerId===cust.id&&o.date===selDate):null;
         let mainBtn='';
         if(st==='未抄貨'||st==='抄貨中'){
-          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="openOrderWithCust('${name}')">+ 抄貨單</button>`:`<button class="btn btn-sm btn-primary" onclick="openOrderWithCust('${name}')">+ 抄貨單</button>`;
-        } else if(st==='已抄貨'||st==='撿貨中'){
-          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'';
-        } else if(st==='已撿貨'||st==='裝箱中'){
+          mainBtn=`<button class="btn btn-sm btn-primary" onclick="openOrderWithCust('${name}')">+ 抄貨單</button>`;
+        } else if(['已抄貨','撿貨中','待修改','撿貨(修改)'].includes(st)){
+          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'`';
+        } else if(['已撿貨','裝箱中','裝箱(修改)'].includes(st)){
           mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${order.id}')">裝箱確認</button>`:'';
         } else if(st==='已裝箱'){
           mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨(補)</button>`:'';
