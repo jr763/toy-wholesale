@@ -31,6 +31,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .nav{background:var(--text);padding:0 12px;display:flex;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .nav-logo{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--accent2);padding:12px 12px 12px 0;border-right:1px solid #333;margin-right:4px;white-space:nowrap}
 .nav-tabs{display:flex;overflow-x:auto;flex:1;justify-content:center}
+.side-menu-item{padding:14px 20px;font-size:15px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);transition:background .15s;}
+.side-menu-item:hover{background:var(--surface2);}
 .nav-tab{padding:13px 10px;font-size:12px;font-weight:500;color:#aaa;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;transition:all .2s}
 .nav-tab:hover{color:#fff}.nav-tab.active{color:var(--accent2);border-bottom-color:var(--accent2)}
 .page{display:none;padding:18px 14px;max-width:980px;margin:0 auto}.page.active{display:block}
@@ -110,7 +112,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 @media(max-width:600px){
   .form-grid{grid-template-columns:1fr}.form-grid.cols3{grid-template-columns:1fr 1fr}
   .stat-row{grid-template-columns:repeat(2,1fr)}
-  .nav-tab{padding:11px 8px;font-size:11px}.page{padding:12px 10px}
+  .side-menu-item{padding:14px 20px;font-size:15px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);transition:background .15s;}
+.side-menu-item:hover{background:var(--surface2);}
+.nav-tab{padding:11px 8px;font-size:11px}.page{padding:12px 10px}
 }
 </style>
 </head>
@@ -128,16 +132,25 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 
 <nav class="nav">
   <div class="nav-logo">🧸奧斯卡</div>
-  <div class="nav-tabs">
-    <div class="nav-tab active" onclick="switchTab('dashboard',this)">總覽</div>
-    <div class="nav-tab" onclick="switchTab('products',this)">商品</div>
-    <div class="nav-tab" onclick="switchTab('customers',this)">客戶</div>
-    <div class="nav-tab" onclick="switchTab('orders',this)">抄貨單</div>
-    <div class="nav-tab" onclick="switchTab('shipments',this)">出貨單</div>
-    <div class="nav-tab" onclick="switchTab('returns',this)">退貨</div>
-    <div class="nav-tab" onclick="switchTab('restock',this)" id="nav-restock">補貨</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="nav-tab active" id="nav-dashboard" onclick="switchTab('dashboard',this);closeMenu()">總覽</div>
+    <button onclick="toggleMenu()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;" id="hamburger-btn">☰</button>
   </div>
 </nav>
+<!-- Slide-out menu -->
+<div id="side-menu" style="display:none;position:fixed;top:0;right:0;width:200px;height:100%;background:var(--surface);box-shadow:-4px 0 20px rgba(0,0,0,.15);z-index:200;padding-top:60px;">
+  <button onclick="closeMenu()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">✕</button>
+  <div style="padding:8px 0;">
+    <div class="side-menu-item" onclick="switchTab('dashboard',document.getElementById('nav-dashboard'));closeMenu()">🏠 總覽</div>
+    <div class="side-menu-item" onclick="switchTab('products',this);closeMenu()">📦 商品</div>
+    <div class="side-menu-item" onclick="switchTab('customers',this);closeMenu()">👥 客戶</div>
+    <div class="side-menu-item" onclick="switchTab('orders',this);closeMenu()">📋 抄貨單</div>
+    <div class="side-menu-item" onclick="switchTab('shipments',this);closeMenu()">🚚 出貨單</div>
+    <div class="side-menu-item" onclick="switchTab('returns',this);closeMenu()">↩️ 退貨</div>
+    <div class="side-menu-item" id="nav-restock" onclick="switchTab('restock',this);closeMenu()">🔔 補貨</div>
+  </div>
+</div>
+<div id="menu-overlay" onclick="closeMenu()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:199;"></div>
 
 <!-- DASHBOARD -->
 <div id="tab-dashboard" class="page active">
@@ -1560,7 +1573,8 @@ function showBCSummary(){
   const items=window._pickItems||[];
   // Only include checked items, if none checked include all
   const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')];
-  const checkedIdxs=allCbs.filter(cb=>cb.checked).map(cb=>parseInt(cb.id.replace('pick-cb-','')));
+  // Only include non-locked (non-packed) checked items for barcode summary
+  const checkedIdxs=allCbs.filter(cb=>cb.checked&&!cb.disabled).map(cb=>parseInt(cb.id.replace('pick-cb-','')));
   const selected=checkedIdxs.length>0?checkedIdxs.map(i=>items[i]):[];
   const cust=window._pickOrderId?db.customers.find(x=>x.id===db.orders.find(o=>o.id===window._pickOrderId)?.customerId):null;
   const custBarcode=cust?.labelBarcode||'—';
@@ -2244,7 +2258,7 @@ function renderCustStatus(){
         } else if(st==='已撿貨'||st==='裝箱中'){
           mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${order.id}')">裝箱確認</button>`:'';
         } else if(st==='已裝箱'){
-          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'';
+          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨(補)</button>`:'';
         } else if(st==='已完成'){
           mainBtn=order?`<button class="btn btn-sm btn-green" onclick="openShipModal('${order.id}')">建立出貨單</button>`:'';
         } else if(st==='已出貨'){
@@ -2253,7 +2267,7 @@ function renderCustStatus(){
         }
         const viewBtn=order?`<button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${order.id}')">查看撿貨</button>`:'';
         const editBtn=(['已安排','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成'].includes(st)&&order)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${order.id}')">編輯</button>`:'';
-        return `<tr><td><strong>${name}</strong></td><td style="white-space:nowrap;">${steps}</td><td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap;">${viewBtn}${editBtn}${mainBtn}</td></tr>`;
+        return `<tr><td><strong>${name}</strong></td><td><span style="padding:2px 8px;border-radius:4px;background:${statusColor[st]};color:#fff;font-size:12px;font-weight:600;">${st}</span></td><td style="white-space:nowrap;">${viewBtn}${editBtn}${mainBtn}</td></tr>`;
       }).join('')}</tbody>
     </table></div>`:'<div style="font-size:13px;color:var(--text3);">該日無記錄</div>'}
   </div>`;
@@ -2305,6 +2319,18 @@ document.addEventListener('click',e=>{
   const res=G('order-filter-cust-results');
   if(res&&!res.contains(e.target)&&e.target!==G('order-filter-cust'))res.style.display='none';
 });
+
+function toggleMenu(){
+  const menu=G('side-menu');
+  const overlay=G('menu-overlay');
+  const isOpen=menu.style.display!=='none';
+  menu.style.display=isOpen?'none':'block';
+  overlay.style.display=isOpen?'none':'block';
+}
+function closeMenu(){
+  G('side-menu').style.display='none';
+  G('menu-overlay').style.display='none';
+}
 
 loadData();
 </script>
