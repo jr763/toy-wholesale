@@ -182,6 +182,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       </div>
     </div>
   </div>
+  <!-- 待處理修改 -->
+  <div id="edit-alert-section"></div>
   <!-- 客戶進度 -->
   <div id="cust-status-section"></div>
   <!-- 尚未裝箱 -->
@@ -893,7 +895,7 @@ function renderDashboard(){
     <span>⚠️ 有 <strong>${low}</strong> 項商品庫存不足</span>
     <button class="btn btn-sm btn-danger" onclick="switchTab('restock',G('nav-restock'))">查看補貨清單</button>
   </div>`:'';
-  renderCalendar();renderCustStatus();
+  renderCalendar();renderCustStatus();renderEditAlerts();
 
   // 尚未完成（已裝箱但有缺漏商品的）
   
@@ -1372,7 +1374,7 @@ async function saveOrder(status){
     let msg=(!isEdit)?'📋 【'+custName+'】抄貨單已確認':wasConfirmed?'📝 【'+custName+'】抄貨單已修改':'📋 【'+custName+'】抄貨單已確認';
     sendLineNotify(msg);
   }
-  closeModal('modal-order');renderOrders();renderDashboard();
+  closeModal('modal-order');renderOrders();renderDashboard();renderEditAlerts();
   b1.disabled=b2.disabled=false;
 }
 async function deleteOrder(id){
@@ -1458,16 +1460,11 @@ function viewOrderReadonly(id){
 }
 function viewOrder(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
-  // Show edit alert if exists
+  // Auto-confirm editAlert when entering picking page
   if(o.editAlert&&!o.editAlert.confirmed){
-    const msg='⚠️ 抄貨單已被修改！\n\n修改項目：\n'+o.editAlert.changes.map(c=>'• '+c).join('\n')+'\n\n請確認上述修改後繼續撿貨。';
-    if(confirm(msg+'\n\n按確定表示已知悉並確認修改。')){
-      const oidx=db.orders.findIndex(x=>x.id===id);
-      if(oidx>=0)db.orders[oidx].editAlert.confirmed=true;
-      saveData();
-    } else {
-      return;
-    }
+    const oidx=db.orders.findIndex(x=>x.id===id);
+    if(oidx>=0)db.orders[oidx].editAlert.confirmed=true;
+    saveData();renderEditAlerts();
   }
   const cust=db.customers.find(x=>x.id===o.customerId);
   const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
@@ -2367,6 +2364,40 @@ function toggleMenu(){
 function closeMenu(){
   G('side-menu').style.display='none';
   G('menu-overlay').style.display='none';
+}
+
+function renderEditAlerts(){
+  const sec=G('edit-alert-section');if(!sec)return;
+  // Find orders with unconfirmed editAlert OR mod_* status
+  const alerts=db.orders.filter(o=>
+    (o.editAlert&&!o.editAlert.confirmed)||
+    ['mod_pending','mod_picking','mod_picked','mod_boxing'].includes(o.status)
+  );
+  if(!alerts.length){sec.innerHTML='';return;}
+  sec.innerHTML=`<div class="card" style="margin-bottom:12px;border-left:4px solid var(--orange);">
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">⚠️ 待確認修改（${alerts.length}）</div>
+    ${alerts.map(o=>{
+      const cust=db.customers.find(x=>x.id===o.customerId);
+      const custName=cust?cust.name:'—';
+      const sm={mod_pending:'已完成(待修改)',mod_picking:'撿貨(修改)',mod_picked:'已撿貨(修改)',mod_boxing:'裝箱(修改)'};
+      const stLabel=sm[o.status]||'修改中';
+      const changes=o.editAlert?.changes||[];
+      let actionBtn='';
+      if(['mod_pending','mod_picking'].includes(o.status))
+        actionBtn=`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨(修改)</button>`;
+      else if(['mod_picked','mod_boxing'].includes(o.status))
+        actionBtn=`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">裝箱(修改)</button>`;
+      else if(o.editAlert&&!o.editAlert.confirmed)
+        actionBtn=`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">查看並確認</button>`;
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${custName} <span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--orange);color:#fff;">${stLabel}</span></div>
+          ${changes.length?`<div style="font-size:12px;color:var(--text2);">${changes.map(ch=>'• '+ch).join('<br>')}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">${actionBtn}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 
 loadData();
