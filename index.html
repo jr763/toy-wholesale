@@ -1521,7 +1521,11 @@ async function markPacked(orderId){
   const msg=allDone?'所有商品已撿齊，確認撿貨完成？':`有 ${missing.length} 項商品未撿（${missing.map(i=>i.name).join('、')}），確認撿貨完成？`;
   if(!confirm(msg))return;
   const idx=db.orders.findIndex(x=>x.id===orderId);
-  if(idx>=0){db.orders[idx].picked=true;db.orders[idx].status='picked';}
+  if(idx>=0){
+    db.orders[idx].picked=true;
+    if(db.orders[idx].status==='mod_picking')db.orders[idx].status='mod_picked';
+    else db.orders[idx].status='picked';
+  }
   await saveData();
   closeModal('modal-order-detail');
   renderDashboard();renderOrders();
@@ -2052,7 +2056,8 @@ async function confirmBoxing(){
   const missing=(o.items||[]).filter((_,i)=>!savedState[i]);
   const idx=db.orders.findIndex(x=>x.id===_boxingOrderId);
   const wasRe=['re_boxing','re_picking'].includes(db.orders[idx]?.status);
-  if(idx>=0)db.orders[idx].status=missing.length?'packed':'completed';
+  const isMod=['mod_boxing','mod_picked'].includes(db.orders[idx]?.status);
+  if(idx>=0)db.orders[idx].status=missing.length?(isMod?'packed':'packed'):'completed';
   await saveData();
   closeModal('modal-boxing');
   renderDashboard();renderOrders();
