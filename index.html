@@ -2299,7 +2299,7 @@ function renderCustStatus(){
       <input type="date" id="cust-status-date" value="${selDate}" onchange="renderCustStatus()" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;width:auto;">
     </div>
     ${entries.length?`<div class="table-wrap"><table>
-      <thead><tr><th>客戶</th><th>狀態</th><th></th></tr></thead>
+      <thead><tr><th style="text-align:left;">客戶</th><th style="text-align:left;">狀態</th><th></th></tr></thead>
       <tbody>${entries.map(([name,info])=>{
         const st=info.status;
         const steps=statusFlow.map(s=>`<span style="font-size:10px;padding:1px 4px;border-radius:3px;background:${s===st?statusColor[st]:'var(--surface2)'};color:${s===st?'#fff':'var(--text3)'};">${s}</span>`).join('›');
@@ -2425,12 +2425,41 @@ function openEditConfirm(orderId){
   const o=db.orders.find(x=>x.id===orderId);if(!o||!o.editAlert)return;
   window._editConfirmOrderId=orderId;
   const changes=o.editAlert.changes||[];
+  const cust=db.customers.find(x=>x.id===o.customerId);
+  // Find the actual changed items with full product info
+  const locOrder=['地下室','一樓','樓梯間','二樓','其他',''];
+  const changedItems=changes.map(ch=>{
+    // Parse change string: 新增/增加/減少/刪除：商品名稱 (variant)
+    const typeMatch=ch.match(/^(新增|增加|減少|刪除)：(.+?)( \((.+?)\))?$/);
+    if(!typeMatch)return{name:ch,type:'',qty:'',location:'',price:'',variant:''};
+    const type=typeMatch[1];
+    const name=typeMatch[2];
+    const variant=typeMatch[4]||'';
+    const item=(o.items||[]).find(i=>i.name===name&&(i.variant||'')===(variant));
+    const prod=item?db.products.find(p=>p.id===item.productId):null;
+    return{type,name,variant,qty:item?.qty||'',price:item?.price||'',
+      location:item?.location||prod?.location||'',
+      hasInspMark:prod?prod.hasInspectionMark!==false:true,
+      batchNo:prod?.inspectionBatchNo||''};
+  }).sort((a,b)=>{
+    const la=locOrder.indexOf(a.location),lb=locOrder.indexOf(b.location);
+    return(la<0?99:la)-(lb<0?99:lb);
+  });
   const list=G('edit-confirm-list');
-  list.innerHTML=changes.map((ch,i)=>`
-    <div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
-      <input type="checkbox" id="ec-cb-${i}" onchange="updateEditConfirmBtn()">
-      <label for="ec-cb-${i}" style="font-size:13px;cursor:pointer;">${ch}</label>
-    </div>`).join('');
+  list.innerHTML=`<div style="font-size:13px;font-weight:700;margin-bottom:8px;">${cust?cust.name:''} - 以下商品已修改，請逐一確認：</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>✓</th><th>類型</th><th>存放地點</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
+      <tbody>${changedItems.map((i,idx)=>`<tr>
+        <td><input type="checkbox" id="ec-cb-${idx}" onchange="updateEditConfirmBtn()" style="width:18px;height:18px;cursor:pointer;"></td>
+        <td><span class="badge ${i.type==='新增'||i.type==='增加'?'badge-green':'badge-orange'}">${i.type}</span></td>
+        <td><span class="badge badge-blue">${i.location||'—'}</span></td>
+        <td><strong>${i.name}</strong></td>
+        <td>${i.variant||'—'}</td>
+        <td>${i.qty}</td>
+        <td>$${i.price}</td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>`;
   G('edit-confirm-btn').disabled=true;
   openModal('modal-edit-confirm');
 }
