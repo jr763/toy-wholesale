@@ -258,13 +258,13 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div><h2>抄貨單</h2></div>
     <button class="btn btn-primary" onclick="openOrderModal()">＋ 新增抄貨單</button>
   </div>
-  <div class="tab-inner">
-    <button class="tab-inner-btn active" onclick="filterOrders('all',this)">全部</button>
-    <button class="tab-inner-btn" onclick="filterOrders('draft',this)">草稿</button>
-    <button class="tab-inner-btn" onclick="filterOrders('confirmed',this)">已確認</button>
-    <button class="tab-inner-btn" onclick="filterOrders('picked',this)">已撿貨</button>
-    <button class="tab-inner-btn" onclick="filterOrders('completed',this)">已完成</button>
-    <button class="tab-inner-btn" onclick="filterOrders('shipped',this)">已出貨</button>
+  <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+    <div style="position:relative;flex:1;min-width:150px;">
+      <input id="order-filter-cust" placeholder="搜尋客戶名稱…" oninput="onOrderFilterCust()" autocomplete="off" style="width:100%;">
+      <div id="order-filter-cust-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:7px;z-index:50;max-height:160px;overflow-y:auto;box-shadow:var(--shadow);"></div>
+    </div>
+    <input type="date" id="order-filter-date" placeholder="日期篩選" oninput="renderOrders()" style="width:auto;">
+    <button class="btn btn-secondary btn-sm" onclick="clearOrderFilter()">清除</button>
   </div>
   <div id="orders-list"></div>
 </div>
@@ -1138,6 +1138,8 @@ function openOrderModal(){
   editOrderId=null;orderItems=[];
   G('o-modal-title').textContent='新增抄貨單';
   G('o-date').value=today();
+  const _ci=G('o-cust-input');if(_ci)_ci.disabled=false;
+  const _di=G('o-date');if(_di)_di.disabled=false;
   // Show scheduled customers as dropdown if any today
   const todayVisit=(db.calVisits||{})[today()];
   const custInputEl=G('o-cust-input');
@@ -1190,6 +1192,8 @@ function editOrder(id){
   const custWrap=G('o-cust-input')?.closest('.form-group');
   if(custWrap)custWrap.style.display='';
   const schedDiv=G('o-sched-hint');if(schedDiv)schedDiv.style.display='none';
+  const ci=G('o-cust-input');if(ci)ci.disabled=false;
+  const di=G('o-date');if(di)di.disabled=false;
   if(G('o-search'))G('o-search').value='';
   G('o-cust').value=o.customerId;
   const _ec=db.customers.find(x=>x.id===o.customerId);
@@ -1580,11 +1584,24 @@ async function togglePicked(idx,cb){
   const row=G('pick-row-'+idx);
   if(cb.checked){row.style.opacity='0.35';row.style.textDecoration='line-through';}
   else{row.style.opacity='1';row.style.textDecoration='none';}
+  // Update pick-done-btn immediately
+  const pickBtn=G('pick-done-btn');
+  if(pickBtn){
+    const anyChecked=[...document.querySelectorAll('[id^="pick-cb-"]')].some(x=>x.checked);
+    pickBtn.disabled=!anyChecked;
+    pickBtn.style.opacity=anyChecked?'1':'0.5';
+    pickBtn.style.cursor=anyChecked?'pointer':'not-allowed';
+  }
   // Auto-save picking state
   const oid=window._pickOrderId;if(!oid)return;
   if(!db.pickingState)db.pickingState={};
   if(!db.pickingState[oid])db.pickingState[oid]={};
   db.pickingState[oid][idx]=cb.checked;
+  // Update order status to picking
+  const oidx=db.orders.findIndex(x=>x.id===oid);
+  if(oidx>=0&&cb.checked&&db.orders[oidx].status==='confirmed'){
+    db.orders[oidx].status='picking';
+  }
   await saveData();
   // Auto-refresh barcode summary if open
   const bcEl=G('bc-summary-inline');
@@ -1604,7 +1621,7 @@ function openShipModal(orderId){
 
     <div class="form-grid" style="margin-bottom:13px;">
       <div class="form-group"><label>出貨日期</label><input id="s-date" type="date" value="${today()}"></div>
-      <div class="form-group"><label>備註</label><input id="s-note" placeholder="出貨備注…"></div>
+
     </div>
     <div class="table-wrap"><table>
       <thead><tr><th>商品</th><th>種類</th><th>數量</th><th>售價</th><th>小計</th></tr></thead>
@@ -1627,7 +1644,7 @@ function updShipTotal(){
   const t=G('s-total');if(t)t.textContent='總計：$'+fmt(shipmentItems.reduce((s,i)=>s+i.qty*i.price,0));
 }
 async function saveShipment(orderId){
-  const s={id:uid(),orderId,date:V('s-date')||today(),note:V('s-note'),items:shipmentItems.map(i=>({...i}))};
+  const s={id:uid(),orderId,date:V('s-date')||today(),note:'',items:shipmentItems.map(i=>({...i}))};
   db.shipments.push(s);
   const oi=db.orders.findIndex(x=>x.id===orderId);if(oi>=0)db.orders[oi].status='shipped';
   // Deduct inventory
@@ -2217,25 +2234,26 @@ function renderCustStatus(){
       <tbody>${entries.map(([name,info])=>{
         const st=info.status;
         const steps=statusFlow.map(s=>`<span style="font-size:10px;padding:1px 4px;border-radius:3px;background:${s===st?statusColor[st]:'var(--surface2)'};color:${s===st?'#fff':'var(--text3)'};">${s}</span>`).join('›');
-        // Find order for this customer on selected date
         const cust=db.customers.find(x=>x.name===name);
         const order=cust?db.orders.find(o=>o.customerId===cust.id&&o.date===selDate):null;
-        let btn='';
+        let mainBtn='';
         if(st==='已安排'){
-          btn=`<button class="btn btn-sm btn-primary" onclick="openOrderWithCust('${name}')">+ 抄貨單</button>`;
+          mainBtn=`<button class="btn btn-sm btn-primary" onclick="openOrderWithCust('${name}')">+ 抄貨單</button>`;
         } else if(st==='已抄貨'||st==='撿貨中'){
-          btn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'';
+          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'';
         } else if(st==='已撿貨'||st==='裝箱中'){
-          btn=order?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${order.id}')">裝箱確認</button>`:'';
+          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${order.id}')">裝箱確認</button>`:'';
         } else if(st==='已裝箱'){
-          btn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'';
+          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'';
         } else if(st==='已完成'){
-          btn=order?`<button class="btn btn-sm btn-green" onclick="openShipModal('${order.id}')">建立出貨單</button>`:'';
+          mainBtn=order?`<button class="btn btn-sm btn-green" onclick="openShipModal('${order.id}')">建立出貨單</button>`:'';
         } else if(st==='已出貨'){
           const ship=order?db.shipments.find(s=>s.orderId===order.id):null;
-          btn=ship?`<button class="btn btn-sm btn-blue" onclick="printShipment('${ship.id}')">列印出貨單</button>`:'';
+          mainBtn=ship?`<button class="btn btn-sm btn-blue" onclick="printShipment('${ship.id}')">列印出貨單</button>`:'';
         }
-        return `<tr><td><strong>${name}</strong></td><td style="white-space:nowrap;">${steps}</td><td>${btn}</td></tr>`;
+        const viewBtn=order?`<button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${order.id}')">查看撿貨</button>`:'';
+        const editBtn=(['已安排','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成'].includes(st)&&order)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${order.id}')">編輯</button>`:'';
+        return `<tr><td><strong>${name}</strong></td><td style="white-space:nowrap;">${steps}</td><td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap;">${viewBtn}${editBtn}${mainBtn}</td></tr>`;
       }).join('')}</tbody>
     </table></div>`:'<div style="font-size:13px;color:var(--text3);">該日無記錄</div>'}
   </div>`;
@@ -2243,22 +2261,50 @@ function renderCustStatus(){
 
 function openOrderWithCust(custName){
   openOrderModal();
-  // Auto-select customer after modal opens
   setTimeout(()=>{
     const cust=db.customers.find(x=>x.name===custName);
     if(cust){
       G('o-cust').value=cust.id;
-      G('o-cust-input').value=cust.name;
-      // If sched select exists, set it
+      // Lock customer field
+      const custInput=G('o-cust-input');
+      if(custInput){custInput.value=cust.name;custInput.disabled=true;}
       const sel=G('o-sched-select');
-      if(sel){
-        for(let i=0;i<sel.options.length;i++){
-          if(sel.options[i].value===cust.id){sel.selectedIndex=i;break;}
-        }
-      }
+      if(sel){sel.disabled=true;for(let i=0;i<sel.options.length;i++){if(sel.options[i].value===cust.id){sel.selectedIndex=i;break;}}}
+      // Lock date field
+      const dateInput=G('o-date');
+      if(dateInput)dateInput.disabled=true;
     }
   },100);
 }
+
+function onOrderFilterCust(){
+  const q=(G('order-filter-cust')?.value||'').toLowerCase();
+  const res=G('order-filter-cust-results');
+  window._orderFilterCustId='';
+  if(!q){res.style.display='none';renderOrders();return;}
+  const hits=db.customers.filter(x=>x.name.toLowerCase().includes(q)).slice(0,8);
+  res.style.display=hits.length?'block':'none';
+  res.innerHTML=hits.map(x=>`<div onclick="selectOrderFilterCust('${x.id}','${x.name.replace(/'/g,"&#39;")}')" style="padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+    ${x.name}
+  </div>`).join('');
+}
+function selectOrderFilterCust(id,name){
+  window._orderFilterCustId=id;
+  G('order-filter-cust').value=name;
+  G('order-filter-cust-results').style.display='none';
+  renderOrders();
+}
+function clearOrderFilter(){
+  window._orderFilterCustId='';
+  G('order-filter-cust').value='';
+  G('order-filter-date').value='';
+  G('order-filter-cust-results').style.display='none';
+  renderOrders();
+}
+document.addEventListener('click',e=>{
+  const res=G('order-filter-cust-results');
+  if(res&&!res.contains(e.target)&&e.target!==G('order-filter-cust'))res.style.display='none';
+});
 
 loadData();
 </script>
