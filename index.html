@@ -725,7 +725,7 @@ function toggleCal(){
   const body=G('cal-body');
   const icon=G('cal-toggle-icon');
   if(body)body.style.display=calVisible?'block':'none';
-  if(icon)icon.textContent=calVisible?'▾':'▸';
+  if(icon)icon.textContent=calVisible?'收起':'展開';
   updateTodaySummary();
 }
 function updateTodaySummary_disabled(){
@@ -2209,7 +2209,7 @@ function renderCustStatus(){
         }
         const viewBtn=order?`<button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${order.id}')">查看撿貨</button>`:'';
         const editBtn=(['未抄貨','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成'].includes(st)&&order)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${order.id}')">編輯</button>`:'';
-        return `<tr><td><strong>${name}</strong></td><td><span style="padding:2px 8px;border-radius:4px;background:${statusColor[st]||'var(--text3)'};color:#fff;font-size:12px;font-weight:600;">${st}</span></td><td style="text-align:right;white-space:nowrap;">${viewBtn}${editBtn}${mainBtn}</td></tr>`;
+        return `<tr><td style="vertical-align:top;"><strong>${name}</strong></td><td style="vertical-align:top;"><span style="padding:2px 8px;border-radius:4px;background:${statusColor[st]||'var(--text3)'};color:#fff;font-size:12px;font-weight:600;">${st}</span></td><td style="vertical-align:top;"><div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">${viewBtn}${editBtn}${mainBtn}</div></td></tr>`;
       }).join('')}</tbody>
     </table></div>`:'<div style="font-size:13px;color:var(--text3);">該日無記錄</div>'}
   </div>`;
