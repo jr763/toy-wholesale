@@ -846,6 +846,7 @@ function openCalDetail(date){
   const mng=G('cal-manage-section');if(mng)mng.style.display='none';
   const detail=G('cal-detail-section');if(detail)detail.innerHTML='';
   openModal('modal-cal-visit');
+}
 function openCalVisit(date){
   openCalDetail(date);
 }
@@ -1317,8 +1318,13 @@ function filterOrders(f,btn){
 }
 function renderOrders(){
   const list=G('orders-list');if(!list)return;
-  let rows=[...db.orders].reverse();
-  if(orderFilter!=='all')rows=rows.filter(o=>o.status===orderFilter);
+  const filterCustId=window._orderFilterCustId||'';
+  const filterDate=G('order-filter-date')?.value||'';
+  let rows=[...db.orders].reverse().filter(o=>{
+    if(filterCustId&&o.customerId!==filterCustId)return false;
+    if(filterDate&&o.date!==filterDate)return false;
+    return true;
+  });
   if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>沒有符合的抄貨單</div>';return;}
   const sm={draft:'抄貨中',confirmed:'已抄貨',picking:'撿貨中',picked:'已撿貨',boxing:'裝箱中',packed:'已裝箱',completed:'已完成',shipped:'已出貨'};
   const bm={draft:'badge-orange',confirmed:'badge-green',picking:'badge-orange',picked:'badge-green',boxing:'badge-orange',packed:'badge-blue',completed:'badge-blue',shipped:'badge-blue'};
