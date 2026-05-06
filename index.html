@@ -1578,13 +1578,9 @@ async function saveShipment(orderId){
 }
 function renderShipments(){
   const list=G('shipments-list');if(!list)return;
-  // Populate filters
+  // Populate month filter
   const custSel=G('ship-filter-cust');
   const monthSel=G('ship-filter-month');
-  if(custSel&&custSel.options.length<=1){
-    const custs=[...new Set(db.shipments.map(s=>{const o=db.orders.find(x=>x.id===s.orderId);const c=o?db.customers.find(x=>x.id===o.customerId):null;return c?c.id+':'+c.name:null}).filter(Boolean))];
-    custs.forEach(cv=>{const [id,name]=cv.split(':');const opt=document.createElement('option');opt.value=id;opt.textContent=name;custSel.appendChild(opt);});
-  }
   if(monthSel&&monthSel.options.length<=1){
     const months=[...new Set(db.shipments.map(s=>s.date?.slice(0,7)).filter(Boolean))].sort().reverse();
     months.forEach(m=>{const opt=document.createElement('option');opt.value=m;opt.textContent=m;monthSel.appendChild(opt);});
