@@ -1145,28 +1145,38 @@ function openOrderModal(){
   G('o-date').value=today();G('o-note').value='';
   // Show scheduled customers as dropdown if any today
   const todayVisit=(db.calVisits||{})[today()];
-  const schedDiv=G('o-sched-hint');
-  const custInputWrap=G('o-cust-input')?.closest('.form-group');
+  const custInputEl=G('o-cust-input');
+  const custResultsEl=G('o-cust-results');
+  G('o-cust').value='';
+  if(custInputEl)custInputEl.value='';
+  if(custResultsEl)custResultsEl.innerHTML='';
+  // Remove any previous sched select
+  const oldSel=G('o-sched-select');if(oldSel)oldSel.remove();
+  const oldHint=G('o-sched-hint-line');if(oldHint)oldHint.remove();
   if(todayVisit){
     const schedCusts=todayVisit.split('、').map(n=>n.trim()).filter(Boolean);
     const custOptions=schedCusts.map(name=>{
       const cust=db.customers.find(x=>x.name===name);
       return cust?`<option value="${cust.id}">${cust.name}</option>`:'';
     }).filter(Boolean).join('');
-    if(schedDiv){
-      schedDiv.style.display='block';
-      schedDiv.innerHTML=`<div style="margin-bottom:6px;font-size:12px;color:var(--blue);">📅 今日行程，請選擇客戶：</div>
-        <select id="o-sched-select" onchange="selectSchedCust(this.value)" style="width:100%;margin-bottom:4px;">
-          <option value="">-- 選擇客戶 --</option>${custOptions}
-        </select>`;
+    // Insert select before the input
+    const hint=document.createElement('div');
+    hint.id='o-sched-hint-line';
+    hint.style.cssText='font-size:11px;color:var(--blue);margin-bottom:4px;';
+    hint.textContent='📅 今日行程：';
+    const sel=document.createElement('select');
+    sel.id='o-sched-select';
+    sel.style.cssText='width:100%;margin-bottom:6px;';
+    sel.innerHTML='<option value="">-- 選擇客戶 --</option>'+custOptions;
+    sel.onchange=function(){selectSchedCust(this.value);};
+    const wrap=custInputEl?.closest('.form-group');
+    if(wrap){
+      wrap.insertBefore(hint,custInputEl);
+      wrap.insertBefore(sel,custInputEl);
+      custInputEl.style.display='none';
     }
-    if(custInputWrap)custInputWrap.style.display='none';
-    G('o-cust').value='';
   } else {
-    if(schedDiv)schedDiv.style.display='none';
-    if(custInputWrap)custInputWrap.style.display='';
-    G('o-cust-input').value='';
-    G('o-cust').value='';
+    if(custInputEl)custInputEl.style.display='';
   }
   G('o-qty').value=1;G('o-price').value='';
   if(G('o-cust-input'))G('o-cust-input').value='';
@@ -2145,12 +2155,7 @@ function selectShipCust(id,name){
 }
 function selectSchedCust(custId){
   if(!custId){
-    // Show manual search
-    const custInputWrap=G('o-cust-input')?.closest('.form-group');
-    if(custInputWrap)custInputWrap.style.display='';
-    G('o-cust-input').value='';
     G('o-cust').value='';
-    G('o-cust-results').innerHTML='';
     return;
   }
   const cust=db.customers.find(x=>x.id===custId);
