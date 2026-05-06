@@ -844,7 +844,30 @@ function openCalDetail(date){
   renderCalVisitList();
     // Hide manage section
   const mng=G('cal-manage-section');if(mng)mng.style.display='none';
-  const detail=G('cal-detail-section');if(detail)detail.innerHTML='';
+  const detail=G('cal-detail-section');
+  if(detail){
+    const dayOrders=db.orders.filter(o=>o.date===date);
+    const dayShips=db.shipments.filter(s=>s.date===date);
+    let html='';
+    if(dayOrders.length){
+      html+=`<div style="margin-bottom:8px;"><div style="font-size:13px;font-weight:700;margin-bottom:4px;">抄貨：</div>`;
+      dayOrders.forEach(o=>{
+        const cust=db.customers.find(x=>x.id===o.customerId);
+        html+=`<div style="font-size:13px;padding:2px 8px;">• ${cust?cust.name:'—'}</div>`;
+      });
+      html+='</div>';
+    }
+    if(dayShips.length){
+      html+=`<div style="margin-bottom:8px;"><div style="font-size:13px;font-weight:700;margin-bottom:4px;">送貨：</div>`;
+      dayShips.forEach(s=>{
+        const o=db.orders.find(x=>x.id===s.orderId);
+        const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+        html+=`<div style="font-size:13px;padding:2px 8px;">• ${cust?cust.name:'—'}</div>`;
+      });
+      html+='</div>';
+    }
+    detail.innerHTML=html;
+  }
   openModal('modal-cal-visit');
 }
 function openCalVisit(date){
@@ -2209,7 +2232,7 @@ function renderCustStatus(){
         }
         const viewBtn=order?`<button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${order.id}')">查看撿貨</button>`:'';
         const editBtn=(['未抄貨','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成'].includes(st)&&order)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${order.id}')">編輯</button>`:'';
-        return `<tr><td style="vertical-align:top;"><strong>${name}</strong></td><td style="vertical-align:top;"><span style="padding:2px 8px;border-radius:4px;background:${statusColor[st]||'var(--text3)'};color:#fff;font-size:12px;font-weight:600;">${st}</span></td><td style="vertical-align:top;"><div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">${viewBtn}${editBtn}${mainBtn}</div></td></tr>`;
+        return `<tr><td style="vertical-align:middle;text-align:center;"><strong>${name}</strong></td><td style="vertical-align:middle;text-align:center;"><span style="padding:2px 8px;border-radius:4px;background:${statusColor[st]||'var(--text3)'};color:#fff;font-size:12px;font-weight:600;">${st}</span></td><td style="vertical-align:top;"><div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">${viewBtn}${editBtn}${mainBtn}</div></td></tr>`;
       }).join('')}</tbody>
     </table></div>`:'<div style="font-size:13px;color:var(--text3);">該日無記錄</div>'}
   </div>`;
