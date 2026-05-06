@@ -175,12 +175,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   </div>
   <!-- 客戶進度 -->
   <div id="cust-status-section"></div>
-  <!-- 尚未撿貨 -->
-  <div id="unpicked-section"></div>
   <!-- 尚未裝箱 -->
   <div id="unboxed-section"></div>
-  <!-- 尚未完成 -->
-  <div id="incomplete-section"></div>
 
 </div>
 
@@ -924,66 +920,11 @@ function renderDashboard(){
     <button class="btn btn-sm btn-danger" onclick="switchTab('restock',G('nav-restock'))">查看補貨清單</button>
   </div>`:'';
   renderCalendar();updateTodaySummary();renderCustStatus();
-  // 尚未裝箱（已撿貨，等待裝箱確認）
-  const unboxed=db.orders.filter(o=>['picked','boxing'].includes(o.status));
-  const unboxSec=G('unboxed-section');
-  if(unboxSec){
-    if(unboxed.length){
-      unboxSec.innerHTML=`<div class="card" style="margin-bottom:12px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📦 尚未裝箱（${unboxed.length}）</div>
-        <div class="table-wrap"><table>
-          <thead><tr><th>客戶</th><th>日期</th><th>金額</th><th></th></tr></thead>
-          <tbody>${unboxed.map(o=>{
-            const cust=db.customers.find(x=>x.id===o.customerId);
-            const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
-            return `<tr><td><strong>${cust?cust.name:'—'}</strong></td><td>${o.date}</td><td>$${fmt(total)}</td>
-              <td><button class="btn btn-sm btn-green" onclick="openBoxingModal('${o.id}')">裝箱確認</button></td></tr>`;
-          }).join('')}</tbody>
-        </table></div>
-      </div>`;
-    } else unboxSec.innerHTML='';
-  }
-  // 尚未完成（已裝箱但有缺漏商品的）
-    // 尚未完成（已裝箱但有缺漏）
-  const incomplete=db.orders.filter(o=>o.status==='packed');
-  const incSec=G('incomplete-section');
-  if(incSec){
-    if(incomplete.length){
-      incSec.innerHTML=`<div class="card" style="margin-bottom:12px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">⚠️ 尚未完成（${incomplete.length}）</div>
-        <div class="table-wrap"><table>
-          <thead><tr><th>客戶</th><th>日期</th><th></th></tr></thead>
-          <tbody>${incomplete.map(o=>{
-            const cust=db.customers.find(x=>x.id===o.customerId);
-            return `<tr>
-              <td><strong>${cust?cust.name:'—'}</strong></td>
-              <td>${o.date}</td>
-              <td><button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button></td>
-            </tr>`;
-          }).join('')}</tbody>
-        </table></div>
-      </div>`;
-    } else incSec.innerHTML='';
-  }
 
-  // 尚未撿貨清單（已確認但未出貨的抄貨單）
-  const unpicked=db.orders.filter(o=>['confirmed','picking'].includes(o.status));
-  const sec=G('unpicked-section');
-  if(sec){
-    if(unpicked.length){
-      sec.innerHTML=`<div class="card" style="margin-bottom:12px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📦 尚未撿貨（${unpicked.length}）</div>
-        <div class="table-wrap"><table>
-          <thead><tr><th>客戶</th><th>日期</th><th>金額</th><th></th></tr></thead>
-          <tbody>${unpicked.map(o=>{
-            const cust=db.customers.find(x=>x.id===o.customerId);
-            const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
-            return `<tr><td><strong>${cust?cust.name:'—'}</strong></td><td>${o.date}</td><td>$${fmt(total)}</td>
-              <td><button class="btn btn-sm btn-primary" onclick="closeModal('modal-cal-visit');viewOrder('${o.id}')">撿貨</button></td></tr>`;
-          }).join('')}</tbody></table></div>
-      </div>`;
-    } else sec.innerHTML='';
-  }
+  // 尚未完成（已裝箱但有缺漏商品的）
+  
+
+
 }
 function updateRestockBadge(){
   const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock).length;
@@ -1196,7 +1137,7 @@ function renderCustomers(){
 function openOrderModal(){
   editOrderId=null;orderItems=[];
   G('o-modal-title').textContent='新增抄貨單';
-  G('o-date').value=today();G('o-note').value='';
+  G('o-date').value=today();
   // Show scheduled customers as dropdown if any today
   const todayVisit=(db.calVisits||{})[today()];
   const custInputEl=G('o-cust-input');
@@ -1244,7 +1185,7 @@ function editOrder(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
   editOrderId=id;orderItems=(o.items||[]).map(i=>({...i}));
   G('o-modal-title').textContent='編輯抄貨單';
-  G('o-date').value=o.date;G('o-note').value=o.note||'';
+  G('o-date').value=o.date;
   // Always show customer input in edit mode
   const custWrap=G('o-cust-input')?.closest('.form-group');
   if(custWrap)custWrap.style.display='';
@@ -2272,14 +2213,51 @@ function renderCustStatus(){
       <input type="date" id="cust-status-date" value="${selDate}" onchange="renderCustStatus()" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;width:auto;">
     </div>
     ${entries.length?`<div class="table-wrap"><table>
-      <thead><tr><th>客戶</th><th>狀態</th></tr></thead>
+      <thead><tr><th>客戶</th><th>狀態</th><th></th></tr></thead>
       <tbody>${entries.map(([name,info])=>{
         const st=info.status;
         const steps=statusFlow.map(s=>`<span style="font-size:10px;padding:1px 4px;border-radius:3px;background:${s===st?statusColor[st]:'var(--surface2)'};color:${s===st?'#fff':'var(--text3)'};">${s}</span>`).join('›');
-        return `<tr><td><strong>${name}</strong></td><td style="white-space:nowrap;">${steps}</td></tr>`;
+        // Find order for this customer on selected date
+        const cust=db.customers.find(x=>x.name===name);
+        const order=cust?db.orders.find(o=>o.customerId===cust.id&&o.date===selDate):null;
+        let btn='';
+        if(st==='已安排'){
+          btn=`<button class="btn btn-sm btn-primary" onclick="openOrderWithCust('${name}')">+ 抄貨單</button>`;
+        } else if(st==='已抄貨'||st==='撿貨中'){
+          btn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'';
+        } else if(st==='已撿貨'||st==='裝箱中'){
+          btn=order?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${order.id}')">裝箱確認</button>`:'';
+        } else if(st==='已裝箱'){
+          btn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'';
+        } else if(st==='已完成'){
+          btn=order?`<button class="btn btn-sm btn-green" onclick="openShipModal('${order.id}')">建立出貨單</button>`:'';
+        } else if(st==='已出貨'){
+          const ship=order?db.shipments.find(s=>s.orderId===order.id):null;
+          btn=ship?`<button class="btn btn-sm btn-blue" onclick="printShipment('${ship.id}')">列印出貨單</button>`:'';
+        }
+        return `<tr><td><strong>${name}</strong></td><td style="white-space:nowrap;">${steps}</td><td>${btn}</td></tr>`;
       }).join('')}</tbody>
     </table></div>`:'<div style="font-size:13px;color:var(--text3);">該日無記錄</div>'}
   </div>`;
+}
+
+function openOrderWithCust(custName){
+  openOrderModal();
+  // Auto-select customer after modal opens
+  setTimeout(()=>{
+    const cust=db.customers.find(x=>x.name===custName);
+    if(cust){
+      G('o-cust').value=cust.id;
+      G('o-cust-input').value=cust.name;
+      // If sched select exists, set it
+      const sel=G('o-sched-select');
+      if(sel){
+        for(let i=0;i<sel.options.length;i++){
+          if(sel.options[i].value===cust.id){sel.selectedIndex=i;break;}
+        }
+      }
+    }
+  },100);
 }
 
 loadData();
