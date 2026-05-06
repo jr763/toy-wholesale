@@ -944,8 +944,27 @@ function renderDashboard(){
     } else unboxSec.innerHTML='';
   }
   // 尚未完成（已裝箱但有缺漏商品的）
-    // 尚未完成 section removed
-  const incSec=G('incomplete-section');if(incSec)incSec.innerHTML='';
+    // 尚未完成（已裝箱但有缺漏）
+  const incomplete=db.orders.filter(o=>o.status==='packed');
+  const incSec=G('incomplete-section');
+  if(incSec){
+    if(incomplete.length){
+      incSec.innerHTML=`<div class="card" style="margin-bottom:12px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">⚠️ 尚未完成（${incomplete.length}）</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>客戶</th><th>日期</th><th></th></tr></thead>
+          <tbody>${incomplete.map(o=>{
+            const cust=db.customers.find(x=>x.id===o.customerId);
+            return `<tr>
+              <td><strong>${cust?cust.name:'—'}</strong></td>
+              <td>${o.date}</td>
+              <td><button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>
+      </div>`;
+    } else incSec.innerHTML='';
+  }
 
   // 尚未撿貨清單（已確認但未出貨的抄貨單）
   const unpicked=db.orders.filter(o=>['confirmed','picking'].includes(o.status));
@@ -2226,42 +2245,40 @@ function renderCustStatus(){
   const sec=G('cust-status-section');if(!sec)return;
   const statusFlow=['已安排','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成','已出貨'];
   const statusColor={'已安排':'var(--blue)','已抄貨':'var(--orange)','撿貨中':'var(--orange)','已撿貨':'var(--orange)','裝箱中':'var(--orange)','已裝箱':'var(--blue)','已完成':'var(--green)','已出貨':'var(--green)'};
-  
-  // Build customer status map from all orders
+  const selDate=G('cust-status-date')?.value||today();
   const custStatusMap={};
-  
-  // First add all scheduled visits (for today and future)
-  const todayStr=today();
-  Object.entries(db.calVisits||{}).forEach(([date,visit])=>{
-    if(date>=todayStr){
-      visit.split('、').map(n=>n.trim()).filter(Boolean).forEach(name=>{
-        if(!custStatusMap[name])custStatusMap[name]={status:'已安排',date};
-      });
-    }
+  // Scheduled visits for selected date
+  const visit=(db.calVisits||{})[selDate]||'';
+  visit.split('、').map(n=>n.trim()).filter(Boolean).forEach(name=>{
+    custStatusMap[name]={status:'已安排',date:selDate};
   });
-  
-  // Override with actual order status
-  db.orders.forEach(o=>{
-    if(o.status==='shipped')return; // skip shipped
+  // Orders on selected date
+  db.orders.filter(o=>o.date===selDate).forEach(o=>{
     const cust=db.customers.find(x=>x.id===o.customerId);
     if(!cust)return;
-    const stMap={confirmed:'已抄貨',picking:'撿貨中',picked:'已撿貨',boxing:'裝箱中',packed:'已裝箱',completed:'已完成'};
+    const stMap={confirmed:'已抄貨',picking:'撿貨中',picked:'已撿貨',boxing:'裝箱中',packed:'已裝箱',completed:'已完成',shipped:'已出貨'};
     custStatusMap[cust.name]={status:stMap[o.status]||'已抄貨',date:o.date};
   });
-  
+  // Shipments on selected date
+  db.shipments.filter(s=>s.date===selDate).forEach(s=>{
+    const o=db.orders.find(x=>x.id===s.orderId);
+    const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+    if(cust)custStatusMap[cust.name]={status:'已出貨',date:selDate};
+  });
   const entries=Object.entries(custStatusMap);
-  if(!entries.length){sec.innerHTML='';return;}
-  
   sec.innerHTML=`<div class="card" style="margin-bottom:12px;">
-    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📊 客戶進度</div>
-    <div class="table-wrap"><table>
-      <thead><tr><th>客戶</th><th>目前狀態</th><th>進度</th></tr></thead>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:14px;font-weight:700;">📊 客戶進度</div>
+      <input type="date" id="cust-status-date" value="${selDate}" onchange="renderCustStatus()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;">
+    </div>
+    ${entries.length?`<div class="table-wrap"><table>
+      <thead><tr><th>客戶</th><th>狀態</th></tr></thead>
       <tbody>${entries.map(([name,info])=>{
         const st=info.status;
-        const steps=statusFlow.map(s=>`<span style="font-size:10px;padding:1px 4px;border-radius:3px;background:${s===st?statusColor[st]:'var(--surface2)'};color:${s===st?'#fff':'var(--text3)'};">${s}</span>`).join(' › ');
-        return `<tr><td><strong>${name}</strong></td><td><span style="color:${statusColor[st]};font-weight:700;">${st}</span></td><td style="white-space:nowrap;">${steps}</td></tr>`;
+        const steps=statusFlow.map(s=>`<span style="font-size:10px;padding:1px 4px;border-radius:3px;background:${s===st?statusColor[st]:'var(--surface2)'};color:${s===st?'#fff':'var(--text3)'};">${s}</span>`).join('›');
+        return `<tr><td><strong>${name}</strong></td><td style="white-space:nowrap;">${steps}</td></tr>`;
       }).join('')}</tbody>
-    </table></div>
+    </table></div>`:'<div style="font-size:13px;color:var(--text3);">該日無記錄</div>'}
   </div>`;
 }
 
