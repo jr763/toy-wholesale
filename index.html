@@ -842,69 +842,10 @@ function openCalDetail(date){
   calVisitCusts=existing?existing.split('、').filter(Boolean):[];
   G('cal-cust-search').value='';G('cal-cust-results').innerHTML='';
   renderCalVisitList();
-  // Build detail section
-  const detail=G('cal-detail-section');
-  if(detail){
-    const dayOrders=db.orders.filter(o=>o.date===date);
-    const dayShips=db.shipments.filter(s=>s.date===date);
-    const existing2=(db.calVisits||{})[date]||'';
-    let html='';
-    if(dayOrders.length){
-      html+=`<div style="margin-bottom:10px;"><div style="font-size:13px;font-weight:700;margin-bottom:4px;">抄貨：</div>`;
-      dayOrders.forEach(o=>{
-        const cust=db.customers.find(x=>x.id===o.customerId);
-        html+=`<div style="font-size:13px;padding:2px 8px;">• ${cust?cust.name:'—'}</div>`;
-      });
-      html+='</div>';
-    }
-    if(dayShips.length){
-      html+=`<div style="margin-bottom:10px;"><div style="font-size:13px;font-weight:700;margin-bottom:4px;">出貨：</div>`;
-      dayShips.forEach(s=>{
-        const o=db.orders.find(x=>x.id===s.orderId);
-        const cust=o?db.customers.find(x=>x.id===o.customerId):null;
-        html+=`<div style="font-size:13px;padding:2px 8px;">• ${cust?cust.name:'—'}</div>`;
-      });
-      html+='</div>';
-    }
-    // Status block for scheduled customers
-    const visits2=(db.calVisits||{})[date];
-    if(visits2){
-      const schedNames=visits2.split('、').map(n=>n.trim()).filter(Boolean);
-      const statusMap={
-        'none':'未抄貨','confirmed':'已抄貨','picked':'已撿貨',
-        'packed':'已裝箱','completed':'已完成','shipped':'已出貨'
-      };
-      const statusColor={
-        'none':'var(--text3)','confirmed':'var(--orange)','picked':'var(--blue)',
-        'packed':'var(--blue)','completed':'var(--green)','shipped':'var(--green)'
-      };
-      const schedHtml=schedNames.map(name=>{
-        const cust=db.customers.find(x=>x.name===name);
-        let status='none';
-        if(cust){
-          const ord=db.orders.filter(o=>o.customerId===cust.id&&o.date===date);
-          if(ord.length>0){
-            // Get latest status
-            const statuses=['shipped','completed','packed','picked','confirmed','draft'];
-            for(const s of statuses){
-              if(ord.some(o=>o.status===s)){status=s;break;}
-            }
-          }
-        }
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">
-          <span style="font-size:13px;">${name}</span>
-          <span style="font-size:11px;font-weight:600;color:${statusColor[status]||'var(--text3)'};">${statusMap[status]||status}</span>
-        </div>`;
-      }).join('');
-      html=`<div style="margin-bottom:10px;">${schedHtml}</div>`+(html||'');
-    }
-    if(!html)html='<div style="font-size:13px;color:var(--text3);">該天無抄貨或出貨記錄</div>';
-    detail.innerHTML=html;
-  }
-  // Hide manage section
+    // Hide manage section
   const mng=G('cal-manage-section');if(mng)mng.style.display='none';
+  const detail=G('cal-detail-section');if(detail)detail.innerHTML='';
   openModal('modal-cal-visit');
-}
 function openCalVisit(date){
   openCalDetail(date);
 }
@@ -2293,9 +2234,9 @@ function onOrderFilterCust(){
   if(!q){res.style.display='none';renderOrders();return;}
   const hits=db.customers.filter(x=>x.name.toLowerCase().includes(q)).slice(0,8);
   res.style.display=hits.length?'block':'none';
-  res.innerHTML=hits.map(x=>`<div onclick="selectOrderFilterCust('${x.id}','${x.name.replace(/'/g,"&#39;")}')" style="padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+  res.innerHTML=hits.map(x=>{const esc=x.name.replace(/'/g,'&#39;');return `<div onclick="selectOrderFilterCust('${x.id}','${esc}')" style="padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
     ${x.name}
-  </div>`).join('');
+  </div>`;}).join('');
 }
 function selectOrderFilterCust(id,name){
   window._orderFilterCustId=id;
