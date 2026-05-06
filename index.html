@@ -196,12 +196,15 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   </div>
 </div>
 
-<!-- Calendar Visit Modal -->
+<!-- Calendar Detail Modal -->
 <div class="modal-overlay" id="modal-cal-visit">
-  <div class="modal" style="max-width:420px;">
-    <div class="modal-header"><h3 id="cal-visit-title">行程設定</h3><button class="modal-close" onclick="closeModal('modal-cal-visit')">×</button></div>
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header"><h3 id="cal-visit-title">行程詳細</h3><button class="modal-close" onclick="closeModal('modal-cal-visit')">×</button></div>
     <div class="modal-body">
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">安排客戶</div>
+      <!-- Detail section -->
+      <div id="cal-detail-section" style="margin-bottom:12px;"></div>
+      <!-- Manage customers section -->
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;border-top:1px solid var(--border);padding-top:10px;">安排客戶</div>
       <input id="cal-cust-search" placeholder="搜尋客戶名稱…" oninput="onCalCustSearch()" style="margin-bottom:6px;" autocomplete="off">
       <div id="cal-cust-results" style="max-height:120px;overflow-y:auto;margin-bottom:8px;"></div>
       <div id="cal-visit-list" style="display:flex;flex-wrap:wrap;gap:5px;min-height:30px;padding:6px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);margin-bottom:10px;"></div>
@@ -756,8 +759,8 @@ function renderCalendar(){
   db.orders.forEach(o=>{
     if(o.date&&o.date.startsWith(calYear+'-'+(String(calMonth+1).padStart(2,'0')))){
       if(!orderDates[o.date])orderDates[o.date]={order:false,ship:false};
-      if(o.status==='confirmed'||o.status==='draft')orderDates[o.date].order=true;
-      if(o.status==='shipped')orderDates[o.date].ship=true;
+      // Orange dot: any order exists on that date (stays even after shipped)
+      orderDates[o.date].order=true;
     }
   });
   db.shipments.forEach(s=>{
@@ -781,13 +784,14 @@ function renderCalendar(){
     else if(isHoliday){textColor='var(--red)';}
     else if(dayOfWeek===0){textColor='var(--red)';}
     else if(dayOfWeek===6){textColor='var(--blue)';}
-    html+=`<div onclick="openCalVisit('${dateStr}')" style="cursor:pointer;border-radius:6px;padding:3px 2px;min-height:44px;background:${bg||'transparent'};border:${border||'1px solid var(--border)'};position:relative;transition:background .15s;" onmouseover="this.style.background=this.style.background||'var(--surface2)'" onmouseout="this.style.background='${bg||'transparent'}'">
+    html+=`<div onclick="openCalDetail('${dateStr}')" style="cursor:pointer;border-radius:6px;padding:3px 2px;min-height:44px;background:${bg||'transparent'};border:${border||'1px solid var(--border)'};position:relative;transition:background .15s;" onmouseover="this.style.background=this.style.background||'var(--surface2)'" onmouseout="this.style.background='${bg||'transparent'}'">
       <div style="font-size:12px;font-weight:${isToday?700:400};color:${textColor||'inherit'};text-align:center;">${d}</div>
       ${isHoliday?`<div style="font-size:9px;color:var(--red);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${TW_HOLIDAYS[dateStr]||TW_HOLIDAYS[mmdd]}</div>`:''}
       ${visit?`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--orange);margin:0 auto;display:block;"></span>`:''}
       <div style="display:flex;justify-content:center;gap:2px;margin-top:2px;">
         ${od?.order?`<span style="width:6px;height:6px;border-radius:50%;background:var(--orange);display:inline-block;"></span>`:''}
         ${od?.ship?`<span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;"></span>`:''}
+        ${visit?`<span style="width:6px;height:6px;border-radius:50%;background:var(--blue);display:inline-block;"></span>`:''}
       </div>
     </div>`;
   }
@@ -814,14 +818,48 @@ function renderCalVisitList(){
   const el=G('cal-visit-list');if(!el)return;
   el.innerHTML=calVisitCusts.map(n=>`<span style="background:var(--blue-bg);color:var(--blue);padding:3px 8px;border-radius:12px;font-size:12px;display:inline-flex;align-items:center;gap:4px;">${n}<span onclick="removeCalCust('${n.replace(/'/g,'&#39;')}')" style="cursor:pointer;font-size:14px;">×</span></span>`).join('')||'<span style="color:var(--text3);font-size:12px;">尚未加入客戶</span>';
 }
-function openCalVisit(date){
+function openCalDetail(date){
   calEditDate=date;
-  G('cal-visit-title').textContent=date+' 行程設定';
+  G('cal-visit-title').textContent=date;
   const existing=(db.calVisits||{})[date]||'';
   calVisitCusts=existing?existing.split('、').filter(Boolean):[];
   G('cal-cust-search').value='';G('cal-cust-results').innerHTML='';
   renderCalVisitList();
+  // Build detail section
+  const detail=G('cal-detail-section');
+  if(detail){
+    // Orders on this date
+    const dayOrders=db.orders.filter(o=>o.date===date);
+    // Shipments on this date
+    const dayShips=db.shipments.filter(s=>s.date===date);
+    let html='';
+    if(dayOrders.length){
+      html+=`<div style="margin-bottom:8px;"><div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:4px;">📋 抄貨</div>`;
+      dayOrders.forEach(o=>{
+        const cust=db.customers.find(x=>x.id===o.customerId);
+        const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
+        const sm={draft:'草稿',confirmed:'已確認',picked:'已撿貨',completed:'已完成',shipped:'已出貨'};
+        html+=`<div style="font-size:12px;padding:3px 0;display:flex;justify-content:space-between;"><span>${cust?cust.name:'—'} <span class="badge badge-orange" style="font-size:10px;">${sm[o.status]||o.status}</span></span><span>$${fmt(total)}</span></div>`;
+      });
+      html+='</div>';
+    }
+    if(dayShips.length){
+      html+=`<div style="margin-bottom:8px;"><div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:4px;">🚚 出貨</div>`;
+      dayShips.forEach(s=>{
+        const o=db.orders.find(x=>x.id===s.orderId);
+        const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+        const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
+        html+=`<div style="font-size:12px;padding:3px 0;display:flex;justify-content:space-between;"><span>${cust?cust.name:'—'}</span><span>$${fmt(total)}</span></div>`;
+      });
+      html+='</div>';
+    }
+    if(!html)html='<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">該天無抄貨或出貨記錄</div>';
+    detail.innerHTML=html;
+  }
   openModal('modal-cal-visit');
+}
+function openCalVisit(date){
+  openCalDetail(date);
 }
 async function saveCalVisit(){
   if(!db.calVisits)db.calVisits={};
@@ -1112,6 +1150,9 @@ function openOrderModal(){
         <select id="o-sched-select" onchange="selectSchedCust(this.value)" style="width:100%;margin-bottom:4px;">
           <option value="">— 手動搜尋 —</option>${custOptions}
         </select>`;
+      // Hide manual search when schedule exists
+      const custInputWrap=G('o-cust-input')?.closest('.form-group');
+      if(custInputWrap)custInputWrap.style.display='none';
     } else {
       schedDiv.style.display='none';
     }
@@ -2089,7 +2130,9 @@ function selectShipCust(id,name){
 }
 function selectSchedCust(custId){
   if(!custId){
-    // Clear and let user search manually
+    // Show manual search
+    const custInputWrap=G('o-cust-input')?.closest('.form-group');
+    if(custInputWrap)custInputWrap.style.display='';
     G('o-cust-input').value='';
     G('o-cust').value='';
     G('o-cust-results').innerHTML='';
