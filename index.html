@@ -173,6 +173,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       </div>
     </div>
   </div>
+  <!-- 客戶進度 -->
+  <div id="cust-status-section"></div>
   <!-- 尚未撿貨 -->
   <div id="unpicked-section"></div>
   <!-- 尚未裝箱 -->
@@ -799,10 +801,10 @@ function renderCalendar(){
       <div style="font-size:12px;font-weight:${isToday?700:400};color:${textColor||'inherit'};text-align:center;">${d}</div>
       ${isHoliday?`<div style="font-size:9px;color:var(--red);text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${TW_HOLIDAYS[dateStr]||TW_HOLIDAYS[mmdd]}</div>`:''}
       ${visit?`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--orange);margin:0 auto;display:block;"></span>`:''}
-      <div style="display:flex;justify-content:center;gap:2px;margin-top:2px;">
+      <div style="display:flex;flex-direction:row;justify-content:center;gap:2px;margin-top:2px;">
         ${od?.order?`<span style="width:6px;height:6px;border-radius:50%;background:var(--orange);display:inline-block;"></span>`:''}
         ${od?.ship?`<span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;"></span>`:''}
-        ${visit&&!od?.order?`<span style="width:6px;height:6px;border-radius:50%;background:var(--blue);display:inline-block;"></span>`:''}
+
       </div>
     </div>`;
   }
@@ -841,6 +843,7 @@ function openCalDetail(date){
   if(detail){
     const dayOrders=db.orders.filter(o=>o.date===date);
     const dayShips=db.shipments.filter(s=>s.date===date);
+    const existing2=(db.calVisits||{})[date]||'';
     let html='';
     if(dayOrders.length){
       html+=`<div style="margin-bottom:10px;"><div style="font-size:13px;font-weight:700;margin-bottom:4px;">抄貨：</div>`;
@@ -858,6 +861,38 @@ function openCalDetail(date){
         html+=`<div style="font-size:13px;padding:2px 8px;">• ${cust?cust.name:'—'}</div>`;
       });
       html+='</div>';
+    }
+    // Status block for scheduled customers
+    const visits2=(db.calVisits||{})[date];
+    if(visits2){
+      const schedNames=visits2.split('、').map(n=>n.trim()).filter(Boolean);
+      const statusMap={
+        'none':'已安排','confirmed':'已抄貨','picked':'已撿貨',
+        'packed':'已裝箱','completed':'已完成','shipped':'已出貨'
+      };
+      const statusColor={
+        'none':'var(--text3)','confirmed':'var(--orange)','picked':'var(--blue)',
+        'packed':'var(--blue)','completed':'var(--green)','shipped':'var(--green)'
+      };
+      const schedHtml=schedNames.map(name=>{
+        const cust=db.customers.find(x=>x.name===name);
+        let status='none';
+        if(cust){
+          const ord=db.orders.filter(o=>o.customerId===cust.id&&o.date===date);
+          if(ord.length>0){
+            // Get latest status
+            const statuses=['shipped','completed','packed','picked','confirmed','draft'];
+            for(const s of statuses){
+              if(ord.some(o=>o.status===s)){status=s;break;}
+            }
+          }
+        }
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">
+          <span style="font-size:13px;">${name}</span>
+          <span style="font-size:11px;font-weight:600;color:${statusColor[status]||'var(--text3)'};">${statusMap[status]||status}</span>
+        </div>`;
+      }).join('');
+      html=`<div style="margin-bottom:10px;">${schedHtml}</div>`+(html||'');
     }
     if(!html)html='<div style="font-size:13px;color:var(--text3);">該天無抄貨或出貨記錄</div>';
     detail.innerHTML=html;
@@ -888,9 +923,9 @@ function renderDashboard(){
     <span>⚠️ 有 <strong>${low}</strong> 項商品庫存不足</span>
     <button class="btn btn-sm btn-danger" onclick="switchTab('restock',G('nav-restock'))">查看補貨清單</button>
   </div>`:'';
-  renderCalendar();updateTodaySummary();
+  renderCalendar();updateTodaySummary();renderCustStatus();
   // 尚未裝箱（已撿貨，等待裝箱確認）
-  const unboxed=db.orders.filter(o=>o.status==='picked');
+  const unboxed=db.orders.filter(o=>['picked','boxing'].includes(o.status));
   const unboxSec=G('unboxed-section');
   if(unboxSec){
     if(unboxed.length){
@@ -913,7 +948,7 @@ function renderDashboard(){
   const incSec=G('incomplete-section');if(incSec)incSec.innerHTML='';
 
   // 尚未撿貨清單（已確認但未出貨的抄貨單）
-  const unpicked=db.orders.filter(o=>o.status==='confirmed');
+  const unpicked=db.orders.filter(o=>['confirmed','picking'].includes(o.status));
   const sec=G('unpicked-section');
   if(sec){
     if(unpicked.length){
@@ -1160,18 +1195,15 @@ function openOrderModal(){
       return cust?`<option value="${cust.id}">${cust.name}</option>`:'';
     }).filter(Boolean).join('');
     // Insert select before the input
-    const hint=document.createElement('div');
-    hint.id='o-sched-hint-line';
-    hint.style.cssText='font-size:11px;color:var(--blue);margin-bottom:4px;';
-    hint.textContent='📅 今日行程：';
     const sel=document.createElement('select');
     sel.id='o-sched-select';
     sel.style.cssText='width:100%;margin-bottom:6px;';
-    sel.innerHTML='<option value="">-- 選擇客戶 --</option>'+custOptions;
+    sel.innerHTML=custOptions;
     sel.onchange=function(){selectSchedCust(this.value);};
+    // Auto-select first option
+    setTimeout(()=>{if(sel.options.length>0){sel.selectedIndex=0;selectSchedCust(sel.options[0].value);}},50);
     const wrap=custInputEl?.closest('.form-group');
     if(wrap){
-      wrap.insertBefore(hint,custInputEl);
       wrap.insertBefore(sel,custInputEl);
       custInputEl.style.display='none';
     }
@@ -1375,8 +1407,8 @@ function renderOrders(){
   let rows=[...db.orders].reverse();
   if(orderFilter!=='all')rows=rows.filter(o=>o.status===orderFilter);
   if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>沒有符合的抄貨單</div>';return;}
-  const sm={draft:'草稿',confirmed:'已確認',picked:'已撿貨',completed:'已完成',shipped:'已出貨'};
-  const bm={draft:'badge-orange',confirmed:'badge-green',picked:'badge-green',completed:'badge-blue',shipped:'badge-blue'};
+  const sm={draft:'草稿',confirmed:'已抄貨',picking:'撿貨中',picked:'已撿貨',boxing:'裝箱中',packed:'已裝箱',completed:'已完成',shipped:'已出貨'};
+  const bm={draft:'badge-orange',confirmed:'badge-green',picking:'badge-orange',picked:'badge-green',boxing:'badge-orange',packed:'badge-blue',completed:'badge-blue',shipped:'badge-blue'};
   list.innerHTML=rows.map(o=>{
     const c=db.customers.find(x=>x.id===o.customerId);
     const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
@@ -1395,7 +1427,9 @@ function renderOrders(){
       </div>
       <div style="margin-top:9px;display:flex;gap:5px;flex-wrap:wrap;">
         <button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${o.id}')">查看撿貨</button>
-        ${['draft','confirmed','picked'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
+        ${['draft','confirmed','picking','picked','boxing','packed'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
+        ${['confirmed','picking'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button>`:''}
+        ${['picked','boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">裝箱確認</button>`:''}
         ${o.status==='completed'?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
         ${o.status==='draft'?`<button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>`:''}
       </div>
@@ -2045,14 +2079,25 @@ async function toggleBoxing(idx,cb){
   if(!db.boxingState)db.boxingState={};
   if(!db.boxingState[_boxingOrderId])db.boxingState[_boxingOrderId]={};
   db.boxingState[_boxingOrderId][idx]=cb.checked;
+  // Update order status to boxing if any checked
+  if(cb.checked&&_boxingOrderId){
+    const oidx=db.orders.findIndex(x=>x.id===_boxingOrderId);
+    if(oidx>=0&&db.orders[oidx].status==='picked'){
+      db.orders[oidx].status='boxing';
+    }
+  }
   await saveData();
+  renderOrders();
   const total=document.querySelectorAll('[id^="box-cb-"]').length;
   updateBoxingBtn(total);
 }
 async function confirmBoxing(){
   if(!_boxingOrderId)return;
+  const o=db.orders.find(x=>x.id===_boxingOrderId);if(!o)return;
+  const savedState=(db.pickingState||{})[_boxingOrderId]||{};
+  const missing=(o.items||[]).filter((_,i)=>!savedState[i]);
   const idx=db.orders.findIndex(x=>x.id===_boxingOrderId);
-  if(idx>=0)db.orders[idx].status='completed';
+  if(idx>=0)db.orders[idx].status=missing.length?'packed':'completed';
   await saveData();
   closeModal('modal-boxing');
   renderDashboard();renderOrders();
@@ -2175,6 +2220,49 @@ function showCalManage(){
 function hideCalManage(){
   const mng=G('cal-manage-section');
   if(mng)mng.style.display='none';
+}
+
+function renderCustStatus(){
+  const sec=G('cust-status-section');if(!sec)return;
+  const statusFlow=['已安排','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成','已出貨'];
+  const statusColor={'已安排':'var(--blue)','已抄貨':'var(--orange)','撿貨中':'var(--orange)','已撿貨':'var(--orange)','裝箱中':'var(--orange)','已裝箱':'var(--blue)','已完成':'var(--green)','已出貨':'var(--green)'};
+  
+  // Build customer status map from all orders
+  const custStatusMap={};
+  
+  // First add all scheduled visits (for today and future)
+  const todayStr=today();
+  Object.entries(db.calVisits||{}).forEach(([date,visit])=>{
+    if(date>=todayStr){
+      visit.split('、').map(n=>n.trim()).filter(Boolean).forEach(name=>{
+        if(!custStatusMap[name])custStatusMap[name]={status:'已安排',date};
+      });
+    }
+  });
+  
+  // Override with actual order status
+  db.orders.forEach(o=>{
+    if(o.status==='shipped')return; // skip shipped
+    const cust=db.customers.find(x=>x.id===o.customerId);
+    if(!cust)return;
+    const stMap={confirmed:'已抄貨',picking:'撿貨中',picked:'已撿貨',boxing:'裝箱中',packed:'已裝箱',completed:'已完成'};
+    custStatusMap[cust.name]={status:stMap[o.status]||'已抄貨',date:o.date};
+  });
+  
+  const entries=Object.entries(custStatusMap);
+  if(!entries.length){sec.innerHTML='';return;}
+  
+  sec.innerHTML=`<div class="card" style="margin-bottom:12px;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:10px;">📊 客戶進度</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>客戶</th><th>目前狀態</th><th>進度</th></tr></thead>
+      <tbody>${entries.map(([name,info])=>{
+        const st=info.status;
+        const steps=statusFlow.map(s=>`<span style="font-size:10px;padding:1px 4px;border-radius:3px;background:${s===st?statusColor[st]:'var(--surface2)'};color:${s===st?'#fff':'var(--text3)'};">${s}</span>`).join(' › ');
+        return `<tr><td><strong>${name}</strong></td><td><span style="color:${statusColor[st]};font-weight:700;">${st}</span></td><td style="white-space:nowrap;">${steps}</td></tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </div>`;
 }
 
 loadData();
