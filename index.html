@@ -459,6 +459,21 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   </div>
 </div>
 
+<!-- Edit Alert Confirm Modal -->
+<div class="modal-overlay" id="modal-edit-confirm">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header"><h3>修改確認</h3><button class="modal-close" onclick="closeModal('modal-edit-confirm')">×</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">以下商品已被修改，請逐一確認後才能繼續：</p>
+      <div id="edit-confirm-list"></div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-primary" id="edit-confirm-btn" onclick="submitEditConfirm()" disabled>確認完成</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-edit-confirm')">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Barcode Summary -->
 <div class="modal-overlay" id="modal-barcode">
   <div class="modal" style="max-width:580px;">
@@ -1481,15 +1496,21 @@ function viewOrder(id){
   });
   window._pickItems=items;
   window._pickOrderId=id;
+  // For packed orders, only show unpicked (missing) items
+  const isPacked2=o.status==='packed';
+  const savedState2=(db.pickingState||{})[id]||{};
+  const displayItems=isPacked2?items.filter((_,idx)=>!savedState2[idx]):items;
+  const displayOffset=isPacked2?items.map((_,i)=>i).filter(i=>!savedState2[i]):items.map((_,i)=>i);
   G('od-body').innerHTML=`
 
     <div style="margin-bottom:12px;">
       <button class="btn btn-primary btn-sm" id="bc-toggle-btn" onclick="toggleBCSummary()">🏷 顯示條碼列印清單</button>
     </div>
     <div id="bc-summary-inline" style="display:none;margin-bottom:12px;"></div>
+    ${isPacked2?'<div style="font-size:12px;color:var(--orange);padding:6px 0;margin-bottom:6px;">⚠️ 以下為尚未補齊的商品</div>':''}
     <div class="table-wrap"><table>
       <thead><tr><th>✓</th><th>存放地點</th><th>商檢標</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
-      <tbody>${items.map((i,idx)=>`<tr id="pick-row-${idx}" style="transition:opacity .2s;">
+      <tbody>${displayItems.map((i,di)=>{const idx=displayOffset[di];return `<tr id="pick-row-${idx}" style="transition:opacity .2s;">
         <td><input type="checkbox" id="pick-cb-${idx}" onchange="togglePicked(${idx},this)"></td>
         <td><span class="badge badge-blue">${i.location||'—'}</span></td>
         <td>${i.hasInspMark?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'無批號')+'</span>'}</td>
@@ -1497,7 +1518,7 @@ function viewOrder(id){
         <td>${i.variant||'—'}</td>
         <td>${i.qty}</td>
         <td>$${fmt(i.price)}</td>
-      </tr>`).join('')}</tbody></table></div>
+      </tr>`;}).join('')}</tbody></table></div>
     <div class="btn-row" style="margin-top:8px;">
       <button class="btn btn-secondary" onclick="showMissingItems()">📋 缺少商品</button>
       <button class="btn btn-green" id="pick-done-btn" onclick="markPacked('${id}')" disabled style="opacity:0.5;cursor:not-allowed;">✅ 撿貨完成</button>
@@ -2388,7 +2409,7 @@ function renderEditAlerts(){
       else if(['mod_picked','mod_boxing'].includes(o.status))
         actionBtn=`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">裝箱(修改)</button>`;
       else if(o.editAlert&&!o.editAlert.confirmed)
-        actionBtn=`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">查看並確認</button>`;
+        actionBtn=`<button class="btn btn-sm btn-primary" onclick="openEditConfirm('${o.id}')">查看並確認</button>`;
       return `<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
         <div style="flex:1;">
           <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${custName} <span style="font-size:11px;padding:1px 6px;border-radius:3px;background:var(--orange);color:#fff;">${stLabel}</span></div>
@@ -2398,6 +2419,33 @@ function renderEditAlerts(){
       </div>`;
     }).join('')}
   </div>`;
+}
+
+function openEditConfirm(orderId){
+  const o=db.orders.find(x=>x.id===orderId);if(!o||!o.editAlert)return;
+  window._editConfirmOrderId=orderId;
+  const changes=o.editAlert.changes||[];
+  const list=G('edit-confirm-list');
+  list.innerHTML=changes.map((ch,i)=>`
+    <div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+      <input type="checkbox" id="ec-cb-${i}" onchange="updateEditConfirmBtn()">
+      <label for="ec-cb-${i}" style="font-size:13px;cursor:pointer;">${ch}</label>
+    </div>`).join('');
+  G('edit-confirm-btn').disabled=true;
+  openModal('modal-edit-confirm');
+}
+function updateEditConfirmBtn(){
+  const allCbs=[...document.querySelectorAll('[id^="ec-cb-"]')];
+  const allChecked=allCbs.length>0&&allCbs.every(cb=>cb.checked);
+  G('edit-confirm-btn').disabled=!allChecked;
+}
+async function submitEditConfirm(){
+  const orderId=window._editConfirmOrderId;if(!orderId)return;
+  const oidx=db.orders.findIndex(x=>x.id===orderId);
+  if(oidx>=0)db.orders[oidx].editAlert.confirmed=true;
+  await saveData();
+  closeModal('modal-edit-confirm');
+  renderEditAlerts();renderDashboard();
 }
 
 loadData();
