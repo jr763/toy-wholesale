@@ -130,10 +130,10 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   <span id="sync-text">連線中…</span>
 </div>
 
-<nav class="nav" style="justify-content:space-between;">
-  <button onclick="toggleMenu()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;" id="hamburger-btn">☰</button>
-  <div class="nav-tab active" id="nav-dashboard" onclick="switchTab('dashboard',this);closeMenu()">總覽</div>
+<nav class="nav" style="justify-content:space-between;align-items:center;">
   <div style="width:40px;"></div>
+  <div class="nav-tab active" id="nav-dashboard" onclick="switchTab('dashboard',this);closeMenu()">總覽</div>
+  <button onclick="toggleMenu()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;width:40px;" id="hamburger-btn">☰</button>
 </nav>
 <!-- Slide-out menu -->
 <div id="side-menu" style="display:none;position:fixed;top:0;right:0;width:200px;height:100%;background:var(--surface);box-shadow:-4px 0 20px rgba(0,0,0,.15);z-index:200;padding-top:60px;">
