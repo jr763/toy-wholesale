@@ -130,12 +130,10 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   <span id="sync-text">連線中…</span>
 </div>
 
-<nav class="nav">
-  <div class="nav-logo">🧸奧斯卡</div>
-  <div style="display:flex;align-items:center;gap:12px;">
-    <div class="nav-tab active" id="nav-dashboard" onclick="switchTab('dashboard',this);closeMenu()">總覽</div>
-    <button onclick="toggleMenu()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;" id="hamburger-btn">☰</button>
-  </div>
+<nav class="nav" style="justify-content:space-between;">
+  <button onclick="toggleMenu()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;" id="hamburger-btn">☰</button>
+  <div class="nav-tab active" id="nav-dashboard" onclick="switchTab('dashboard',this);closeMenu()">總覽</div>
+  <div style="width:40px;"></div>
 </nav>
 <!-- Slide-out menu -->
 <div id="side-menu" style="display:none;position:fixed;top:0;right:0;width:200px;height:100%;background:var(--surface);box-shadow:-4px 0 20px rgba(0,0,0,.15);z-index:200;padding-top:60px;">
@@ -733,7 +731,7 @@ function toggleCal(){
   if(icon)icon.textContent=calVisible?'▾':'▸';
   updateTodaySummary();
 }
-function updateTodaySummary(){
+function updateTodaySummary_disabled(){
   const el=G('cal-today-summary');if(!el)return;
   const t=today();
   const v=(db.calVisits||{})[t];
@@ -876,7 +874,7 @@ function openCalDetail(date){
     if(visits2){
       const schedNames=visits2.split('、').map(n=>n.trim()).filter(Boolean);
       const statusMap={
-        'none':'已安排','confirmed':'已抄貨','picked':'已撿貨',
+        'none':'未抄貨','confirmed':'已抄貨','picked':'已撿貨',
         'packed':'已裝箱','completed':'已完成','shipped':'已出貨'
       };
       const statusColor={
@@ -917,12 +915,12 @@ async function saveCalVisit(){
   if(!db.calVisits)db.calVisits={};
   if(calVisitCusts.length>0)db.calVisits[calEditDate]=calVisitCusts.join('、');
   else delete db.calVisits[calEditDate];
-  await saveData();closeModal('modal-cal-visit');renderCalendar();updateTodaySummary();
+  await saveData();closeModal('modal-cal-visit');renderCalendar();
 }
 async function deleteCalVisit(){
   if(!db.calVisits)return;
   delete db.calVisits[calEditDate];
-  await saveData();closeModal('modal-cal-visit');renderCalendar();updateTodaySummary();
+  await saveData();closeModal('modal-cal-visit');renderCalendar();
 }
 
 function renderDashboard(){
@@ -932,7 +930,7 @@ function renderDashboard(){
     <span>⚠️ 有 <strong>${low}</strong> 項商品庫存不足</span>
     <button class="btn btn-sm btn-danger" onclick="switchTab('restock',G('nav-restock'))">查看補貨清單</button>
   </div>`:'';
-  renderCalendar();updateTodaySummary();renderCustStatus();
+  renderCalendar();renderCustStatus();
 
   // 尚未完成（已裝箱但有缺漏商品的）
   
@@ -1384,7 +1382,7 @@ function renderOrders(){
   let rows=[...db.orders].reverse();
   if(orderFilter!=='all')rows=rows.filter(o=>o.status===orderFilter);
   if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>沒有符合的抄貨單</div>';return;}
-  const sm={draft:'草稿',confirmed:'已抄貨',picking:'撿貨中',picked:'已撿貨',boxing:'裝箱中',packed:'已裝箱',completed:'已完成',shipped:'已出貨'};
+  const sm={draft:'抄貨中',confirmed:'已抄貨',picking:'撿貨中',picked:'已撿貨',boxing:'裝箱中',packed:'已裝箱',completed:'已完成',shipped:'已出貨'};
   const bm={draft:'badge-orange',confirmed:'badge-green',picking:'badge-orange',picked:'badge-green',boxing:'badge-orange',packed:'badge-blue',completed:'badge-blue',shipped:'badge-blue'};
   list.innerHTML=rows.map(o=>{
     const c=db.customers.find(x=>x.id===o.customerId);
@@ -2215,16 +2213,16 @@ function hideCalManage(){
 
 function renderCustStatus(){
   const sec=G('cust-status-section');if(!sec)return;
-  const statusFlow=['已安排','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成','已出貨'];
-  const statusColor={'已安排':'var(--blue)','已抄貨':'var(--orange)','撿貨中':'var(--orange)','已撿貨':'var(--orange)','裝箱中':'var(--orange)','已裝箱':'var(--blue)','已完成':'var(--green)','已出貨':'var(--green)'};
+  const statusFlow=['未抄貨','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成','已出貨'];
+  const statusColor={'未抄貨':'var(--blue)','已抄貨':'var(--orange)','撿貨中':'var(--orange)','已撿貨':'var(--orange)','裝箱中':'var(--orange)','已裝箱':'var(--blue)','已完成':'var(--green)','已出貨':'var(--green)'};
   const selDate=G('cust-status-date')?.value||today();
   const custStatusMap={};
   // Scheduled visits for selected date
   const visit=(db.calVisits||{})[selDate]||'';
   visit.split('、').map(n=>n.trim()).filter(Boolean).forEach(name=>{
-    custStatusMap[name]={status:'已安排',date:selDate};
+    custStatusMap[name]={status:'未抄貨',date:selDate};
   });
-  // Orders on selected date
+  // Orders on selected date (include draft=抄貨中)
   db.orders.filter(o=>o.date===selDate).forEach(o=>{
     const cust=db.customers.find(x=>x.id===o.customerId);
     if(!cust)return;
@@ -2251,8 +2249,8 @@ function renderCustStatus(){
         const cust=db.customers.find(x=>x.name===name);
         const order=cust?db.orders.find(o=>o.customerId===cust.id&&o.date===selDate):null;
         let mainBtn='';
-        if(st==='已安排'){
-          mainBtn=`<button class="btn btn-sm btn-primary" onclick="openOrderWithCust('${name}')">+ 抄貨單</button>`;
+        if(st==='未抄貨'||st==='抄貨中'){
+          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="openOrderWithCust('${name}')">+ 抄貨單</button>`:`<button class="btn btn-sm btn-primary" onclick="openOrderWithCust('${name}')">+ 抄貨單</button>`;
         } else if(st==='已抄貨'||st==='撿貨中'){
           mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'';
         } else if(st==='已撿貨'||st==='裝箱中'){
@@ -2266,8 +2264,8 @@ function renderCustStatus(){
           mainBtn=ship?`<button class="btn btn-sm btn-blue" onclick="printShipment('${ship.id}')">列印出貨單</button>`:'';
         }
         const viewBtn=order?`<button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${order.id}')">查看撿貨</button>`:'';
-        const editBtn=(['已安排','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成'].includes(st)&&order)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${order.id}')">編輯</button>`:'';
-        return `<tr><td><strong>${name}</strong></td><td><span style="padding:2px 8px;border-radius:4px;background:${statusColor[st]};color:#fff;font-size:12px;font-weight:600;">${st}</span></td><td style="white-space:nowrap;">${viewBtn}${editBtn}${mainBtn}</td></tr>`;
+        const editBtn=(['未抄貨','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成'].includes(st)&&order)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${order.id}')">編輯</button>`:'';
+        return `<tr><td><strong>${name}</strong></td><td><span style="padding:2px 8px;border-radius:4px;background:${statusColor[st]||'var(--text3)'};color:#fff;font-size:12px;font-weight:600;">${st}</span></td><td style="text-align:right;white-space:nowrap;">${viewBtn}${editBtn}${mainBtn}</td></tr>`;
       }).join('')}</tbody>
     </table></div>`:'<div style="font-size:13px;color:var(--text3);">該日無記錄</div>'}
   </div>`;
