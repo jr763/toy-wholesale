@@ -640,7 +640,7 @@ DOC_REF.onSnapshot(snap=>{
 });
 
 // ── CAMERA SCANNER ────────────────────────────
-async async function startScan(targetId, callback){
+async function startScan(targetId, callback){
   scanTargetId=targetId; scanCb=callback;
   if(!('BarcodeDetector' in window)){
     const c=prompt('請手動輸入條碼：');
@@ -2037,7 +2037,7 @@ function doExportCSV(shipId){
   const disc=cust?.discount||0;
   const note=cust?.note||'';
   // 廠編 from note
-  const factMatch=note.match(/廠編[：:]\s*(\S+)/);
+  const factMatch=note.match(/廠編[：:][\s\S]*?(\S+)/);
   const factCode=factMatch?factMatch[1]:'';
   const dateStr=(s.date||'').replace(/-/g,'/');
   // Build rows
@@ -2089,11 +2089,6 @@ function selectShipCust(id,name){
   G('ship-cust-results').style.display='none';
   renderShipments();
 }
-document.addEventListener('click',e=>{
-  const res=G('ship-cust-results');
-  if(res&&!res.contains(e.target)&&e.target!==G('ship-filter-cust-input'))res.style.display='none';
-});
-
 function selectSchedCust(custId){
   if(!custId){
     // Clear and let user search manually
