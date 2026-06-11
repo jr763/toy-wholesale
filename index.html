@@ -245,7 +245,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   </div>
   <div class="search-bar"><input id="product-search" placeholder="搜尋商品名稱或條碼…" oninput="renderProducts()"></div>
   <div class="table-wrap"><table>
-    <thead><tr><th>商品名稱</th><th>EAN條碼</th><th>成本</th><th>庫存</th><th>安全量</th><th>商檢標</th><th>種類</th><th>分類</th><th>存放地點</th><th></th></tr></thead>
+    <thead><tr><th>商品名稱</th><th>EAN條碼</th><th>成本</th><th>庫存</th><th>安全量</th><th>商檢標</th><th>種類</th><th>存放地點</th><th></th></tr></thead>
     <tbody id="product-table"></tbody>
   </table></div>
 </div>
@@ -325,15 +325,13 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       <div class="form-grid">
         <div class="form-group full"><label>商品名稱 <span class="req">*</span></label><input id="p-name" placeholder="例：水槍 36cm"></div>
         <div class="form-group">
-          <label>EAN條碼 <span class="req">*</span></label>
+          <label>EAN條碼</label>
           <div style="display:flex;gap:6px;"><input id="p-barcode" placeholder="4901234567890" class="mono"><button class="scan-btn" onclick="startScan('p-barcode',null)">📷</button></div>
         </div>
-        <div class="form-group"><label>成本（元）<span class="req">*</span></label><input id="p-cost" type="number" placeholder="0" min="0"></div>
+        <div class="form-group"><label>成本（元）</label><input id="p-cost" type="number" placeholder="0" min="0"></div>
         <div class="form-group"><label>現有庫存 <span class="req">*</span></label><input id="p-stock" type="number" placeholder="0" min="0"></div>
         <div class="form-group"><label>安全庫存量 <span class="req">*</span></label><input id="p-safety" type="number" placeholder="0" min="0"></div>
-        <div class="form-group"><label>商品分類</label>
-          <select id="p-cat"><option>積木/拼裝</option><option>遙控/電動</option><option>娃娃/布偶</option><option>益智/桌遊</option><option>戶外玩具</option><option>模型/公仔</option><option>其他</option></select>
-        </div>
+
         <div class="form-group"><label>存放地點 <span class="req">*</span></label>
           <select id="p-loc"><option value="地下室">地下室</option><option value="一樓">一樓</option><option value="樓梯間">樓梯間</option><option value="二樓">二樓</option><option value="其他">其他</option></select>
         </div>
@@ -347,10 +345,16 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
         </div>
         <div id="p-batch-wrap" style="display:none;margin-top:7px;"><input id="p-batch" placeholder="商檢批號 *"></div>
       </div>
-      <!-- 種類 -->
+      <!-- 種類 per-product -->
       <div style="margin-top:13px;">
-        <label>種類（可複選）</label>
-        <div class="variant-tags" id="p-vtags"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <label style="margin:0;">種類</label>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <input id="p-new-variant" placeholder="新增種類，例：紫色" style="flex:1;" onkeydown="if(event.key==='Enter')addProductVariant()">
+          <button class="btn btn-sm btn-primary" onclick="addProductVariant()">新增</button>
+        </div>
+        <div id="p-variant-list" style="display:flex;flex-wrap:wrap;gap:6px;min-height:28px;"></div>
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" id="btn-save-p" onclick="saveProduct()">儲存商品</button>
@@ -367,23 +371,20 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div class="modal-body">
       <div class="form-grid">
         <div class="form-group full"><label>客戶名稱 <span class="req">*</span></label><input id="c-name" placeholder="例：小熊玩具行"></div>
-        <div class="form-group"><label>聯絡人</label><input id="c-contact" placeholder="姓名"></div>
-        <div class="form-group"><label>電話 <span class="req">*</span></label><input id="c-phone" placeholder="0912-345-678"></div>
-        <div class="form-group full"><label>地址 <span class="req">*</span></label><input id="c-address" placeholder="縣市地址"></div>
+        <div class="form-group"><label>電話</label><input id="c-phone" placeholder="0912-345-678"></div>
+        <div class="form-group full"><label>地址</label><input id="c-address" placeholder="縣市地址"></div>
         <div class="form-group"><label>折扣（%）<span class="req">*</span></label><input id="c-discount" type="number" placeholder="0" min="0" max="100" value="0"></div>
         <div class="form-group"><label>客戶條碼 <span class="req">*</span></label>
           <select id="c-barcode"><option value="7990341">7990341</option><option value="2003751">2003751</option></select>
         </div>
+        <div class="form-group"><label>出貨單格式</label>
+          <select id="c-invoice-format">
+            <option value="A">A 格式</option>
+          </select>
+        </div>
         <div class="form-group full"><label>備註</label><textarea id="c-note" placeholder="付款條件、交貨注意事項…"></textarea></div>
       </div>
-      <!-- 個別售價 -->
-      <div style="margin-top:14px;">
-        <div style="font-size:13px;font-weight:700;margin-bottom:7px;">🏷️ 個別售價設定（選填）</div>
-        <input id="c-price-search" placeholder="搜尋商品名稱…" oninput="renderCPriceSearch()" style="margin-bottom:8px;">
-        <div id="c-price-results" style="max-height:160px;overflow-y:auto;"></div>
-        <div id="c-price-list" style="margin-top:8px;"></div>
-      </div>
-      <div class="btn-row">
+            <div class="btn-row">
         <button class="btn btn-primary" id="btn-save-c" onclick="saveCustomer()">儲存客戶</button>
         <button class="btn btn-secondary" onclick="closeModal('modal-customer')">取消</button>
       </div>
@@ -986,8 +987,6 @@ function toggleVTag(v){
 async function saveProduct(){
   const name=V('p-name'),barcode=V('p-barcode');
   if(!name){alert('請輸入商品名稱');return;}
-  if(!barcode){alert('請輸入商品條碼');return;}
-  if(G('p-cost').value===''){alert('請輸入成本');return;}
   if(G('p-stock').value===''){alert('請輸入現有庫存');return;}
   if(G('p-safety').value===''){alert('請輸入安全庫存量');return;}
   const hasM=document.querySelector('input[name="p-insp"]:checked').value==='1';
@@ -1091,7 +1090,7 @@ async function saveCustomer(){
   const btn=G('btn-save-c');btn.disabled=true;btn.textContent='儲存中…';
   const prices={};
   Object.keys(custPrices).forEach(pid=>{const v=parseFloat(G('cp-'+pid)?.value);if(!isNaN(v)&&v>=0)prices[pid]=v;});
-  const data={name:V('c-name'),contact:V('c-contact'),phone:V('c-phone'),address:V('c-address'),note:V('c-note'),
+  const data={name:V('c-name'),phone:V('c-phone'),address:V('c-address'),note:V('c-note'),
     discount:parseFloat(G('c-discount').value)||0,labelBarcode:G('c-barcode').value,customPrices:prices};
   if(editCustId){const i=db.customers.findIndex(x=>x.id===editCustId);db.customers[i]={...db.customers[i],...data};}
   else db.customers.push({id:uid(),...data});
@@ -1264,7 +1263,8 @@ function addOrderItem(){
   if(!pid){alert('請先選擇商品');return;}
   const p=db.products.find(x=>x.id===pid);if(!p)return;
   const qty=parseInt(G('o-qty').value)||1;
-  const price=parseFloat(G('o-price').value)||0;
+  const price=parseFloat(G('o-price').value);
+  if(!price||price<=0){alert('請輸入售價');return;}
   const variant=G('o-variant').value;
   const chosenPack=G('o-pack-box')?.checked?'盒裝':G('o-pack-card')?.checked?'吊卡':null;
   const ex=orderItems.find(i=>i.productId===pid&&i.variant===variant);
@@ -2475,6 +2475,47 @@ async function submitEditConfirm(){
   await saveData();
   closeModal('modal-edit-confirm');
   renderEditAlerts();renderDashboard();
+}
+
+function renderProductVariantList(){
+  const list=G('p-variant-list');if(!list)return;
+  const variants=window._productVariants||[];
+  list.innerHTML=variants.map((v,i)=>`
+    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:3px 10px;font-size:12px;">
+      ${v}
+      <span onclick="removeProductVariant(${i})" style="cursor:pointer;color:var(--text3);font-size:14px;line-height:1;">×</span>
+    </span>`).join('');
+}
+function addProductVariant(){
+  const input=G('p-new-variant');
+  const val=(input.value||'').trim();
+  if(!val)return;
+  if(!window._productVariants)window._productVariants=[];
+  if(!window._productVariants.includes(val)){
+    window._productVariants.push(val);
+    renderProductVariantList();
+  }
+  input.value='';
+}
+function removeProductVariant(i){
+  if(!window._productVariants)return;
+  window._productVariants.splice(i,1);
+  renderProductVariantList();
+}
+function searchProductForVariant(){
+  const q=(G('variant-barcode-search')?.value||'').trim();
+  const res=G('variant-search-result');if(!res)return;
+  if(!q){res.innerHTML='';return;}
+  const hits=db.products.filter(p=>p.barcode&&p.barcode.toLowerCase().includes(q.toLowerCase())||p.name.toLowerCase().includes(q.toLowerCase()));
+  if(!hits.length){res.innerHTML='<div style="color:var(--text3);font-size:13px;">找不到商品</div>';return;}
+  res.innerHTML=hits.map(p=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:13px;font-weight:700;">${p.name}</div>
+        <div style="font-size:11px;color:var(--text2);">條碼：${p.barcode||'—'} · 種類：${(p.variants||[]).join('、')||'無'}</div>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="editProduct('${p.id}');closeModal('modal-variants');">編輯</button>
+    </div>`).join('');
 }
 
 loadData();
