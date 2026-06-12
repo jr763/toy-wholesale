@@ -936,13 +936,13 @@ async function addVariant(){
   if(db.variantOptions.includes(v)){alert('已有此種類');return;}
   db.variantOptions.push(v);
   G('new-variant').value='';
-  await saveData(); renderVariantList(); renderPVTags();
+  await saveData(); renderVariantList(); renderProductVariantList();
 }
 async function delVariant(v){
   if(!confirm(`確定刪除「${v}」？`))return;
   db.variantOptions=db.variantOptions.filter(x=>x!==v);
   db.products.forEach(p=>{if(p.variants)p.variants=p.variants.filter(x=>x!==v);});
-  await saveData(); renderVariantList(); renderPVTags();
+  await saveData(); renderVariantList(); renderProductVariantList();
 }
 
 // ── PRODUCTS ──────────────────────────────────
@@ -950,39 +950,36 @@ function openProductModal(){
   editProdId=null; editingVariants=[];
   G('p-modal-title').textContent='新增商品';
   ['p-name','p-barcode','p-cost','p-stock','p-safety','p-batch'].forEach(id=>{if(G(id))G(id).value='';});
-  G('p-cat').value='積木/拼裝';
   if(G('p-loc')) G('p-loc').value='一樓';
   document.querySelectorAll('input[name="p-insp"]')[0].checked=true;
   G('p-batch-wrap').style.display='none';
-  renderPVTags(); openModal('modal-product');
+  renderProductVariantList(); openModal('modal-product');
 }
 function editProduct(id){
   const p=db.products.find(x=>x.id===id);if(!p)return;
-  editProdId=id; editingVariants=[...(p.variants||[])];
+  editProdId=id;
   G('p-modal-title').textContent='編輯商品';
   G('p-name').value=p.name; G('p-barcode').value=p.barcode||''; G('p-cost').value=p.cost||'';
-  G('p-stock').value=p.currentStock??''; G('p-safety').value=p.safetyStock||''; G('p-cat').value=p.category||'其他';
+  G('p-stock').value=p.currentStock??''; G('p-safety').value=p.safetyStock||''; 
   if(G('p-loc')) G('p-loc').value=p.location||'一樓';
 
   const hasM=p.hasInspectionMark!==false;
   document.querySelectorAll('input[name="p-insp"]')[hasM?0:1].checked=true;
   G('p-batch-wrap').style.display=hasM?'none':'block';
   G('p-batch').value=p.inspectionBatchNo||'';
-  renderPVTags(); openModal('modal-product');
+  window._productVariants=[...(p.variants||[])];
+  renderProductVariantList();
+  openModal('modal-product');
 }
 function toggleInsp(){
   const hasM=document.querySelector('input[name="p-insp"]:checked').value==='1';
   G('p-batch-wrap').style.display=hasM?'none':'block';
 }
-function renderPVTags(){
-  G('p-vtags').innerHTML=(db.variantOptions||[]).map(v=>`
-    <span class="vtag ${editingVariants.includes(v)?'on':''}" onclick="toggleVTag('${v}')">${v}</span>`).join('')+
-    `<span class="vtag dash" onclick="openModal('modal-variants')">＋ 管理種類</span>`;
-}
+
 function toggleVTag(v){
   const i=editingVariants.indexOf(v);
   if(i>=0)editingVariants.splice(i,1);else editingVariants.push(v);
-  renderPVTags();
+  renderProductVariantList();
 }
 async function saveProduct(){
   const name=V('p-name'),barcode=V('p-barcode');
@@ -993,7 +990,7 @@ async function saveProduct(){
   if(!hasM&&!V('p-batch')){alert('請輸入商檢批號');return;}
   const btn=G('btn-save-p');btn.disabled=true;btn.textContent='儲存中…';
   const data={name,barcode,cost:parseFloat(G('p-cost').value)||0,currentStock:parseFloat(G('p-stock').value)||0,
-    safetyStock:parseFloat(G('p-safety').value)||0,category:G('p-cat').value,
+    safetyStock:parseFloat(G('p-safety').value)||0,
     location:G('p-loc')?.value||'一樓',
     hasInspectionMark:hasM,inspectionBatchNo:hasM?'':V('p-batch'),variants:[...editingVariants]};
   if(editProdId){const i=db.products.findIndex(x=>x.id===editProdId);db.products[i]={...db.products[i],...data};}
