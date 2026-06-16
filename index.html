@@ -1030,11 +1030,12 @@ function renderProducts(){
 
 // ── CUSTOMERS ─────────────────────────────────
 function openCustomerModal(){
-  editCustId=null;custPrices={};
+  editCustId=null;
   G('c-modal-title').textContent='新增客戶';
-  ['c-name','c-contact','c-phone','c-address','c-note'].forEach(id=>G(id).value='');
-  G('c-discount').value='0';G('c-barcode').value='7990341';
-  G('c-price-search').value='';G('c-price-results').innerHTML='';G('c-price-list').innerHTML='';
+  ['c-name','c-phone','c-address','c-note'].forEach(id=>{if(G(id))G(id).value='';});
+  G('c-discount').value='0';
+  G('c-barcode').value='7990341';
+  if(G('c-invoice-format'))G('c-invoice-format').value='A';
   openModal('modal-customer');
 }
 function editCustomer(id){
