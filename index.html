@@ -405,7 +405,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
           <div id="o-cust-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:7px;z-index:50;max-height:160px;overflow-y:auto;box-shadow:var(--shadow);"></div>
         </div>
         <div class="form-group"><label>日期</label><input id="o-date" type="date"></div>
-        <div class="form-group full"><label>備註</label><input id="o-note" placeholder="備注…"></div>
       </div>
       <!-- 搜尋/掃描輸入區 -->
       <div style="margin-top:13px;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
@@ -492,13 +491,10 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 <!-- Variants Management -->
 <div class="modal-overlay" id="modal-variants">
   <div class="modal">
-    <div class="modal-header"><h3>管理種類選項</h3><button class="modal-close" onclick="closeModal('modal-variants')">×</button></div>
+    <div class="modal-header"><h3>管理種類</h3><button class="modal-close" onclick="closeModal('modal-variants')">×</button></div>
     <div class="modal-body">
-      <div style="display:flex;gap:7px;margin-bottom:12px;">
-        <input id="new-variant" placeholder="新增種類，例：紫色" onkeydown="if(event.key==='Enter')addVariant()" style="flex:1;">
-        <button class="btn btn-primary" onclick="addVariant()">新增</button>
-      </div>
-      <div id="variant-list"></div>
+      <input id="variant-barcode-search" placeholder="輸入條碼或商品名稱搜尋…" oninput="searchProductForVariant()" style="width:100%;margin-bottom:12px;" autocomplete="off">
+      <div id="variant-search-result"></div>
     </div>
   </div>
 </div>
@@ -1085,13 +1081,10 @@ function renderCPriceList(){
 }
 async function saveCustomer(){
   if(!V('c-name')){alert('請輸入客戶名稱');return;}
-  if(!V('c-phone')){alert('請輸入電話');return;}
-  if(!V('c-address')){alert('請輸入地址');return;}
   const btn=G('btn-save-c');btn.disabled=true;btn.textContent='儲存中…';
-  const prices={};
-  Object.keys(custPrices).forEach(pid=>{const v=parseFloat(G('cp-'+pid)?.value);if(!isNaN(v)&&v>=0)prices[pid]=v;});
-  const data={name:V('c-name'),phone:V('c-phone'),address:V('c-address'),note:V('c-note'),
-    discount:parseFloat(G('c-discount').value)||0,labelBarcode:G('c-barcode').value,customPrices:prices};
+  const data={name:V('c-name'),phone:V('c-phone')||'',address:V('c-address')||'',note:V('c-note')||'',
+    discount:parseFloat(G('c-discount').value)||0,labelBarcode:G('c-barcode').value,
+    invoiceFormat:G('c-invoice-format')?.value||'A'};
   if(editCustId){const i=db.customers.findIndex(x=>x.id===editCustId);db.customers[i]={...db.customers[i],...data};}
   else db.customers.push({id:uid(),...data});
   await saveData();
