@@ -406,34 +406,22 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
         </div>
         <div class="form-group"><label>日期</label><input id="o-date" type="date"></div>
       </div>
-      <!-- 搜尋/掃描輸入區 -->
-      <div style="margin-top:13px;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">📦 加入商品</div>
-        <div style="display:flex;gap:5px;margin-bottom:7px;">
-          <input id="o-search" placeholder="輸入商品名稱搜尋 或 直接掃/輸入條碼後按Enter" oninput="onOrderSearch()" onkeydown="if(event.key==='Enter'){onOrderBarcode();event.preventDefault()}" style="flex:1;">
-          <button class="scan-btn" onclick="startScan('o-search', onOrderBarcode)">📷</button>
-        </div>
-        <div id="o-search-results" style="max-height:140px;overflow-y:auto;margin-bottom:8px;"></div>
-        <div id="o-add-row" style="display:none;background:#fff;border:1px solid var(--border);border-radius:7px;padding:10px;margin-bottom:6px;">
-          <div style="font-size:13px;font-weight:700;margin-bottom:7px;" id="o-selected-name"></div>
-          <div id="o-packing-row" style="margin-bottom:8px;padding:7px 10px;background:var(--orange-bg);border-radius:6px;border:1px solid #ffd5aa;">
-            <div style="font-size:12px;font-weight:600;margin-bottom:5px;color:var(--orange);">📦 特殊出貨方式</div>
-            <div style="display:flex;gap:20px;">
-              <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;white-space:nowrap;">
-                <input type="checkbox" id="o-pack-box"> 盒裝
-              </label>
-              <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;white-space:nowrap;">
-                <input type="checkbox" id="o-pack-card"> 吊卡
-              </label>
-            </div>
-          </div>
-          <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;">
-            <div class="form-group" style="flex:0 0 80px;"><label>數量</label><input id="o-qty" type="number" value="1" min="1"></div>
-            <div class="form-group" style="flex:0 0 90px;"><label>售價</label><input id="o-price" type="number" placeholder="0" min="0"></div>
-            <div class="form-group" style="flex:1;min-width:90px;"><label>種類</label><select id="o-variant"><option value="">無</option></select></div>
-            <button class="btn btn-green" onclick="addOrderItem()" style="align-self:flex-end;">＋ 加入</button>
-          </div>
-        </div>
+      <!-- 掃描新增商品 -->
+      <div style="margin-top:13px;">
+        <button onclick="openScanAdd()" style="width:100%;padding:16px;background:var(--brown);color:#fff;border:none;border-radius:10px;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
+          <span style="font-size:24px;">📷</span> 掃描新增商品
+        </button>
+      </div>
+      <!-- Hidden fields for compatibility -->
+      <input type="hidden" id="o-search">
+      <input type="hidden" id="o-qty" value="1">
+      <input type="hidden" id="o-price">
+      <input type="hidden" id="o-variant">
+      <div id="o-search-results" style="display:none;"></div>
+      <div id="o-add-row" style="display:none;">
+        <div id="o-selected-name"></div>
+        <input type="hidden" id="o-pack-box">
+        <input type="hidden" id="o-pack-card">
       </div>
       <div id="o-items" style="margin-top:11px;"></div>
       <div class="btn-row">
@@ -441,6 +429,72 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
         <button class="btn btn-green" id="btn-o-confirm" onclick="saveOrder('confirmed')">確認抄貨單</button>
         <button class="btn btn-secondary" onclick="closeModal('modal-order')">取消</button>
       </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Scan-Add Product Modal (大字點餐介面) -->
+<div class="modal-overlay" id="modal-scan-add" style="z-index:300;">
+  <div style="background:var(--surface);width:100%;max-width:480px;height:100%;max-height:100vh;display:flex;flex-direction:column;border-radius:0;overflow:hidden;position:relative;">
+    <!-- Header -->
+    <div style="background:var(--brown);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <div style="font-size:18px;font-weight:700;">加入商品</div>
+      <button onclick="closeModal('modal-scan-add')" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">×</button>
+    </div>
+    <!-- Scanner area -->
+    <div id="sa-scan-area" style="flex-shrink:0;padding:16px;background:var(--surface2);border-bottom:1px solid var(--border);">
+      <video id="sa-video" autoplay playsinline muted style="width:100%;border-radius:8px;background:#000;display:none;max-height:180px;object-fit:cover;"></video>
+      <div id="sa-scan-btns" style="display:flex;gap:10px;">
+        <button onclick="openScanCamera()" style="flex:1;padding:14px;background:var(--brown);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">📷 開啟相機掃描</button>
+      </div>
+      <div id="sa-scan-active" style="display:none;">
+        <p id="sa-scan-status" style="text-align:center;font-size:13px;color:var(--text2);margin:8px 0;">對準條碼後按掃描</p>
+        <div style="display:flex;gap:8px;">
+          <button onclick="doScanAddOnce()" style="flex:1;padding:14px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:18px;font-weight:700;cursor:pointer;">📷 掃描</button>
+          <button onclick="stopScanAdd()" style="padding:14px 18px;background:#f0ede8;border:none;border-radius:8px;font-size:15px;cursor:pointer;">取消</button>
+        </div>
+      </div>
+    </div>
+    <!-- Product detail area -->
+    <div id="sa-product-area" style="flex:1;overflow-y:auto;padding:16px;display:none;">
+      <!-- Product name -->
+      <div style="font-size:22px;font-weight:900;color:var(--brown-dark);margin-bottom:4px;" id="sa-prod-name"></div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:16px;" id="sa-prod-info"></div>
+      <!-- Variant selector (large buttons) -->
+      <div id="sa-variant-wrap" style="margin-bottom:20px;display:none;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">選擇種類</div>
+        <div id="sa-variant-btns" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+      </div>
+      <!-- Packing (special) -->
+      <div id="sa-packing-wrap" style="margin-bottom:20px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">特殊出貨方式</div>
+        <div style="display:flex;gap:10px;">
+          <button id="sa-pack-box" onclick="toggleSaPack('box')" style="flex:1;padding:14px;border:2px solid var(--border);border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;background:#fff;">盒裝</button>
+          <button id="sa-pack-card" onclick="toggleSaPack('card')" style="flex:1;padding:14px;border:2px solid var(--border);border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;background:#fff;">吊卡</button>
+          <button id="sa-pack-none" onclick="toggleSaPack('none')" style="flex:1;padding:14px;border:2px solid var(--brown);border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;background:var(--brown);color:#fff;">一般</button>
+        </div>
+      </div>
+      <!-- Price input -->
+      <div style="margin-bottom:20px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">售價（元）</div>
+        <input id="sa-price" type="number" placeholder="輸入售價" min="0"
+          style="width:100%;font-size:28px;font-weight:700;padding:14px;border:2px solid var(--border);border-radius:8px;text-align:center;">
+        <div id="sa-price-hint" style="font-size:12px;color:var(--text2);margin-top:4px;"></div>
+      </div>
+      <!-- Quantity +/- -->
+      <div style="margin-bottom:24px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">數量</div>
+        <div style="display:flex;align-items:center;gap:0;border:2px solid var(--border);border-radius:8px;overflow:hidden;">
+          <button onclick="changeSaQty(-1)" style="width:64px;height:64px;font-size:28px;font-weight:700;background:#f0ede8;border:none;cursor:pointer;">－</button>
+          <div id="sa-qty-display" style="flex:1;text-align:center;font-size:32px;font-weight:900;color:var(--brown);">1</div>
+          <button onclick="changeSaQty(1)" style="width:64px;height:64px;font-size:28px;font-weight:700;background:#f0ede8;border:none;cursor:pointer;">＋</button>
+        </div>
+      </div>
+    </div>
+    <!-- Add button footer -->
+    <div id="sa-footer" style="display:none;padding:16px;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface);">
+      <button onclick="confirmScanAdd()" style="width:100%;padding:18px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:20px;font-weight:700;cursor:pointer;">✓ 加入抄貨單</button>
     </div>
   </div>
 </div>
@@ -2510,6 +2564,150 @@ function searchProductForVariant(){
       </div>
       <button class="btn btn-sm btn-secondary" onclick="editProduct('${p.id}');closeModal('modal-variants');">編輯</button>
     </div>`).join('');
+}
+
+// ── SCAN-ADD 點餐介面 ─────────────────────────
+let _saStream=null, _saPid=null, _saQty=1, _saVariant='', _saPack='none';
+
+function openScanAdd(){
+  _saPid=null;_saQty=1;_saVariant='';_saPack='none';
+  G('sa-product-area').style.display='none';
+  G('sa-footer').style.display='none';
+  G('sa-scan-btns').style.display='flex';
+  G('sa-scan-active').style.display='none';
+  G('sa-video').style.display='none';
+  openModal('modal-scan-add');
+}
+
+async function openScanCamera(){
+  if(!('BarcodeDetector' in window)){
+    const code=prompt('請手動輸入條碼：');
+    if(code) processScanAddBarcode(code);
+    return;
+  }
+  try{
+    _saStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    G('sa-video').srcObject=_saStream;
+    G('sa-video').style.display='block';
+    G('sa-scan-btns').style.display='none';
+    G('sa-scan-active').style.display='block';
+    G('sa-scan-status').textContent='對準條碼後按掃描';
+  }catch(e){alert('無法開啟相機：'+e.message);}
+}
+
+async function doScanAddOnce(){
+  if(!_saStream)return;
+  G('sa-scan-status').textContent='掃描中…';
+  try{
+    const bd=new BarcodeDetector({formats:['ean_13','ean_8','code_128','code_39','qr_code']});
+    const result=await bd.detect(G('sa-video'));
+    if(result&&result.length>0){
+      stopScanAdd();
+      processScanAddBarcode(result[0].rawValue);
+    } else {
+      G('sa-scan-status').textContent='未偵測到條碼，請重試';
+    }
+  }catch(e){G('sa-scan-status').textContent='掃描失敗，請重試';}
+}
+
+function stopScanAdd(){
+  if(_saStream){_saStream.getTracks().forEach(t=>t.stop());_saStream=null;}
+  G('sa-video').style.display='none';
+  G('sa-scan-btns').style.display='flex';
+  G('sa-scan-active').style.display='none';
+}
+
+function processScanAddBarcode(code){
+  const p=db.products.find(x=>x.barcode===code);
+  if(!p){
+    alert('找不到條碼對應的商品：'+code);
+    return;
+  }
+  loadScanAddProduct(p.id);
+}
+
+function loadScanAddProduct(pid){
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  _saPid=pid;_saQty=1;_saVariant='';_saPack='none';
+  G('sa-prod-name').textContent=p.name;
+  G('sa-prod-info').textContent=(p.location?'存放：'+p.location:'')+
+    (p.location&&p.barcode?' · ':'')+
+    (p.barcode?'條碼：'+p.barcode:'');
+  // Price - last price
+  const custId=G('o-cust').value;
+  const remembered=getLastPrice(pid,custId);
+  const cust=db.customers.find(x=>x.id===custId);
+  const disc=cust?.discount||0;
+  const price=remembered?Math.round(remembered*(disc?1-disc/100:1)):0;
+  G('sa-price').value=price||'';
+  G('sa-price-hint').textContent=remembered?'上次售價：$'+remembered+(disc?' ('+disc+'折)'  :''):'';
+  // Quantity
+  _saQty=1;G('sa-qty-display').textContent='1';
+  // Variants
+  const variants=p.variants||[];
+  if(variants.length>0){
+    G('sa-variant-wrap').style.display='block';
+    G('sa-variant-btns').innerHTML=
+      '<button onclick="selectSaVariant(\'\',this)" id="sa-var-none" style="padding:12px 20px;border:2px solid var(--brown);background:var(--brown);color:#fff;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">無</button>'+
+      variants.map(v=>`<button onclick="selectSaVariant('${v}',this)" id="sa-var-${v}" style="padding:12px 20px;border:2px solid var(--border);background:#fff;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">${v}</button>`).join('');
+  } else {
+    G('sa-variant-wrap').style.display='none';
+  }
+  // Packing
+  ['box','card','none'].forEach(t=>{
+    const btn=G('sa-pack-'+t);
+    if(btn){btn.style.background=t==='none'?'var(--brown)':'#fff';btn.style.color=t==='none'?'#fff':'inherit';btn.style.borderColor=t==='none'?'var(--brown)':'var(--border)';}
+  });
+  G('sa-product-area').style.display='block';
+  G('sa-footer').style.display='block';
+}
+
+function selectSaVariant(v,el){
+  _saVariant=v;
+  document.querySelectorAll('[id^="sa-var-"]').forEach(btn=>{
+    const sel=btn===el;
+    btn.style.background=sel?'var(--brown)':'#fff';
+    btn.style.color=sel?'#fff':'inherit';
+    btn.style.borderColor=sel?'var(--brown)':'var(--border)';
+  });
+}
+
+function toggleSaPack(type){
+  _saPack=type;
+  ['box','card','none'].forEach(t=>{
+    const btn=G('sa-pack-'+t);
+    if(btn){
+      const sel=t===type;
+      btn.style.background=sel?'var(--brown)':'#fff';
+      btn.style.color=sel?'#fff':'inherit';
+      btn.style.borderColor=sel?'var(--brown)':'var(--border)';
+    }
+  });
+}
+
+function changeSaQty(delta){
+  _saQty=Math.max(1,(_saQty||1)+delta);
+  G('sa-qty-display').textContent=_saQty;
+}
+
+function confirmScanAdd(){
+  if(!_saPid){alert('請先掃描商品');return;}
+  const price=parseFloat(G('sa-price').value);
+  if(!price||price<=0){alert('請輸入售價');return;}
+  const p=db.products.find(x=>x.id===_saPid);if(!p)return;
+  const chosenPack=_saPack==='box'?'盒裝':_saPack==='card'?'吊卡':null;
+  const variant=_saVariant;
+  const ex=orderItems.find(i=>i.productId===_saPid&&i.variant===variant);
+  if(ex){ex.qty+=_saQty;ex.price=price;}
+  else orderItems.push({productId:_saPid,name:p.name,barcode:p.barcode||'',variant,qty:_saQty,price,location:p.location||'',specialPacking:chosenPack});
+  renderOrderItems();
+  // Reset for next scan
+  _saPid=null;_saQty=1;_saVariant='';_saPack='none';
+  G('sa-product-area').style.display='none';
+  G('sa-footer').style.display='none';
+  G('sa-scan-btns').style.display='flex';
+  G('sa-price').value='';
+  G('sa-qty-display').textContent='1';
 }
 
 loadData();
