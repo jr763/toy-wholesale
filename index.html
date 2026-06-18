@@ -408,8 +408,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       </div>
       <!-- 掃描新增商品 -->
       <div style="margin-top:13px;">
-        <button onclick="openScanAdd()" style="width:100%;padding:16px;background:var(--brown);color:#fff;border:none;border-radius:10px;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
-          <span style="font-size:24px;">📷</span> 掃描新增商品
+        <button onclick="openScanAdd()" style="width:100%;padding:18px;background:#8b5e3c;color:#fff;border:none;border-radius:10px;font-size:18px;font-weight:700;cursor:pointer;letter-spacing:1px;">
+          📷 掃描新增商品
         </button>
       </div>
       <!-- Hidden fields for compatibility -->
@@ -671,15 +671,44 @@ const V     = id => (G(id)?.value||'').trim();
 
 function setSyncStatus(s,t){ G('sync-dot').className='sync-dot '+s; G('sync-text').textContent=t; }
 function openModal(id){ G(id).classList.add('open'); }
-function closeModal(id){ G(id).classList.remove('open'); }
+function closeModal(id){
+  G(id).classList.remove('open');
+  // If closing order detail, restore orders hash
+  if(id==='modal-order-detail'&&location.hash.startsWith('#/orders/')){
+    history.pushState({tab:'orders'},'','#/orders');
+  }
+}
 
-function switchTab(t,btn){
+function switchTab(t,btn,pushState=true){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(n=>n.classList.remove('active'));
   G('tab-'+t).classList.add('active');
   if(btn) btn.classList.add('active');
   ({dashboard:renderDashboard,products:renderProducts,customers:renderCustomers,orders:renderOrders,shipments:renderShipments,returns:renderReturns,restock:renderRestock})[t]?.();
+  if(pushState){
+    const hashMap={dashboard:'/',products:'/products',customers:'/customers',orders:'/orders',shipments:'/shipments',returns:'/returns',restock:'/restock'};
+    const newHash='#'+(hashMap[t]||'/');
+    if(location.hash!==newHash) history.pushState({tab:t},'',' '+newHash);
+  }
 }
+
+// Hash router
+function handleHashChange(){
+  const hash=location.hash.replace('#','').replace(/^\/+/,'/')||'/';
+  const reverseMap={'/':'dashboard','/products':'products','/customers':'customers','/orders':'orders','/shipments':'shipments','/returns':'returns','/restock':'restock'};
+  // Check for order detail: #/orders/ID
+  const orderMatch=hash.match(/^\/orders\/(.+)$/);
+  if(orderMatch){
+    switchTab('orders',null,false);
+    setTimeout(()=>viewOrderReadonly(orderMatch[1]),100);
+    return;
+  }
+  const tab=reverseMap[hash]||'dashboard';
+  const navBtn=G('nav-'+tab)||G('nav-dashboard');
+  switchTab(tab,navBtn,false);
+}
+
+window.addEventListener('popstate',handleHashChange);
 
 ['modal-product','modal-customer','modal-order','modal-order-detail','modal-shipment','modal-barcode','modal-variants','modal-return']
   .forEach(id=>G(id)?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal(id);}));
@@ -1520,6 +1549,7 @@ function viewOrderReadonly(id){
       }).join('')}</tbody></table></div>
     <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);margin-top:6px;">合計：$${fmt(total)}</div>`;
   openModal('modal-order-detail');
+  history.pushState({tab:'orders',orderId:id},'','#/orders/'+id);
 }
 function viewOrder(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
@@ -2711,6 +2741,7 @@ function confirmScanAdd(){
 }
 
 loadData();
+setTimeout(handleHashChange,200);
 </script>
 </body>
 </html>
