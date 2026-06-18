@@ -335,7 +335,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
               📁 選擇圖片
               <input type="file" id="p-image-file" accept="image/*" onchange="onProdImageChange(this)" style="display:none;">
             </label>
-            <div id="p-image-preview" style="display:none;">
+            <div id="p-image-preview" style="display:none;margin-top:8px;">
               <img id="p-image-img" src="" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
               <button onclick="removeProdImage()" style="margin-left:6px;background:none;border:none;color:var(--red);font-size:13px;cursor:pointer;">✕ 移除</button>
             </div>
@@ -421,11 +421,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       </div>
       <!-- 掃描新增商品 -->
       <div style="margin-top:13px;">
-        <input id="sa-barcode-input" placeholder="掃描條碼或輸入商品名稱…" style="width:100%;font-size:16px;padding:14px;border:2px solid var(--border);border-radius:8px;"
-          oninput="onSaInput(this.value)"
-          onkeydown="if(event.key==='Enter'){onSaBarcodeEnter(this.value);event.preventDefault()}"
-          autocomplete="off">
-        <div id="sa-input-results" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:200px;overflow-y:auto;display:none;"></div>
+        <button onclick="openScanAdd()" style="width:100%;padding:16px;background:#8b5e3c;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">
+          開始掃描
+        </button>
       </div>
       <!-- Hidden fields for compatibility -->
       <input type="hidden" id="o-search">
@@ -457,20 +455,17 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       <div style="font-size:18px;font-weight:700;">加入商品</div>
       <button onclick="closeModal('modal-scan-add')" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">×</button>
     </div>
-    <!-- Scanner area -->
-    <div id="sa-scan-area" style="flex-shrink:0;padding:16px;background:var(--surface2);border-bottom:1px solid var(--border);">
-      <video id="sa-video" autoplay playsinline muted style="width:100%;border-radius:8px;background:#000;display:none;max-height:180px;object-fit:cover;"></video>
-      <div id="sa-scan-btns" style="display:flex;gap:10px;">
-        <button onclick="openScanCamera()" style="flex:1;padding:14px;background:var(--brown);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">📷 開啟相機掃描</button>
-      </div>
-      <div id="sa-scan-active" style="display:none;">
-        <p id="sa-scan-status" style="text-align:center;font-size:13px;color:var(--text2);margin:8px 0;">對準條碼後按掃描</p>
-        <div style="display:flex;gap:8px;">
-          <button onclick="doScanAddOnce()" style="flex:1;padding:14px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:18px;font-weight:700;cursor:pointer;">📷 掃描</button>
-          <button onclick="stopScanAdd()" style="padding:14px 18px;background:#f0ede8;border:none;border-radius:8px;font-size:15px;cursor:pointer;">取消</button>
-        </div>
-      </div>
+    <!-- Search area -->
+    <div style="flex-shrink:0;padding:16px;background:var(--surface2);border-bottom:1px solid var(--border);">
+      <input id="sa-barcode-input" placeholder="掃描條碼或輸入商品名稱…"
+        style="width:100%;font-size:16px;padding:14px;border:2px solid var(--border);border-radius:8px;"
+        oninput="onSaInput(this.value)"
+        onkeydown="if(event.key==='Enter'){onSaBarcodeEnter(this.value);event.preventDefault()}"
+        autocomplete="off">
+      <div id="sa-input-results" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:200px;overflow-y:auto;display:none;"></div>
     </div>
+    <!-- Hidden video for compatibility -->
+    <video id="sa-video" style="display:none;"></video>
     <!-- Product detail area -->
     <div id="sa-product-area" style="flex:1;overflow-y:auto;padding:16px;display:none;">
       <!-- Product name -->
@@ -2627,6 +2622,7 @@ function openScanAdd(){
   G('sa-scan-active').style.display='none';
   G('sa-video').style.display='none';
   openModal('modal-scan-add');
+  setTimeout(()=>G('sa-barcode-input')?.focus(),100);
 }
 
 async function openScanCamera(){
