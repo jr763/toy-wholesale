@@ -326,7 +326,20 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
         <div class="form-group full"><label>商品名稱 <span class="req">*</span></label><input id="p-name" placeholder="例：水槍 36cm"></div>
         <div class="form-group">
           <label>EAN條碼</label>
-          <div style="display:flex;gap:6px;"><input id="p-barcode" placeholder="4901234567890" class="mono"><button class="scan-btn" onclick="startScan('p-barcode',null)">📷</button></div>
+          <input id="p-barcode" placeholder="條碼槍掃描或手動輸入" class="mono">
+        </div>
+        <div class="form-group full">
+          <label>商品圖片</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <label style="cursor:pointer;background:var(--surface2);border:1.5px dashed var(--border);border-radius:8px;padding:10px 16px;font-size:13px;color:var(--text2);">
+              📁 選擇圖片
+              <input type="file" id="p-image-file" accept="image/*" onchange="onProdImageChange(this)" style="display:none;">
+            </label>
+            <div id="p-image-preview" style="display:none;">
+              <img id="p-image-img" src="" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--border);">
+              <button onclick="removeProdImage()" style="margin-left:6px;background:none;border:none;color:var(--red);font-size:13px;cursor:pointer;">✕ 移除</button>
+            </div>
+          </div>
         </div>
         <div class="form-group"><label>成本（元）</label><input id="p-cost" type="number" placeholder="0" min="0"></div>
         <div class="form-group"><label>現有庫存 <span class="req">*</span></label><input id="p-stock" type="number" placeholder="0" min="0"></div>
@@ -408,9 +421,11 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       </div>
       <!-- 掃描新增商品 -->
       <div style="margin-top:13px;">
-        <button onclick="openScanAdd()" style="width:100%;padding:18px;background:#8b5e3c;color:#fff;border:none;border-radius:10px;font-size:18px;font-weight:700;cursor:pointer;letter-spacing:1px;">
-          📷 掃描新增商品
-        </button>
+        <input id="sa-barcode-input" placeholder="掃描條碼或輸入商品名稱…" style="width:100%;font-size:16px;padding:14px;border:2px solid var(--border);border-radius:8px;"
+          oninput="onSaInput(this.value)"
+          onkeydown="if(event.key==='Enter'){onSaBarcodeEnter(this.value);event.preventDefault()}"
+          autocomplete="off">
+        <div id="sa-input-results" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:200px;overflow-y:auto;display:none;"></div>
       </div>
       <!-- Hidden fields for compatibility -->
       <input type="hidden" id="o-search">
@@ -1048,6 +1063,9 @@ function editProduct(id){
   G('p-batch').value=p.inspectionBatchNo||'';
   window._productVariants=[...(p.variants||[])];
   renderProductVariantList();
+  window._prodImageData=p.image||null;
+  if(G('p-image-img')){G('p-image-img').src=p.image||'';G('p-image-preview').style.display=p.image?'flex':'none';}
+  if(G('p-image-file'))G('p-image-file').value='';
   openModal('modal-product');
 }
 function toggleInsp(){
@@ -1273,6 +1291,8 @@ function selectCust(id,name){
 }
 // Close dropdown when clicking outside
 document.addEventListener('click',e=>{
+  const saRes=G('sa-input-results');
+  if(saRes&&!saRes.contains(e.target)&&e.target!==G('sa-barcode-input'))saRes.style.display='none';
   const res=G('o-cust-results');
   if(res&&!res.contains(e.target)&&e.target!==G('o-cust-input'))res.style.display='none';
 });
