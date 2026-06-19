@@ -1106,7 +1106,9 @@ async function saveProduct(){
   const data={name,barcode,cost:parseFloat(G('p-cost').value)||0,currentStock:parseFloat(G('p-stock').value)||0,
     safetyStock:parseFloat(G('p-safety').value)||0,
     location:G('p-loc')?.value||'一樓',
-    hasInspectionMark:hasM,inspectionBatchNo:hasM?'':V('p-batch'),variants:[...editingVariants]};
+    hasInspectionMark:hasM,inspectionBatchNo:hasM?'':V('p-batch'),
+    variants:[...(window._productVariants||[])],
+    image:window._prodImageData||''};
   if(editProdId){const i=db.products.findIndex(x=>x.id===editProdId);db.products[i]={...db.products[i],...data};}
   else db.products.push({id:uid(),...data});
   await saveData();
@@ -1122,7 +1124,7 @@ function renderProducts(){
   const q=(G('product-search')?.value||'').toLowerCase();
   const rows=db.products.filter(p=>!q||p.name.toLowerCase().includes(q)||(p.barcode||'').includes(q));
   const tb=G('product-table');if(!tb)return;
-  if(!rows.length){tb.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📦</div>尚無商品</div></td></tr>`;return;}
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📦</div>尚無商品</div></td></tr>`;return;}
   tb.innerHTML=rows.map(p=>{
     const s=p.currentStock??0,ss=p.safetyStock||0;
     const sc=s<=ss&&ss>0?'stock-bad':s<=ss*1.5&&ss>0?'stock-warn':'stock-ok';
@@ -1134,11 +1136,8 @@ function renderProducts(){
       <td>${img}</td>
       <td><strong>${p.name}</strong></td>
       <td class="mono">${p.barcode||'—'}</td>
-      <td>$${fmt(p.cost)}</td>
       <td class="${sc}">${s}</td>
-      <td>${ss}</td>
       <td>${insp}</td>
-      <td>${(p.variants||[]).map(v=>`<span class="badge badge-blue">${v}</span>`).join(' ')||'—'}</td>
       <td>${p.location||'—'}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-sm btn-secondary" onclick="editProduct('${p.id}')">編輯</button>
@@ -2823,9 +2822,22 @@ function onProdImageChange(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
-    window._prodImageData=e.target.result;
-    G('p-image-img').src=e.target.result;
-    G('p-image-preview').style.display='block';
+    const img=new Image();
+    img.onload=()=>{
+      const maxSize=300;
+      let w=img.width,h=img.height;
+      if(w>h){if(w>maxSize){h=Math.round(h*maxSize/w);w=maxSize;}}
+      else{if(h>maxSize){w=Math.round(w*maxSize/h);h=maxSize;}}
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      const compressed=canvas.toDataURL('image/jpeg',0.7);
+      window._prodImageData=compressed;
+      G('p-image-img').src=compressed;
+      G('p-image-preview').style.display='block';
+    };
+    img.src=e.target.result;
   };
   reader.readAsDataURL(file);
 }
