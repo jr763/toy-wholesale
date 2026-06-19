@@ -453,7 +453,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <!-- Header -->
     <div style="background:var(--brown);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
       <div style="font-size:18px;font-weight:700;">加入商品</div>
-      <button onclick="closeModal('modal-scan-add')" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;width:36px;height:36px;border-radius:50%;cursor:pointer;line-height:1;">×</button>
+      <button onclick="closeModal('modal-scan-add')" style="background:rgba(255,255,255,.95);border:none;color:#8b5e3c;font-size:20px;width:34px;height:34px;border-radius:50%;cursor:pointer;line-height:1;font-weight:900;box-shadow:0 1px 4px rgba(0,0,0,.2);">×</button>
     </div>
     <!-- Search area -->
     <div style="flex-shrink:0;padding:16px;background:var(--surface2);border-bottom:1px solid var(--border);">
@@ -2750,10 +2750,63 @@ function confirmScanAdd(){
   _saPid=null;_saQty=1;_saVariant='';_saPack='none';
   G('sa-product-area').style.display='none';
   G('sa-footer').style.display='none';
-  G('sa-scan-btns').style.display='flex';
   G('sa-price').value='';
   G('sa-qty-display').textContent='1';
+  if(G('sa-barcode-input')){G('sa-barcode-input').value='';G('sa-barcode-input').focus();}
 }
+
+function onSaInput(val){
+  const res=G('sa-input-results');if(!res)return;
+  if(!val||val.length<1){res.style.display='none';return;}
+  const hits=db.products.filter(p=>
+    p.name.toLowerCase().includes(val.toLowerCase())||
+    (p.barcode&&p.barcode.includes(val))
+  ).slice(0,8);
+  if(!hits.length){res.style.display='none';return;}
+  res.style.display='block';
+  res.innerHTML=hits.map(p=>`
+    <div onclick="selectSaProduct('${p.id}')" style="padding:12px 14px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <span style="font-weight:700;">${p.name}</span>
+      <span style="color:var(--text2);font-size:12px;">${p.location||''}</span>
+    </div>`).join('');
+}
+function onSaBarcodeEnter(val){
+  if(!val)return;
+  const p=db.products.find(x=>x.barcode===val);
+  if(p){selectSaProduct(p.id);return;}
+  const hits=db.products.filter(x=>x.name.toLowerCase().includes(val.toLowerCase()));
+  if(hits.length===1){selectSaProduct(hits[0].id);return;}
+  if(hits.length>1){onSaInput(val);return;}
+  alert('找不到商品：'+val);
+}
+function selectSaProduct(pid){
+  const input=G('sa-barcode-input');
+  if(input)input.value='';
+  const res=G('sa-input-results');
+  if(res)res.style.display='none';
+  loadScanAddProduct(pid);
+}
+function onProdImageChange(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    window._prodImageData=e.target.result;
+    G('p-image-img').src=e.target.result;
+    G('p-image-preview').style.display='block';
+  };
+  reader.readAsDataURL(file);
+}
+function removeProdImage(){
+  window._prodImageData=null;
+  G('p-image-img').src='';
+  G('p-image-preview').style.display='none';
+  G('p-image-file').value='';
+}
+document.addEventListener('click',function(e){
+  const saRes=G('sa-input-results');
+  if(saRes&&!saRes.contains(e.target)&&e.target!==G('sa-barcode-input'))saRes.style.display='none';
+});
 
 loadData();
 setTimeout(handleHashChange,200);
