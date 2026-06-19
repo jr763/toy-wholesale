@@ -506,11 +506,13 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
           <button id="sa-pack-none" onclick="toggleSaPack('none')" style="flex:1;padding:9px;border:1.5px solid var(--brown);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;background:var(--brown);color:#fff;">一般</button>
         </div>
       </div>
-      <!-- Variant selector (checkbox + qty) - compact -->
+      <!-- Variant selector - stepper cards -->
       <div id="sa-variant-wrap" style="margin-bottom:6px;display:none;">
-        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">種類數量分配</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:700;">種類數量分配</div>
+          <div id="sa-variant-sum-hint" style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:12px;background:var(--surface2);color:var(--text2);"></div>
+        </div>
         <div id="sa-variant-rows" style="display:flex;flex-direction:column;gap:6px;"></div>
-        <div id="sa-variant-sum-hint" style="font-size:12px;margin-top:6px;color:var(--text2);"></div>
       </div>
     </div>
     <!-- Add button footer -->
@@ -2753,36 +2755,42 @@ function loadScanAddProduct(pid){
   G('sa-footer').style.display='block';
 }
 
+let _saVariantSelected={}; // {variantName: true/false} - just selection, independent of qty
+
 function renderSaVariantRows(variants){
   const wrap=G('sa-variant-rows');if(!wrap)return;
+  _saVariantSelected={};
   wrap.innerHTML=variants.map(v=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;">
-      <input type="checkbox" id="sa-vck-${v}" onchange="toggleSaVariantCheck('${v}',this)" style="width:19px;height:19px;cursor:pointer;flex-shrink:0;">
-      <label for="sa-vck-${v}" style="flex:1;font-size:14px;font-weight:600;cursor:pointer;">${v}</label>
-      <input type="number" id="sa-vqty-${v}" min="1" placeholder="數量" disabled
-        oninput="onSaVariantQtyInput('${v}',this.value)"
-        style="width:64px;font-size:14px;font-weight:700;padding:6px;border:1.5px solid var(--border);border-radius:6px;text-align:center;">
+    <div id="sa-vrow-${v}" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff;">
+      <span onclick="toggleSaVariantSelect('${v}')" style="font-size:14px;font-weight:600;cursor:pointer;flex:1;padding:4px 0;">${v}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button onclick="changeSaVariantQty('${v}',-1)" style="width:28px;height:28px;font-size:15px;font-weight:700;background:#f0ede8;border:none;border-radius:6px;cursor:pointer;">－</button>
+        <span id="sa-vqty-${v}" style="display:inline-block;width:28px;text-align:center;font-size:15px;font-weight:800;color:var(--brown);">0</span>
+        <button onclick="changeSaVariantQty('${v}',1)" style="width:28px;height:28px;font-size:15px;font-weight:700;background:#f0ede8;border:none;border-radius:6px;cursor:pointer;">＋</button>
+      </div>
     </div>`).join('');
   updateSaVariantSumHint();
 }
 
-function toggleSaVariantCheck(v,cb){
-  const qtyInput=G('sa-vqty-'+v);
-  if(cb.checked){
-    qtyInput.disabled=false;
-    qtyInput.focus();
-  } else {
-    qtyInput.disabled=true;
-    qtyInput.value='';
-    delete _saVariantQtys[v];
+function toggleSaVariantSelect(v){
+  _saVariantSelected[v]=!_saVariantSelected[v];
+  const row=G('sa-vrow-'+v);
+  if(row){
+    row.style.background=_saVariantSelected[v]?'var(--orange-bg)':'#fff';
+    row.style.borderColor=_saVariantSelected[v]?'var(--brown)':((_saVariantQtys[v]||0)>0?'var(--brown)':'var(--border)');
   }
   updateSaVariantSumHint();
 }
 
-function onSaVariantQtyInput(v,val){
-  const n=parseInt(val);
-  if(!isNaN(n)&&n>0) _saVariantQtys[v]=n;
-  else delete _saVariantQtys[v];
+function changeSaVariantQty(v,delta){
+  const cur=_saVariantQtys[v]||0;
+  const next=Math.max(0,cur+delta);
+  if(next===0) delete _saVariantQtys[v];
+  else _saVariantQtys[v]=next;
+  const el=G('sa-vqty-'+v);
+  if(el)el.textContent=next;
+  const row=G('sa-vrow-'+v);
+  if(row&&!_saVariantSelected[v]) row.style.borderColor=next>0?'var(--brown)':'var(--border)';
   updateSaVariantSumHint();
 }
 
@@ -2790,13 +2798,20 @@ function updateSaVariantSumHint(){
   const hint=G('sa-variant-sum-hint');if(!hint)return;
   const sum=Object.values(_saVariantQtys).reduce((s,n)=>s+n,0);
   const total=_saQty||0;
-  if(sum===0){hint.textContent='';hint.style.color='var(--text2)';return;}
-  if(sum===total){
-    hint.textContent=`✓ 種類數量加總 ${sum} = 商品總數量 ${total}`;
-    hint.style.color='var(--green)';
+  const selectedCount=Object.values(_saVariantSelected).filter(Boolean).length;
+  if(sum===0&&selectedCount>0){
+    // Selected without qty - will auto-split evenly
+    hint.textContent=`已選 ${selectedCount} 種，將平均分配 ${total}`;
+    hint.style.background='var(--blue-bg)';hint.style.color='var(--blue)';
+  } else if(sum===0){
+    hint.textContent=`未分配`;
+    hint.style.background='var(--surface2)';hint.style.color='var(--text2)';
+  } else if(sum===total){
+    hint.textContent=`已分配 ${sum} / ${total}`;
+    hint.style.background='var(--green)';hint.style.color='#fff';
   } else {
-    hint.textContent=`⚠️ 種類數量加總 ${sum}，需等於商品總數量 ${total}`;
-    hint.style.color='var(--red)';
+    hint.textContent=`已分配 ${sum} / ${total}`;
+    hint.style.background='var(--red)';hint.style.color='#fff';
   }
 }
 
@@ -2841,23 +2856,32 @@ function confirmScanAdd(){
   const p=db.products.find(x=>x.id===_saPid);if(!p)return;
   const chosenPack=_saPack==='box'?'盒裝':_saPack==='card'?'吊卡':null;
   const hasVariants=(p.variants||[]).length>0;
-  const variantEntries=Object.entries(_saVariantQtys).filter(([,n])=>n>0);
+  let variantEntries=Object.entries(_saVariantQtys).filter(([,n])=>n>0);
+  const selectedNoQty=Object.entries(_saVariantSelected||{}).filter(([v,sel])=>sel&&!_saVariantQtys[v]).map(([v])=>v);
+
+  if(hasVariants&&variantEntries.length===0&&selectedNoQty.length>0){
+    // Selected without specifying qty - auto-split evenly
+    const n=selectedNoQty.length;
+    const base=Math.floor(_saQty/n);
+    let remainder=_saQty-base*n;
+    variantEntries=selectedNoQty.map((v,i)=>{
+      const qty=base+(i<remainder?1:0);
+      return [v,qty];
+    }).filter(([,q])=>q>0);
+  }
 
   if(hasVariants&&variantEntries.length>0){
-    // Validate sum = total qty
     const sum=variantEntries.reduce((s,[,n])=>s+n,0);
     if(sum!==_saQty){
       alert('種類數量加總（'+sum+'）必須等於商品總數量（'+_saQty+'）');
       return;
     }
-    // Add one line item per variant (grouped together since they're added consecutively)
     variantEntries.forEach(([v,n])=>{
       const ex=orderItems.find(i=>i.productId===_saPid&&i.variant===v);
       if(ex){ex.qty+=n;ex.price=price;}
       else orderItems.push({productId:_saPid,name:p.name,barcode:p.barcode||'',variant:v,qty:n,price,location:p.location||'',specialPacking:chosenPack});
     });
   } else {
-    // No variant breakdown - single line item
     const ex=orderItems.find(i=>i.productId===_saPid&&!i.variant);
     if(ex){ex.qty+=_saQty;ex.price=price;}
     else orderItems.push({productId:_saPid,name:p.name,barcode:p.barcode||'',variant:'',qty:_saQty,price,location:p.location||'',specialPacking:chosenPack});
@@ -2865,7 +2889,7 @@ function confirmScanAdd(){
 
   renderOrderItems();
   // Reset for next scan
-  _saPid=null;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};
+  _saPid=null;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};_saVariantSelected={};
   G('sa-product-area').style.display='none';
   G('sa-footer').style.display='none';
   G('sa-price').value='';
