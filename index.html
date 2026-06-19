@@ -17,6 +17,7 @@
   --green:#2a7a4f;--green-bg:#edf7f2;--blue:#1a5c8a;--blue-bg:#eaf3fb;
   --orange:#e07020;--orange-bg:#fff4ee;--red:#c0392b;--red-bg:#fdecea;
   --shadow:0 2px 12px rgba(0,0,0,.07);--radius:10px;
+  --brown:#8b5e3c;--brown-dark:#5c3d2e;--brown-light:#c4956a;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
@@ -468,6 +469,10 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <video id="sa-video" style="display:none;"></video>
     <!-- Product detail area -->
     <div id="sa-product-area" style="flex:1;overflow-y:auto;padding:16px;display:none;">
+      <!-- Product image -->
+      <div id="sa-prod-image-wrap" style="display:none;text-align:center;margin-bottom:16px;">
+        <img id="sa-prod-image" src="" style="width:160px;height:160px;object-fit:cover;border-radius:12px;border:1px solid var(--border);">
+      </div>
       <!-- Product name -->
       <div style="font-size:22px;font-weight:900;color:var(--brown-dark);margin-bottom:4px;" id="sa-prod-name"></div>
       <div style="font-size:13px;color:var(--text2);margin-bottom:16px;" id="sa-prod-info"></div>
@@ -492,13 +497,15 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
           style="width:100%;font-size:28px;font-weight:700;padding:14px;border:2px solid var(--border);border-radius:8px;text-align:center;">
         <div id="sa-price-hint" style="font-size:12px;color:var(--text2);margin-top:4px;"></div>
       </div>
-      <!-- Quantity +/- -->
+      <!-- Quantity editable -->
       <div style="margin-bottom:24px;">
         <div style="font-size:14px;font-weight:700;margin-bottom:10px;">數量</div>
-        <div style="display:flex;align-items:center;gap:0;border:2px solid var(--border);border-radius:8px;overflow:hidden;">
-          <button onclick="changeSaQty(-1)" style="width:64px;height:64px;font-size:28px;font-weight:700;background:#f0ede8;border:none;cursor:pointer;">－</button>
-          <div id="sa-qty-display" style="flex:1;text-align:center;font-size:32px;font-weight:900;color:var(--brown);">1</div>
-          <button onclick="changeSaQty(1)" style="width:64px;height:64px;font-size:28px;font-weight:700;background:#f0ede8;border:none;cursor:pointer;">＋</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button onclick="changeSaQty(-1)" style="width:54px;height:54px;font-size:24px;font-weight:700;background:#f0ede8;border:none;border-radius:8px;cursor:pointer;flex-shrink:0;">－</button>
+          <input id="sa-qty-display" type="number" min="1" value="1" inputmode="numeric"
+            oninput="onSaQtyInput(this.value)"
+            style="flex:1;text-align:center;font-size:28px;font-weight:900;color:var(--brown);border:2px solid var(--border);border-radius:8px;padding:10px 0;">
+          <button onclick="changeSaQty(1)" style="width:54px;height:54px;font-size:24px;font-weight:700;background:#f0ede8;border:none;border-radius:8px;cursor:pointer;flex-shrink:0;">＋</button>
         </div>
       </div>
     </div>
@@ -950,31 +957,46 @@ function openCalDetail(date){
   calVisitCusts=existing?existing.split('、').filter(Boolean):[];
   G('cal-cust-search').value='';G('cal-cust-results').innerHTML='';
   renderCalVisitList();
-    // Hide manage section
+  // Hide manage section
   const mng=G('cal-manage-section');if(mng)mng.style.display='none';
   const detail=G('cal-detail-section');
   if(detail){
-    const dayOrders=db.orders.filter(o=>o.date===date);
-    const dayShips=db.shipments.filter(s=>s.date===date);
-    let html='';
-    if(dayOrders.length){
-      html+=`<div style="margin-bottom:8px;"><div style="font-size:13px;font-weight:700;margin-bottom:4px;">抄貨：</div>`;
-      dayOrders.forEach(o=>{
-        const cust=db.customers.find(x=>x.id===o.customerId);
-        html+=`<div style="font-size:13px;padding:2px 8px;">• ${cust?cust.name:'—'}</div>`;
-      });
-      html+='</div>';
+    const statusColor={'未抄貨':'var(--blue)','抄貨中':'var(--orange)','已抄貨':'var(--orange)','撿貨中':'var(--orange)','已撿貨':'var(--orange)','裝箱中':'var(--orange)','已裝箱':'var(--blue)','已完成':'var(--green)','已完成(待修改)':'var(--orange)','撿貨(修改)':'var(--orange)','已撿貨(修改)':'var(--orange)','裝箱(修改)':'var(--orange)','已出貨':'var(--green)'};
+    const stMap={confirmed:'已抄貨',picking:'撿貨中',picked:'已撿貨',boxing:'裝箱中',packed:'已裝箱',completed:'已完成',mod_pending:'已完成(待修改)',mod_picking:'撿貨(修改)',mod_picked:'已撿貨(修改)',mod_boxing:'裝箱(修改)',shipped:'已出貨',draft:'抄貨中'};
+
+    const custStatusMap={};
+    calVisitCusts.forEach(name=>{ custStatusMap[name]='未抄貨'; });
+    db.orders.filter(o=>o.date===date).forEach(o=>{
+      const cust=db.customers.find(x=>x.id===o.customerId);
+      if(cust) custStatusMap[cust.name]=stMap[o.status]||'抄貨中';
+    });
+    db.shipments.filter(s=>s.date===date).forEach(s=>{
+      const o=db.orders.find(x=>x.id===s.orderId);
+      const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+      if(cust) custStatusMap[cust.name]='已出貨';
+    });
+
+    const entries=Object.entries(custStatusMap);
+    if(!entries.length){
+      detail.innerHTML='<div style="font-size:13px;color:var(--text3);">該天無安排或記錄</div>';
+    } else {
+      detail.innerHTML=entries.map(([name,st])=>{
+        const order=db.orders.find(o=>o.date===date&&db.customers.find(c=>c.id===o.customerId)?.name===name);
+        let actionBtn='';
+        if(st==='未抄貨'||st==='抄貨中') actionBtn=`<button class="btn btn-sm btn-primary" onclick="closeModal('modal-cal-visit');openOrderWithCust('${name}')">+ 抄貨單</button>`;
+        else if(st==='已抄貨'||st==='撿貨中') actionBtn=order?`<button class="btn btn-sm btn-primary" onclick="closeModal('modal-cal-visit');viewOrder('${order.id}')">撿貨</button>`:'';
+        else if(st==='已撿貨'||st==='裝箱中') actionBtn=order?`<button class="btn btn-sm btn-primary" onclick="closeModal('modal-cal-visit');openBoxingModal('${order.id}')">裝箱確認</button>`:'';
+        else if(st==='已裝箱') actionBtn=order?`<button class="btn btn-sm btn-primary" onclick="closeModal('modal-cal-visit');viewOrder('${order.id}')">撿貨(補)</button>`:'';
+        else if(st==='已完成') actionBtn=order?`<button class="btn btn-sm btn-green" onclick="closeModal('modal-cal-visit');openShipModal('${order.id}')">建立出貨單</button>`:'';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:13px;font-weight:700;">${name}</div>
+            <span style="display:inline-block;margin-top:3px;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;background:${statusColor[st]||'var(--text3)'};color:#fff;">${st}</span>
+          </div>
+          <div>${actionBtn}</div>
+        </div>`;
+      }).join('');
     }
-    if(dayShips.length){
-      html+=`<div style="margin-bottom:8px;"><div style="font-size:13px;font-weight:700;margin-bottom:4px;">送貨：</div>`;
-      dayShips.forEach(s=>{
-        const o=db.orders.find(x=>x.id===s.orderId);
-        const cust=o?db.customers.find(x=>x.id===o.customerId):null;
-        html+=`<div style="font-size:13px;padding:2px 8px;">• ${cust?cust.name:'—'}</div>`;
-      });
-      html+='</div>';
-    }
-    detail.innerHTML=html;
   }
   openModal('modal-cal-visit');
 }
@@ -1100,14 +1122,16 @@ function renderProducts(){
   const q=(G('product-search')?.value||'').toLowerCase();
   const rows=db.products.filter(p=>!q||p.name.toLowerCase().includes(q)||(p.barcode||'').includes(q));
   const tb=G('product-table');if(!tb)return;
-  if(!rows.length){tb.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📦</div>尚無商品</div></td></tr>`;return;}
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📦</div>尚無商品</div></td></tr>`;return;}
   tb.innerHTML=rows.map(p=>{
     const s=p.currentStock??0,ss=p.safetyStock||0;
     const sc=s<=ss&&ss>0?'stock-bad':s<=ss*1.5&&ss>0?'stock-warn':'stock-ok';
     const insp=p.hasInspectionMark!==false
       ?'<span style="color:var(--green);font-size:16px;">✓</span>'
       :`<span class="mono" style="font-size:12px;">${p.inspectionBatchNo||'—'}</span>`;
+    const img=p.image?`<img src="${p.image}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--border);">`:`<div style="width:40px;height:40px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:16px;">📦</div>`;
     return `<tr>
+      <td>${img}</td>
       <td><strong>${p.name}</strong></td>
       <td class="mono">${p.barcode||'—'}</td>
       <td>$${fmt(p.cost)}</td>
@@ -1115,7 +1139,6 @@ function renderProducts(){
       <td>${ss}</td>
       <td>${insp}</td>
       <td>${(p.variants||[]).map(v=>`<span class="badge badge-blue">${v}</span>`).join(' ')||'—'}</td>
-      <td>${p.category||'—'}</td>
       <td>${p.location||'—'}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-sm btn-secondary" onclick="editProduct('${p.id}')">編輯</button>
@@ -2675,9 +2698,9 @@ function loadScanAddProduct(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
   _saPid=pid;_saQty=1;_saVariant='';_saPack='none';
   G('sa-prod-name').textContent=p.name;
-  G('sa-prod-info').textContent=(p.location?'存放：'+p.location:'')+
-    (p.location&&p.barcode?' · ':'')+
-    (p.barcode?'條碼：'+p.barcode:'');
+  if(p.image){G('sa-prod-image').src=p.image;G('sa-prod-image-wrap').style.display='block';}
+  else G('sa-prod-image-wrap').style.display='none';
+  G('sa-prod-info').textContent=p.location?'存放：'+p.location:'';
   // Price - last price
   const custId=G('o-cust').value;
   const remembered=getLastPrice(pid,custId);
@@ -2687,7 +2710,7 @@ function loadScanAddProduct(pid){
   G('sa-price').value=price||'';
   G('sa-price-hint').textContent=remembered?'上次售價：$'+remembered+(disc?' ('+disc+'折)'  :''):'';
   // Quantity
-  _saQty=1;G('sa-qty-display').textContent='1';
+  _saQty=1;G('sa-qty-display').value='1';
   // Variants
   const variants=p.variants||[];
   if(variants.length>0){
@@ -2732,7 +2755,11 @@ function toggleSaPack(type){
 
 function changeSaQty(delta){
   _saQty=Math.max(1,(_saQty||1)+delta);
-  G('sa-qty-display').textContent=_saQty;
+  G('sa-qty-display').value=_saQty;
+}
+function onSaQtyInput(val){
+  const n=parseInt(val);
+  _saQty=(!isNaN(n)&&n>=1)?n:1;
 }
 
 function confirmScanAdd(){
@@ -2751,7 +2778,7 @@ function confirmScanAdd(){
   G('sa-product-area').style.display='none';
   G('sa-footer').style.display='none';
   G('sa-price').value='';
-  G('sa-qty-display').textContent='1';
+  G('sa-qty-display').value='1';
   if(G('sa-barcode-input')){G('sa-barcode-input').value='';G('sa-barcode-input').focus();}
 }
 
@@ -2764,12 +2791,17 @@ function onSaInput(val){
   ).slice(0,8);
   if(!hits.length){res.style.display='none';return;}
   res.style.display='block';
-  res.innerHTML=hits.map(p=>`
-    <div onclick="selectSaProduct('${p.id}')" style="padding:12px 14px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;"
+  res.innerHTML=hits.map(p=>{
+    const img=p.image?`<img src="${p.image}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0;">`:`<div style="width:36px;height:36px;background:var(--surface2);border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text3);">📦</div>`;
+    return `<div onclick="selectSaProduct('${p.id}')" style="padding:10px 14px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;"
       onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-      <span style="font-weight:700;">${p.name}</span>
-      <span style="color:var(--text2);font-size:12px;">${p.location||''}</span>
-    </div>`).join('');
+      ${img}
+      <div style="flex:1;">
+        <div style="font-weight:700;">${p.name}</div>
+        <div style="color:var(--text2);font-size:12px;">${p.location||''}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 function onSaBarcodeEnter(val){
   if(!val)return;
