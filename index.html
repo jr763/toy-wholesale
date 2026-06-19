@@ -2616,11 +2616,10 @@ let _saStream=null, _saPid=null, _saQty=1, _saVariant='', _saPack='none';
 
 function openScanAdd(){
   _saPid=null;_saQty=1;_saVariant='';_saPack='none';
-  G('sa-product-area').style.display='none';
-  G('sa-footer').style.display='none';
-  G('sa-scan-btns').style.display='flex';
-  G('sa-scan-active').style.display='none';
-  G('sa-video').style.display='none';
+  if(G('sa-product-area'))G('sa-product-area').style.display='none';
+  if(G('sa-footer'))G('sa-footer').style.display='none';
+  if(G('sa-barcode-input'))G('sa-barcode-input').value='';
+  if(G('sa-input-results'))G('sa-input-results').style.display='none';
   openModal('modal-scan-add');
   setTimeout(()=>G('sa-barcode-input')?.focus(),100);
 }
