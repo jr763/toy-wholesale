@@ -246,7 +246,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   </div>
   <div class="search-bar"><input id="product-search" placeholder="搜尋商品名稱或條碼…" oninput="renderProducts()"></div>
   <div class="table-wrap"><table>
-    <thead><tr><th>商品名稱</th><th>EAN條碼</th><th>成本</th><th>庫存</th><th>安全量</th><th>商檢標</th><th>種類</th><th>存放地點</th><th></th></tr></thead>
+    <thead><tr><th>商品圖片</th><th>商品名稱</th><th>EAN條碼</th><th>庫存</th><th>商標</th><th>存放地點</th><th></th></tr></thead>
     <tbody id="product-table"></tbody>
   </table></div>
 </div>
@@ -1095,9 +1095,17 @@ function toggleVTag(v){
   if(i>=0)editingVariants.splice(i,1);else editingVariants.push(v);
   renderProductVariantList();
 }
+function generateInternalCode(){
+  const existing=db.products.map(p=>p.barcode||'').filter(b=>/^ASK\d{4}$/.test(b));
+  const nums=existing.map(b=>parseInt(b.replace('ASK',''),10));
+  const next=(nums.length?Math.max(...nums):0)+1;
+  return 'ASK'+String(next).padStart(4,'0');
+}
 async function saveProduct(){
-  const name=V('p-name'),barcode=V('p-barcode');
+  const name=V('p-name');
+  let barcode=V('p-barcode');
   if(!name){alert('請輸入商品名稱');return;}
+  if(!barcode){barcode=generateInternalCode();}
   if(G('p-stock').value===''){alert('請輸入現有庫存');return;}
   if(G('p-safety').value===''){alert('請輸入安全庫存量');return;}
   const hasM=document.querySelector('input[name="p-insp"]:checked').value==='1';
