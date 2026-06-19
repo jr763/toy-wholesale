@@ -422,7 +422,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       <!-- 掃描新增商品 -->
       <div style="margin-top:13px;">
         <button onclick="openScanAdd()" style="width:100%;padding:16px;background:#8b5e3c;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">
-          開始掃描
+          ＋ 新增商品
         </button>
       </div>
       <!-- Hidden fields for compatibility -->
@@ -449,11 +449,11 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 
 <!-- Scan-Add Product Modal (大字點餐介面) -->
 <div class="modal-overlay" id="modal-scan-add" style="z-index:300;">
-  <div style="background:var(--surface);width:100%;max-width:480px;height:100%;max-height:100vh;display:flex;flex-direction:column;border-radius:0;overflow:hidden;position:relative;">
+  <div style="background:var(--surface);width:100%;max-width:480px;height:95%;max-height:95vh;display:flex;flex-direction:column;border-radius:20px;overflow:hidden;position:relative;margin:auto;">
     <!-- Header -->
     <div style="background:var(--brown);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
       <div style="font-size:18px;font-weight:700;">加入商品</div>
-      <button onclick="closeModal('modal-scan-add')" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;">×</button>
+      <button onclick="closeModal('modal-scan-add')" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;width:36px;height:36px;border-radius:50%;cursor:pointer;line-height:1;">×</button>
     </div>
     <!-- Search area -->
     <div style="flex-shrink:0;padding:16px;background:var(--surface2);border-bottom:1px solid var(--border);">
