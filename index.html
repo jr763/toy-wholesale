@@ -476,10 +476,11 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       <!-- Product name -->
       <div style="font-size:22px;font-weight:900;color:var(--brown-dark);margin-bottom:4px;" id="sa-prod-name"></div>
       <div style="font-size:13px;color:var(--text2);margin-bottom:16px;" id="sa-prod-info"></div>
-      <!-- Variant selector (large buttons) -->
+      <!-- Variant selector (checkbox + qty) -->
       <div id="sa-variant-wrap" style="margin-bottom:20px;display:none;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">選擇種類</div>
-        <div id="sa-variant-btns" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">種類數量分配</div>
+        <div id="sa-variant-rows" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div id="sa-variant-sum-hint" style="font-size:12px;margin-top:8px;color:var(--text2);"></div>
       </div>
       <!-- Packing (special) -->
       <div id="sa-packing-wrap" style="margin-bottom:20px;">
@@ -1452,6 +1453,17 @@ async function saveOrder(status){
     const hasAdd=added.length||increased.length;
     const hasDel=decreased.length||deleted.length;
 
+    const isShipped=oldOrder.status==='shipped';
+    // 已出貨後編輯（客戶拒收等帳務調整）：直接更新明細，狀態維持已出貨
+    if(isShipped){
+      if(hasAdd||hasDel){
+        const msg='此抄貨單已出貨，確認要調整商品明細嗎？（僅用於帳務記錄，不影響庫存與撿貨）\n\n'+
+          [...added.map(x=>'新增：'+x),...increased.map(x=>'增加：'+x),...decreased.map(x=>'減少：'+x),...deleted.map(x=>'刪除：'+x)].join('\n');
+        if(!confirm(msg)){b1.disabled=b2.disabled=false;return;}
+      }
+      status='shipped';
+    }
+
     // 已完成狀態被編輯
     if(isCompleted){
       if(hasDel){
@@ -1554,7 +1566,7 @@ function renderOrders(){
       </div>
       <div style="margin-top:9px;display:flex;gap:5px;flex-wrap:wrap;">
         <button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${o.id}')">查看撿貨</button>
-        ${['draft','confirmed','picking','picked','boxing','packed','pending_edit','re_picking','re_boxing'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
+        ${['draft','confirmed','picking','picked','boxing','packed','pending_edit','re_picking','re_boxing','completed','mod_pending','mod_picking','mod_picked','mod_boxing','shipped'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
         ${['confirmed','picking','re_picking','pending_edit'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button>`:''}
         ${['picked','boxing','re_boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">裝箱確認</button>`:''}
         ${o.status==='completed'?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
@@ -1615,7 +1627,10 @@ function viewOrder(id){
       batchNo:p?.inspectionBatchNo||''};
   }).sort((a,b)=>{
     const la=locOrder.indexOf(a.location);const lb=locOrder.indexOf(b.location);
-    return (la<0?99:la)-(lb<0?99:lb);
+    if(la!==lb)return (la<0?99:la)-(lb<0?99:lb);
+    // Same location - group same product together (variants stay adjacent)
+    if(a.productId!==b.productId)return (a.productId||'').localeCompare(b.productId||'');
+    return (a.variant||'').localeCompare(b.variant||'');
   });
   window._pickItems=items;
   window._pickOrderId=id;
@@ -2442,7 +2457,7 @@ function renderCustStatus(){
           mainBtn=ship?`<button class="btn btn-sm btn-blue" onclick="printShipment('${ship.id}')">列印出貨單</button>`:'';
         }
         const viewBtn=order?`<button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${order.id}')">查看撿貨</button>`:'';
-        const editBtn=(['未抄貨','已抄貨','撿貨中','已撿貨','裝箱中','已裝箱','已完成'].includes(st)&&order)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${order.id}')">編輯</button>`:'';
+        const editBtn=order?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${order.id}')">編輯</button>`:'';
         return `<tr><td style="vertical-align:middle;text-align:center;"><strong>${name}</strong></td><td style="vertical-align:middle;text-align:center;"><span style="padding:2px 8px;border-radius:4px;background:${statusColor[st]||'var(--text3)'};color:#fff;font-size:12px;font-weight:600;">${st}</span></td><td style="vertical-align:top;"><div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">${viewBtn}${editBtn}${mainBtn}</div></td></tr>`;
       }).join('')}</tbody>
     </table></div>`:'<div style="font-size:13px;color:var(--text3);">該日無記錄</div>'}
@@ -2699,9 +2714,11 @@ function processScanAddBarcode(code){
   loadScanAddProduct(p.id);
 }
 
+let _saVariantQtys={}; // {variantName: qty}
+
 function loadScanAddProduct(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
-  _saPid=pid;_saQty=1;_saVariant='';_saPack='none';
+  _saPid=pid;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};
   G('sa-prod-name').textContent=p.name;
   if(p.image){G('sa-prod-image').src=p.image;G('sa-prod-image-wrap').style.display='block';}
   else G('sa-prod-image-wrap').style.display='none';
@@ -2714,15 +2731,13 @@ function loadScanAddProduct(pid){
   const price=remembered?Math.round(remembered*(disc?1-disc/100:1)):0;
   G('sa-price').value=price||'';
   G('sa-price-hint').textContent=remembered?'上次售價：$'+remembered+(disc?' ('+disc+'折)'  :''):'';
-  // Quantity
+  // Quantity (total qty)
   _saQty=1;G('sa-qty-display').value='1';
-  // Variants
+  // Variants - checkbox + qty rows
   const variants=p.variants||[];
   if(variants.length>0){
     G('sa-variant-wrap').style.display='block';
-    G('sa-variant-btns').innerHTML=
-      '<button onclick="selectSaVariant(\'\',this)" id="sa-var-none" style="padding:12px 20px;border:2px solid var(--brown);background:var(--brown);color:#fff;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">無</button>'+
-      variants.map(v=>`<button onclick="selectSaVariant('${v}',this)" id="sa-var-${v}" style="padding:12px 20px;border:2px solid var(--border);background:#fff;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">${v}</button>`).join('');
+    renderSaVariantRows(variants);
   } else {
     G('sa-variant-wrap').style.display='none';
   }
@@ -2733,6 +2748,53 @@ function loadScanAddProduct(pid){
   });
   G('sa-product-area').style.display='block';
   G('sa-footer').style.display='block';
+}
+
+function renderSaVariantRows(variants){
+  const wrap=G('sa-variant-rows');if(!wrap)return;
+  wrap.innerHTML=variants.map(v=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px;border:2px solid var(--border);border-radius:8px;">
+      <input type="checkbox" id="sa-vck-${v}" onchange="toggleSaVariantCheck('${v}',this)" style="width:22px;height:22px;cursor:pointer;flex-shrink:0;">
+      <label for="sa-vck-${v}" style="flex:1;font-size:15px;font-weight:600;cursor:pointer;">${v}</label>
+      <input type="number" id="sa-vqty-${v}" min="1" placeholder="數量" disabled
+        oninput="onSaVariantQtyInput('${v}',this.value)"
+        style="width:80px;font-size:16px;font-weight:700;padding:8px;border:2px solid var(--border);border-radius:6px;text-align:center;">
+    </div>`).join('');
+  updateSaVariantSumHint();
+}
+
+function toggleSaVariantCheck(v,cb){
+  const qtyInput=G('sa-vqty-'+v);
+  if(cb.checked){
+    qtyInput.disabled=false;
+    qtyInput.focus();
+  } else {
+    qtyInput.disabled=true;
+    qtyInput.value='';
+    delete _saVariantQtys[v];
+  }
+  updateSaVariantSumHint();
+}
+
+function onSaVariantQtyInput(v,val){
+  const n=parseInt(val);
+  if(!isNaN(n)&&n>0) _saVariantQtys[v]=n;
+  else delete _saVariantQtys[v];
+  updateSaVariantSumHint();
+}
+
+function updateSaVariantSumHint(){
+  const hint=G('sa-variant-sum-hint');if(!hint)return;
+  const sum=Object.values(_saVariantQtys).reduce((s,n)=>s+n,0);
+  const total=_saQty||0;
+  if(sum===0){hint.textContent='';hint.style.color='var(--text2)';return;}
+  if(sum===total){
+    hint.textContent=`✓ 種類數量加總 ${sum} = 商品總數量 ${total}`;
+    hint.style.color='var(--green)';
+  } else {
+    hint.textContent=`⚠️ 種類數量加總 ${sum}，需等於商品總數量 ${total}`;
+    hint.style.color='var(--red)';
+  }
 }
 
 function selectSaVariant(v,el){
@@ -2761,10 +2823,12 @@ function toggleSaPack(type){
 function changeSaQty(delta){
   _saQty=Math.max(1,(_saQty||1)+delta);
   G('sa-qty-display').value=_saQty;
+  updateSaVariantSumHint();
 }
 function onSaQtyInput(val){
   const n=parseInt(val);
   _saQty=(!isNaN(n)&&n>=1)?n:1;
+  updateSaVariantSumHint();
 }
 
 function confirmScanAdd(){
@@ -2773,13 +2837,32 @@ function confirmScanAdd(){
   if(!price||price<=0){alert('請輸入售價');return;}
   const p=db.products.find(x=>x.id===_saPid);if(!p)return;
   const chosenPack=_saPack==='box'?'盒裝':_saPack==='card'?'吊卡':null;
-  const variant=_saVariant;
-  const ex=orderItems.find(i=>i.productId===_saPid&&i.variant===variant);
-  if(ex){ex.qty+=_saQty;ex.price=price;}
-  else orderItems.push({productId:_saPid,name:p.name,barcode:p.barcode||'',variant,qty:_saQty,price,location:p.location||'',specialPacking:chosenPack});
+  const hasVariants=(p.variants||[]).length>0;
+  const variantEntries=Object.entries(_saVariantQtys).filter(([,n])=>n>0);
+
+  if(hasVariants&&variantEntries.length>0){
+    // Validate sum = total qty
+    const sum=variantEntries.reduce((s,[,n])=>s+n,0);
+    if(sum!==_saQty){
+      alert('種類數量加總（'+sum+'）必須等於商品總數量（'+_saQty+'）');
+      return;
+    }
+    // Add one line item per variant (grouped together since they're added consecutively)
+    variantEntries.forEach(([v,n])=>{
+      const ex=orderItems.find(i=>i.productId===_saPid&&i.variant===v);
+      if(ex){ex.qty+=n;ex.price=price;}
+      else orderItems.push({productId:_saPid,name:p.name,barcode:p.barcode||'',variant:v,qty:n,price,location:p.location||'',specialPacking:chosenPack});
+    });
+  } else {
+    // No variant breakdown - single line item
+    const ex=orderItems.find(i=>i.productId===_saPid&&!i.variant);
+    if(ex){ex.qty+=_saQty;ex.price=price;}
+    else orderItems.push({productId:_saPid,name:p.name,barcode:p.barcode||'',variant:'',qty:_saQty,price,location:p.location||'',specialPacking:chosenPack});
+  }
+
   renderOrderItems();
   // Reset for next scan
-  _saPid=null;_saQty=1;_saVariant='';_saPack='none';
+  _saPid=null;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};
   G('sa-product-area').style.display='none';
   G('sa-footer').style.display='none';
   G('sa-price').value='';
