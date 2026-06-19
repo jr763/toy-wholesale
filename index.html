@@ -450,7 +450,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 
 <!-- Scan-Add Product Modal (大字點餐介面) -->
 <div class="modal-overlay" id="modal-scan-add" style="z-index:300;">
-  <div style="background:var(--surface);width:100%;max-width:480px;height:95%;max-height:95vh;display:flex;flex-direction:column;border-radius:20px;overflow:hidden;position:relative;margin:auto;">
+  <div style="background:var(--surface);width:92%;max-width:640px;height:auto;max-height:88vh;display:flex;flex-direction:column;border-radius:20px;overflow:hidden;position:relative;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
     <!-- Header -->
     <div style="background:var(--brown);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
       <div style="font-size:18px;font-weight:700;">加入商品</div>
@@ -468,51 +468,54 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <!-- Hidden video for compatibility -->
     <video id="sa-video" style="display:none;"></video>
     <!-- Product detail area -->
-    <div id="sa-product-area" style="flex:1;overflow-y:auto;padding:16px;display:none;">
-      <!-- Product image -->
-      <div id="sa-prod-image-wrap" style="display:none;text-align:center;margin-bottom:16px;">
-        <img id="sa-prod-image" src="" style="width:160px;height:160px;object-fit:cover;border-radius:12px;border:1px solid var(--border);">
-      </div>
-      <!-- Product name -->
-      <div style="font-size:22px;font-weight:900;color:var(--brown-dark);margin-bottom:4px;" id="sa-prod-name"></div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:16px;" id="sa-prod-info"></div>
-      <!-- Variant selector (checkbox + qty) -->
-      <div id="sa-variant-wrap" style="margin-bottom:20px;display:none;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">種類數量分配</div>
-        <div id="sa-variant-rows" style="display:flex;flex-direction:column;gap:8px;"></div>
-        <div id="sa-variant-sum-hint" style="font-size:12px;margin-top:8px;color:var(--text2);"></div>
-      </div>
-      <!-- Packing (special) -->
-      <div id="sa-packing-wrap" style="margin-bottom:20px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">特殊出貨方式</div>
-        <div style="display:flex;gap:10px;">
-          <button id="sa-pack-box" onclick="toggleSaPack('box')" style="flex:1;padding:14px;border:2px solid var(--border);border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;background:#fff;">盒裝</button>
-          <button id="sa-pack-card" onclick="toggleSaPack('card')" style="flex:1;padding:14px;border:2px solid var(--border);border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;background:#fff;">吊卡</button>
-          <button id="sa-pack-none" onclick="toggleSaPack('none')" style="flex:1;padding:14px;border:2px solid var(--brown);border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;background:var(--brown);color:#fff;">一般</button>
+    <div id="sa-product-area" style="flex:1;overflow-y:auto;padding:16px 20px;display:none;">
+      <!-- Product image + name side by side -->
+      <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px;">
+        <div id="sa-prod-image-wrap" style="display:none;flex-shrink:0;">
+          <img id="sa-prod-image" src="" style="width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--border);">
+        </div>
+        <div>
+          <div style="font-size:19px;font-weight:900;color:var(--brown-dark);" id="sa-prod-name"></div>
+          <div style="font-size:12px;color:var(--text2);" id="sa-prod-info"></div>
         </div>
       </div>
-      <!-- Price input -->
-      <div style="margin-bottom:20px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">售價（元）</div>
-        <input id="sa-price" type="number" placeholder="輸入售價" min="0"
-          style="width:100%;font-size:28px;font-weight:700;padding:14px;border:2px solid var(--border);border-radius:8px;text-align:center;">
-        <div id="sa-price-hint" style="font-size:12px;color:var(--text2);margin-top:4px;"></div>
-      </div>
-      <!-- Quantity editable -->
-      <div style="margin-bottom:24px;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">數量</div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <button onclick="changeSaQty(-1)" style="width:54px;height:54px;font-size:24px;font-weight:700;background:#f0ede8;border:none;border-radius:8px;cursor:pointer;flex-shrink:0;">－</button>
-          <input id="sa-qty-display" type="number" min="1" value="1" inputmode="numeric"
-            oninput="onSaQtyInput(this.value)"
-            style="flex:1;text-align:center;font-size:28px;font-weight:900;color:var(--brown);border:2px solid var(--border);border-radius:8px;padding:10px 0;">
-          <button onclick="changeSaQty(1)" style="width:54px;height:54px;font-size:24px;font-weight:700;background:#f0ede8;border:none;border-radius:8px;cursor:pointer;flex-shrink:0;">＋</button>
+      <!-- Price + Quantity side by side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:6px;">售價（元）</div>
+          <input id="sa-price" type="number" placeholder="0" min="0"
+            style="width:100%;font-size:22px;font-weight:700;padding:10px;border:2px solid var(--border);border-radius:8px;text-align:center;">
+          <div id="sa-price-hint" style="font-size:11px;color:var(--text2);margin-top:3px;"></div>
         </div>
+        <div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:6px;">數量</div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <button onclick="changeSaQty(-1)" style="width:38px;height:46px;font-size:20px;font-weight:700;background:#f0ede8;border:none;border-radius:8px;cursor:pointer;flex-shrink:0;">－</button>
+            <input id="sa-qty-display" type="number" min="1" value="1" inputmode="numeric"
+              oninput="onSaQtyInput(this.value)"
+              style="flex:1;text-align:center;font-size:22px;font-weight:900;color:var(--brown);border:2px solid var(--border);border-radius:8px;padding:6px 0;width:0;">
+            <button onclick="changeSaQty(1)" style="width:38px;height:46px;font-size:20px;font-weight:700;background:#f0ede8;border:none;border-radius:8px;cursor:pointer;flex-shrink:0;">＋</button>
+          </div>
+        </div>
+      </div>
+      <!-- Packing (special) - compact -->
+      <div id="sa-packing-wrap" style="margin-bottom:14px;">
+        <div style="display:flex;gap:8px;">
+          <button id="sa-pack-box" onclick="toggleSaPack('box')" style="flex:1;padding:9px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;">盒裝</button>
+          <button id="sa-pack-card" onclick="toggleSaPack('card')" style="flex:1;padding:9px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;">吊卡</button>
+          <button id="sa-pack-none" onclick="toggleSaPack('none')" style="flex:1;padding:9px;border:1.5px solid var(--brown);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;background:var(--brown);color:#fff;">一般</button>
+        </div>
+      </div>
+      <!-- Variant selector (checkbox + qty) - compact -->
+      <div id="sa-variant-wrap" style="margin-bottom:6px;display:none;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">種類數量分配</div>
+        <div id="sa-variant-rows" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <div id="sa-variant-sum-hint" style="font-size:12px;margin-top:6px;color:var(--text2);"></div>
       </div>
     </div>
     <!-- Add button footer -->
     <div id="sa-footer" style="display:none;padding:16px;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface);">
-      <button onclick="confirmScanAdd()" style="width:100%;padding:18px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:20px;font-weight:700;cursor:pointer;">✓ 加入抄貨單</button>
+      <button onclick="confirmScanAdd()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;">✓ 加入抄貨單</button>
     </div>
   </div>
 </div>
@@ -2753,12 +2756,12 @@ function loadScanAddProduct(pid){
 function renderSaVariantRows(variants){
   const wrap=G('sa-variant-rows');if(!wrap)return;
   wrap.innerHTML=variants.map(v=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:10px;border:2px solid var(--border);border-radius:8px;">
-      <input type="checkbox" id="sa-vck-${v}" onchange="toggleSaVariantCheck('${v}',this)" style="width:22px;height:22px;cursor:pointer;flex-shrink:0;">
-      <label for="sa-vck-${v}" style="flex:1;font-size:15px;font-weight:600;cursor:pointer;">${v}</label>
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;">
+      <input type="checkbox" id="sa-vck-${v}" onchange="toggleSaVariantCheck('${v}',this)" style="width:19px;height:19px;cursor:pointer;flex-shrink:0;">
+      <label for="sa-vck-${v}" style="flex:1;font-size:14px;font-weight:600;cursor:pointer;">${v}</label>
       <input type="number" id="sa-vqty-${v}" min="1" placeholder="數量" disabled
         oninput="onSaVariantQtyInput('${v}',this.value)"
-        style="width:80px;font-size:16px;font-weight:700;padding:8px;border:2px solid var(--border);border-radius:6px;text-align:center;">
+        style="width:64px;font-size:14px;font-weight:700;padding:6px;border:1.5px solid var(--border);border-radius:6px;text-align:center;">
     </div>`).join('');
   updateSaVariantSumHint();
 }
