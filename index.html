@@ -1809,12 +1809,10 @@ function openShipModal(orderId){
 
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>商品</th><th>種類</th><th>數量</th><th>售價</th><th>小計</th></tr></thead>
+      <thead><tr><th>售價</th><th>數量</th><th>小計</th></tr></thead>
       <tbody>${shipmentItems.map((item,idx)=>`<tr>
-        <td><strong>${item.name}</strong></td>
-        <td>${item.variant||'—'}</td>
-        <td>${item.qty}</td>
         <td>$${fmt(item.price)}</td>
+        <td>${item.qty}</td>
         <td id="ss-${idx}">$${fmt(item.qty*item.price)}</td>
       </tr>`).join('')}</tbody></table></div>
     <div id="s-total" style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);">總計：$${fmt(calcTotal())}</div>
