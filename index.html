@@ -10,7 +10,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <style>
 :root{
   --bg:#f5f2ed;--surface:#fff;--surface2:#faf8f5;--border:#e0dbd2;
@@ -242,6 +241,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div><h2>商品資料庫</h2></div>
     <div style="display:flex;gap:6px;">
       <button class="btn btn-secondary btn-sm" onclick="openModal('modal-variants')">⚙ 管理種類</button>
+      <button class="btn btn-secondary btn-sm" onclick="printBarcodeLabels()">🏷️ 列印商品條碼</button>
       <button class="btn btn-primary" onclick="openProductModal()">＋ 新增商品</button>
     </div>
   </div>
@@ -662,7 +662,6 @@ firebase.initializeApp({
 });
 const fsdb = firebase.firestore();
 const DOC_REF = fsdb.collection('data').doc('main');
-const fsStorage = firebase.storage();
 
 // ── LINE NOTIFY ──────────────────────────────
 const LINE_WEBHOOK = 'https://hook.us2.make.com/uwydctx8x63mim8j6cedh2s24ju6ugix';
@@ -1820,7 +1819,7 @@ async function togglePicked(idx,cb){
 function openShipModal(orderId){
   const o=db.orders.find(x=>x.id===orderId);if(!o)return;
   const c=db.customers.find(x=>x.id===o.customerId);
-  shipmentItems=(o.items||[]).map(i=>({...i}));
+  shipmentItems=(o.items||[]).map(i=>({...i})).sort((a,b)=>a.price-b.price);
   const calcTotal=()=>shipmentItems.reduce((s,i)=>s+i.qty*i.price,0);
   G('ship-body').innerHTML=`
 
@@ -2222,7 +2221,7 @@ function openBoxingModal(orderId){
   const pickedItems=(o.items||[]).filter((_,i)=>savedState[i]);
   const priceMap={};
   pickedItems.forEach(item=>{const k='$'+fmt(item.price);priceMap[k]=(priceMap[k]||0)+item.qty;});
-  const rows=Object.entries(priceMap);
+  const rows=Object.entries(priceMap).sort((a,b)=>parseFloat(a[0].replace('$',''))-parseFloat(b[0].replace('$','')));
   // Load boxing state
   if(!db.boxingState)db.boxingState={};
   const boxState=db.boxingState[orderId]||{};
@@ -2946,13 +2945,16 @@ function selectSaProduct(pid){
   if(res)res.style.display='none';
   loadScanAddProduct(pid);
 }
+const CLOUDINARY_CLOUD_NAME='dtltgnzwp';
+const CLOUDINARY_UPLOAD_PRESET='ml_default';
+
 async function onProdImageChange(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
     const img=new Image();
     img.onload=async ()=>{
-      const maxSize=600;
+      const maxSize=700;
       let w=img.width,h=img.height;
       if(w>h){if(w>maxSize){h=Math.round(h*maxSize/w);w=maxSize;}}
       else{if(h>maxSize){w=Math.round(w*maxSize/h);h=maxSize;}}
@@ -2960,25 +2962,28 @@ async function onProdImageChange(input){
       canvas.width=w;canvas.height=h;
       const ctx=canvas.getContext('2d');
       ctx.drawImage(img,0,0,w,h);
-      // Preview immediately with compressed data URL
+      // Show local preview immediately
       const previewUrl=canvas.toDataURL('image/jpeg',0.85);
       G('p-image-img').src=previewUrl;
       G('p-image-preview').style.display='block';
-      // Upload to Firebase Storage, get download URL
+      if(G('p-image-status'))G('p-image-status').textContent='上傳中…';
       try{
-        G('p-image-status')&&(G('p-image-status').textContent='上傳中…');
         const blob=await new Promise(res=>canvas.toBlob(res,'image/jpeg',0.85));
-        const fileName='products/'+(editProdId||uid())+'_'+Date.now()+'.jpg';
-        const ref=fsStorage.ref().child(fileName);
-        await ref.put(blob);
-        const url=await ref.getDownloadURL();
-        window._prodImageData=url;
-        if(G('p-image-status'))G('p-image-status').textContent='✓ 已上傳';
+        const formData=new FormData();
+        formData.append('file',blob);
+        formData.append('upload_preset',CLOUDINARY_UPLOAD_PRESET);
+        const resp=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,{method:'POST',body:formData});
+        const data=await resp.json();
+        if(data.secure_url){
+          window._prodImageData=data.secure_url;
+          if(G('p-image-status'))G('p-image-status').textContent='✓ 已上傳';
+        } else {
+          throw new Error(data.error?.message||'上傳失敗');
+        }
       }catch(err){
-        console.error('Image upload failed:',err);
-        // Fallback: keep small compressed base64 if upload fails
+        console.error('Cloudinary upload failed:',err);
         window._prodImageData=previewUrl;
-        if(G('p-image-status'))G('p-image-status').textContent='⚠️ 雲端上傳失敗，暫存本機';
+        if(G('p-image-status'))G('p-image-status').textContent='⚠️ 上傳失敗，暫存本機（'+(err.message||'')+'）';
       }
     };
     img.src=e.target.result;
@@ -2995,6 +3000,46 @@ document.addEventListener('click',function(e){
   const saRes=G('sa-input-results');
   if(saRes&&!saRes.contains(e.target)&&e.target!==G('sa-barcode-input'))saRes.style.display='none';
 });
+
+function printBarcodeLabels(){
+  const prices=prompt('請輸入要列印的售價，用逗號分隔（例：50,100,150,200,300）：','50,100,150,200,250,300,350,400,450,500');
+  if(!prices)return;
+  const list=prices.split(',').map(p=>parseInt(p.trim())).filter(p=>!isNaN(p)&&p>0);
+  if(!list.length){alert('沒有有效的售價');return;}
+  const w=window.open('','_blank');
+  if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
+  const itemsJson=JSON.stringify(list.map(price=>({price,barcode:getPriceBarcode(price)})));
+  let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
+  html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
+  html+=`<style>
+    @page{size:6.7cm auto;margin:0;}
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
+    .sheet{display:grid;grid-template-columns:3.2cm 3.2cm;column-gap:0.2cm;padding-right:0.1cm;width:6.7cm;}
+    .label{width:3.2cm;height:2.5cm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:0.08cm 0;border:0.5px dotted #ccc;}
+    .label .brand{font-size:9px;font-weight:700;line-height:1.2;margin-bottom:1px;}
+    .label canvas{width:2.9cm;height:0.95cm;}
+    .label .code{font-size:7.5px;font-family:monospace;margin-top:1px;line-height:1;}
+  </style></head><body>
+  <div class="sheet" id="sheet"></div>
+  <scr`+`ipt>
+    const items=${itemsJson};
+    const sheet=document.getElementById('sheet');
+    items.forEach(it=>{
+      const div=document.createElement('div');div.className='label';
+      const brand=document.createElement('div');brand.className='brand';brand.textContent='奧斯卡';
+      const canvas=document.createElement('canvas');
+      const code=document.createElement('div');code.className='code';code.textContent=it.barcode;
+      div.appendChild(brand);div.appendChild(canvas);div.appendChild(code);
+      sheet.appendChild(div);
+      try{ JsBarcode(canvas,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:60,width:2}); }catch(e){console.error(e);}
+    });
+    window.onload=()=>setTimeout(()=>window.print(),400);
+  </scr`+`ipt>
+  </body></html>`;
+  w.document.write(html);
+  w.document.close();
+}
 
 loadData();
 setTimeout(handleHashChange,200);
