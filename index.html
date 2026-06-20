@@ -1760,26 +1760,26 @@ async function markPacked(orderId){
 }
 function showBCSummary(){
   const items=window._pickItems||[];
-  // Only include checked items, if none checked include all
   const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')];
-  // Only include non-locked (non-packed) checked items for barcode summary
   const checkedIdxs=allCbs.filter(cb=>cb.checked&&!cb.disabled).map(cb=>parseInt(cb.id.replace('pick-cb-','')));
   const selected=checkedIdxs.length>0?checkedIdxs.map(i=>items[i]):[];
   const cust=window._pickOrderId?db.customers.find(x=>x.id===db.orders.find(o=>o.id===window._pickOrderId)?.customerId):null;
   const custBarcode=cust?.labelBarcode||'—';
-  // Group by price
   const priceMap={};
-  selected.forEach(i=>{const k='$'+fmt(i.price);priceMap[k]=(priceMap[k]||0)+i.qty;});
-  const bcRows=Object.entries(priceMap).map(([price,qty])=>`<tr><td style="font-weight:700;color:var(--accent);">${price}</td><td style="font-size:15px;font-weight:700;">${qty} 張</td></tr>`).join('');
+  selected.forEach(i=>{const k=i.price;priceMap[k]=(priceMap[k]||0)+i.qty;});
+  const priceList=Object.keys(priceMap).map(Number).sort((a,b)=>a-b);
+  const bcRows=priceList.map(price=>`<tr><td style="font-weight:700;color:var(--accent);">$${fmt(price)}</td><td style="font-size:15px;font-weight:700;">${priceMap[price]} 張</td></tr>`).join('');
   const el=G('bc-summary-inline');
   el.style.display='block';
   if(!selected.length){el.innerHTML='<div style="color:var(--text3);font-size:13px;padding:8px;">請先勾選要列印的商品</div>';return;}
+  window._bcPriceList=priceList;
   el.innerHTML=`<div style="background:var(--blue-bg);border:1px solid #b3d4f0;border-radius:8px;padding:10px 13px;">
     <div style="font-size:12px;color:var(--blue);margin-bottom:7px;">條碼：<strong>${custBarcode}</strong>（已勾選商品）</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;">
       <thead><tr><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">售價</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">數量</th></tr></thead>
       <tbody>${bcRows}</tbody>
     </table>
+    <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="openLabelPrintWindow(window._bcPriceList||[])">🏷️ 列印這些條碼</button>
   </div>`;
 }
 
@@ -3001,14 +3001,11 @@ document.addEventListener('click',function(e){
   if(saRes&&!saRes.contains(e.target)&&e.target!==G('sa-barcode-input'))saRes.style.display='none';
 });
 
-function printBarcodeLabels(){
-  const prices=prompt('請輸入要列印的售價，用逗號分隔（例：50,100,150,200,300）：','50,100,150,200,250,300,350,400,450,500');
-  if(!prices)return;
-  const list=prices.split(',').map(p=>parseInt(p.trim())).filter(p=>!isNaN(p)&&p>0);
-  if(!list.length){alert('沒有有效的售價');return;}
+function openLabelPrintWindow(priceList){
+  if(!priceList.length){alert('沒有售價可列印');return;}
   const w=window.open('','_blank');
   if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
-  const itemsJson=JSON.stringify(list.map(price=>({price,barcode:getPriceBarcode(price)})));
+  const itemsJson=JSON.stringify(priceList.map(price=>({price,barcode:getPriceBarcode(price)})));
   let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
   html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
   html+=`<style>
@@ -3039,6 +3036,12 @@ function printBarcodeLabels(){
   </body></html>`;
   w.document.write(html);
   w.document.close();
+}
+function printBarcodeLabels(){
+  const prices=prompt('請輸入要列印的售價，用逗號分隔（例：50,100,150,200,300）：','50,100,150,200,250,300,350,400,450,500');
+  if(!prices)return;
+  const list=prices.split(',').map(p=>parseInt(p.trim())).filter(p=>!isNaN(p)&&p>0);
+  openLabelPrintWindow(list);
 }
 
 loadData();
