@@ -3079,10 +3079,11 @@ function openLabelPrintWindow(priceList){
     *{box-sizing:border-box;}
     body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
     .sheet{display:grid;grid-template-columns:3.2cm 3.2cm;column-gap:0.2cm;padding-right:0.1cm;width:6.7cm;}
-    .label{width:3.2cm;height:2.5cm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:0.08cm 0;border:0.5px dotted #ccc;}
-    .label .brand{font-size:9px;font-weight:700;line-height:1.2;margin-bottom:1px;}
-    .label canvas{width:2.9cm;height:0.95cm;}
-    .label .code{font-size:7.5px;font-family:monospace;margin-top:1px;line-height:1;}
+    .label{width:3.2cm;height:2.5cm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:0.06cm 0;border:0.5px dotted #ccc;}
+    .label .brand{font-size:13px;font-weight:900;line-height:1.2;margin-bottom:2px;text-align:center;width:100%;letter-spacing:1px;}
+    .label canvas{width:2.85cm;height:0.85cm;}
+    .label .code{font-size:7px;font-family:monospace;margin-top:1px;line-height:1;text-align:center;width:100%;}
+    .label .price{font-size:8.5px;font-weight:700;margin-top:2px;text-align:center;width:100%;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
   <scr`+`ipt>
@@ -3093,7 +3094,8 @@ function openLabelPrintWindow(priceList){
       const brand=document.createElement('div');brand.className='brand';brand.textContent='奧斯卡';
       const canvas=document.createElement('canvas');
       const code=document.createElement('div');code.className='code';code.textContent=it.barcode;
-      div.appendChild(brand);div.appendChild(canvas);div.appendChild(code);
+      const price=document.createElement('div');price.className='price';price.textContent='售價 '+it.price+' 元';
+      div.appendChild(brand);div.appendChild(canvas);div.appendChild(code);div.appendChild(price);
       sheet.appendChild(div);
       try{ JsBarcode(canvas,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:60,width:2}); }catch(e){console.error(e);}
     });
@@ -3111,18 +3113,65 @@ function printBarcodeLabels(){
 }
 
 function showCustomCodeList(){
-  const list=db.products.filter(p=>/^ASK\d{4}$/.test(p.barcode||''));
-  const el=G('custom-code-list');
-  if(!list.length){
-    el.innerHTML='<div style="font-size:13px;color:var(--text3);text-align:center;padding:16px;">目前沒有自編條碼的商品</div>';
-  } else {
-    el.innerHTML=`<div class="table-wrap"><table>
-      <thead><tr><th>編碼</th><th>商品名稱</th></tr></thead>
-      <tbody>${list.sort((a,b)=>a.barcode.localeCompare(b.barcode)).map(p=>`<tr><td class="mono">${p.barcode}</td><td>${p.name}</td></tr>`).join('')}</tbody>
-    </table></div>`;
-  }
-  window._customCodeProducts=list;
-  openModal('modal-custom-codes');
+  const list=db.products.filter(p=>/^ASK\d{4}$/.test(p.barcode||'')).sort((a,b)=>a.barcode.localeCompare(b.barcode));
+  if(!list.length){alert('目前沒有自編條碼的商品');return;}
+  const w=window.open('','_blank');
+  if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
+  const itemsJson=JSON.stringify(list.map(p=>({name:p.name,barcode:p.barcode,image:p.image||''})));
+  let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>自編商品條碼清單 - 奧斯卡商行</title>';
+  html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
+  html+=`<style>
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;background:#f5f2ed;color:#1a1714;}
+    header{background:#5c3d2e;color:#fff;padding:20px 24px;}
+    header h1{font-size:20px;font-weight:900;margin:0;}
+    header p{font-size:12px;opacity:.75;margin:4px 0 0;}
+    .toolbar{padding:14px 24px;background:#fff;border-bottom:1px solid #e0dbd2;display:flex;gap:10px;align-items:center;position:sticky;top:0;}
+    .toolbar input{flex:1;padding:8px 12px;border:1px solid #e0dbd2;border-radius:8px;font-size:14px;}
+    .toolbar button{padding:8px 16px;background:#8b5e3c;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;padding:20px 24px;}
+    .card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08);}
+    .card img{width:100%;height:140px;object-fit:cover;background:#f0ede8;}
+    .card .noimg{width:100%;height:140px;background:#f0ede8;display:flex;align-items:center;justify-content:center;font-size:36px;color:#c4b8a8;}
+    .card-body{padding:10px 12px;}
+    .card-name{font-size:14px;font-weight:700;margin-bottom:6px;}
+    .card-code{font-family:monospace;font-size:13px;color:#8b5e3c;font-weight:700;}
+    .card canvas{width:100%;height:40px;margin-top:4px;}
+    @media print{.toolbar{display:none;}}
+  </style></head><body>
+  <header><h1>🧸 自編商品條碼清單</h1><p>奧斯卡商行 · 無原廠條碼商品的內部編碼對照</p></header>
+  <div class="toolbar">
+    <input id="search" placeholder="搜尋商品名稱或編碼…" oninput="filterCards()">
+    <button onclick="window.print()">🖨️ 列印清單</button>
+  </div>
+  <div class="grid" id="grid"></div>
+  <scr`+`ipt>
+    const items=${itemsJson};
+    const grid=document.getElementById('grid');
+    function escAttr(s){return (s||'').replace(/"/g,'&quot;');}
+    function render(list){
+      grid.innerHTML=list.map(function(it,i){
+        var imgHtml=it.image?('<img src="'+escAttr(it.image)+'">'):'<div class="noimg">'+String.fromCodePoint(0x1F4E6)+'</div>';
+        return '<div class="card">'+imgHtml+
+          '<div class="card-body">'+
+          '<div class="card-name">'+it.name+'</div>'+
+          '<div class="card-code">'+it.barcode+'</div>'+
+          '<canvas id="bc-'+i+'"></canvas>'+
+          '</div></div>';
+      }).join('');
+      list.forEach(function(it,i){
+        try{ JsBarcode('#bc-'+i,it.barcode,{format:'CODE128',displayValue:false,margin:0,height:34}); }catch(e){}
+      });
+    }
+    function filterCards(){
+      const q=document.getElementById('search').value.toLowerCase();
+      render(items.filter(function(it){return it.name.toLowerCase().includes(q)||it.barcode.toLowerCase().includes(q);}));
+    }
+    render(items);
+  </scr`+`ipt>
+  </body></html>`;
+  w.document.write(html);
+  w.document.close();
 }
 function printCustomCodeLabels(){
   const list=window._customCodeProducts||[];
