@@ -242,6 +242,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div style="display:flex;gap:6px;">
       <button class="btn btn-secondary btn-sm" onclick="openModal('modal-variants')">⚙ 管理種類</button>
       <button class="btn btn-secondary btn-sm" onclick="printBarcodeLabels()">🏷️ 列印商品條碼</button>
+      <button class="btn btn-secondary btn-sm" onclick="showCustomCodeList()">📋 自編商品條碼清單</button>
       <button class="btn btn-primary" onclick="openProductModal()">＋ 新增商品</button>
     </div>
   </div>
@@ -517,6 +518,21 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <!-- Add button footer -->
     <div id="sa-footer" style="display:none;padding:16px;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface);">
       <button onclick="confirmScanAdd()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;">✓ 加入抄貨單</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Custom Code List Modal -->
+<div class="modal-overlay" id="modal-custom-codes">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header"><h3>自編商品條碼清單</h3><button class="modal-close" onclick="closeModal('modal-custom-codes')">×</button></div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">以下是系統自動產生的內部編碼（無原廠條碼的商品）</p>
+      <div id="custom-code-list"></div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-primary" onclick="printCustomCodeLabels()">🏷️ 列印這些條碼</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2626,7 +2642,7 @@ function renderProductVariantList(){
   list.innerHTML=variants.map((v,i)=>{
     const img=window._productVariantImages[v];
     return `<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;">
-      ${img?`<img src="${img}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">`:`<div style="width:32px;height:32px;background:#fff;border:1px dashed var(--border);border-radius:6px;flex-shrink:0;"></div>`}
+      ${img?`<img src="${img}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:zoom-in;" onclick="this.requestFullscreen&&this.requestFullscreen()">`:`<div style="width:56px;height:56px;background:#fff;border:1.5px dashed var(--border);border-radius:8px;flex-shrink:0;"></div>`}
       <span style="font-size:13px;flex:1;">${v}</span>
       <label style="font-size:11px;color:var(--text2);cursor:pointer;text-decoration:underline;">
         ${img?'更換圖片':'＋圖片'}
@@ -2802,7 +2818,7 @@ function renderSaVariantRows(variants,variantImages){
     const img=variantImages[v];
     return `<div id="sa-vrow-${v}" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff;gap:8px;">
       <div onclick="toggleSaVariantSelect('${v}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;padding:4px 0;">
-        ${img?`<img src="${img}" style="width:30px;height:30px;object-fit:cover;border-radius:6px;flex-shrink:0;">`:''}
+        ${img?`<img src="${img}" style="width:42px;height:42px;object-fit:cover;border-radius:7px;flex-shrink:0;">`:''}
         <span style="font-size:14px;font-weight:600;">${v}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
@@ -3086,6 +3102,58 @@ function printBarcodeLabels(){
   if(!prices)return;
   const list=prices.split(',').map(p=>parseInt(p.trim())).filter(p=>!isNaN(p)&&p>0);
   openLabelPrintWindow(list);
+}
+
+function showCustomCodeList(){
+  const list=db.products.filter(p=>/^ASK\d{4}$/.test(p.barcode||''));
+  const el=G('custom-code-list');
+  if(!list.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--text3);text-align:center;padding:16px;">目前沒有自編條碼的商品</div>';
+  } else {
+    el.innerHTML=`<div class="table-wrap"><table>
+      <thead><tr><th>編碼</th><th>商品名稱</th></tr></thead>
+      <tbody>${list.sort((a,b)=>a.barcode.localeCompare(b.barcode)).map(p=>`<tr><td class="mono">${p.barcode}</td><td>${p.name}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+  }
+  window._customCodeProducts=list;
+  openModal('modal-custom-codes');
+}
+function printCustomCodeLabels(){
+  const list=window._customCodeProducts||[];
+  if(!list.length){alert('沒有自編條碼可列印');return;}
+  const w=window.open('','_blank');
+  if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
+  const itemsJson=JSON.stringify(list.map(p=>({name:p.name,barcode:p.barcode})));
+  let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
+  html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
+  html+=`<style>
+    @page{size:6.7cm auto;margin:0;}
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
+    .sheet{display:grid;grid-template-columns:3.2cm 3.2cm;column-gap:0.2cm;padding-right:0.1cm;width:6.7cm;}
+    .label{width:3.2cm;height:2.5cm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:0.06cm 0.1cm;border:0.5px dotted #ccc;}
+    .label .name{font-size:8px;font-weight:700;line-height:1.15;margin-bottom:1px;text-align:center;max-height:0.55cm;overflow:hidden;}
+    .label canvas{width:2.9cm;height:0.85cm;}
+    .label .code{font-size:7.5px;font-family:monospace;margin-top:1px;line-height:1;}
+  </style></head><body>
+  <div class="sheet" id="sheet"></div>
+  <scr`+`ipt>
+    const items=${itemsJson};
+    const sheet=document.getElementById('sheet');
+    items.forEach(it=>{
+      const div=document.createElement('div');div.className='label';
+      const name=document.createElement('div');name.className='name';name.textContent=it.name;
+      const canvas=document.createElement('canvas');
+      const code=document.createElement('div');code.className='code';code.textContent=it.barcode;
+      div.appendChild(name);div.appendChild(canvas);div.appendChild(code);
+      sheet.appendChild(div);
+      try{ JsBarcode(canvas,it.barcode,{format:'CODE128',displayValue:false,margin:0,height:50,width:2}); }catch(e){console.error(e);}
+    });
+    window.onload=()=>setTimeout(()=>window.print(),400);
+  </scr`+`ipt>
+  </body></html>`;
+  w.document.write(html);
+  w.document.close();
 }
 
 loadData();
