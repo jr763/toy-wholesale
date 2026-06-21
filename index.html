@@ -1824,7 +1824,7 @@ function showBCSummary(){
       <thead><tr><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">售價</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">數量</th></tr></thead>
       <tbody>${bcRows}</tbody>
     </table>
-    <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="openLabelPrintWindow(window._bcPriceList||[])">🏷️ 列印這些條碼</button>
+    <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="openLabelPrintWindow(window._bcPriceList||[],'${custBarcode!=='—'?custBarcode:''}')">🏷️ 列印這些條碼</button>
   </div>`;
 }
 
@@ -2343,8 +2343,8 @@ function calcEAN13(prefix, price){
   const check=(10-sum%10)%10;
   return prefix+priceStr+check;
 }
-function getPriceBarcode(price){
-  return calcEAN13('7990341',price);
+function getPriceBarcode(price,prefix){
+  return calcEAN13(prefix||'7990341',price);
 }
 
 function exportShipmentCSV(){
@@ -3142,11 +3142,11 @@ document.addEventListener('click',function(e){
   if(saRes&&!saRes.contains(e.target)&&e.target!==G('sa-barcode-input'))saRes.style.display='none';
 });
 
-function openLabelPrintWindow(priceList){
+function openLabelPrintWindow(priceList,prefix){
   if(!priceList.length){alert('沒有售價可列印');return;}
   const w=window.open('','_blank');
   if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
-  const itemsJson=JSON.stringify(priceList.map(price=>({price,barcode:getPriceBarcode(price)})));
+  const itemsJson=JSON.stringify(priceList.map(price=>({price,barcode:getPriceBarcode(price,prefix)})));
   let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
   html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
   html+=`<style>
