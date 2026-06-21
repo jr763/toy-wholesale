@@ -476,9 +476,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       <div style="display:flex;gap:16px;margin-bottom:14px;">
         <div style="flex-shrink:0;text-align:center;">
           <div id="sa-prod-image-wrap" style="display:none;">
-            <img id="sa-prod-image" src="" style="width:110px;height:110px;object-fit:cover;border-radius:10px;border:1px solid var(--border);cursor:zoom-in;" onclick="this.requestFullscreen&&this.requestFullscreen()">
+            <img id="sa-prod-image" src="" style="width:150px;height:150px;object-fit:cover;border-radius:10px;border:1px solid var(--border);cursor:zoom-in;" onclick="openLightbox(this.src)">
           </div>
-          <div style="font-size:15px;font-weight:900;color:var(--brown-dark);margin-top:6px;width:110px;" id="sa-prod-name"></div>
+          <div style="font-size:15px;font-weight:900;color:var(--brown-dark);margin-top:6px;width:150px;" id="sa-prod-name"></div>
         </div>
         <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;">
           <div>
@@ -535,6 +535,12 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       </div>
     </div>
   </div>
+</div>
+
+
+<!-- Image Lightbox -->
+<div id="img-lightbox" onclick="closeLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;align-items:center;justify-content:center;">
+  <img id="img-lightbox-img" src="" style="max-width:92%;max-height:92%;border-radius:8px;object-fit:contain;">
 </div>
 
 <!-- Scanner -->
@@ -1162,7 +1168,7 @@ function renderProducts(){
     const insp=p.hasInspectionMark!==false
       ?'<span style="color:var(--green);font-size:16px;">✓</span>'
       :`<span class="mono" style="font-size:12px;">${p.inspectionBatchNo||'—'}</span>`;
-    const img=p.image?`<img src="${p.image}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--border);">`:`<div style="width:40px;height:40px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:16px;">📦</div>`;
+    const img=p.image?`<img src="${p.image}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:zoom-in;" onclick="openLightbox(this.src)">`:`<div style="width:40px;height:40px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:16px;">📦</div>`;
     return `<tr>
       <td>${img}</td>
       <td><strong>${p.name}</strong></td>
@@ -2642,7 +2648,7 @@ function renderProductVariantList(){
   list.innerHTML=variants.map((v,i)=>{
     const img=window._productVariantImages[v];
     return `<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;">
-      ${img?`<img src="${img}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:zoom-in;" onclick="this.requestFullscreen&&this.requestFullscreen()">`:`<div style="width:56px;height:56px;background:#fff;border:1.5px dashed var(--border);border-radius:8px;flex-shrink:0;"></div>`}
+      ${img?`<img src="${img}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:zoom-in;" onclick="openLightbox(this.src)">`:`<div style="width:56px;height:56px;background:#fff;border:1.5px dashed var(--border);border-radius:8px;flex-shrink:0;"></div>`}
       <span style="font-size:13px;flex:1;">${v}</span>
       <label style="font-size:11px;color:var(--text2);cursor:pointer;text-decoration:underline;">
         ${img?'更換圖片':'＋圖片'}
@@ -3154,6 +3160,15 @@ function printCustomCodeLabels(){
   </body></html>`;
   w.document.write(html);
   w.document.close();
+}
+
+function openLightbox(src){
+  if(!src)return;
+  G('img-lightbox-img').src=src;
+  G('img-lightbox').style.display='flex';
+}
+function closeLightbox(){
+  G('img-lightbox').style.display='none';
 }
 
 loadData();
