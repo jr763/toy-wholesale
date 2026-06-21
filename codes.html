@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自編商品條碼清單 - 奧斯卡商行</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans TC',sans-serif;background:#f5f2ed;color:#1a1714;}
+header{background:#5c3d2e;color:#fff;padding:20px 24px;position:sticky;top:0;z-index:10;}
+header h1{font-size:20px;font-weight:900;margin:0;}
+header p{font-size:12px;opacity:.75;margin:4px 0 0;}
+.sync-bar{font-size:11px;text-align:center;padding:5px;background:#e8e0d8;color:#5c3d2e;}
+.sync-bar.loading{background:#fff3e0;color:#e07020;}
+.sync-bar.error{background:#fdecea;color:#c0392b;}
+.toolbar{padding:14px 24px;background:#fff;border-bottom:1px solid #e0dbd2;display:flex;gap:10px;align-items:center;position:sticky;top:0;z-index:9;flex-wrap:wrap;}
+.toolbar input{flex:1;min-width:150px;padding:9px 12px;border:1px solid #e0dbd2;border-radius:8px;font-size:14px;}
+.toolbar button{padding:9px 16px;background:#8b5e3c;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.toolbar button:hover{background:#5c3d2e;}
+.count{font-size:12px;color:#6b6560;white-space:nowrap;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;padding:20px 24px;}
+.card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08);}
+.card img{width:100%;height:140px;object-fit:cover;background:#f0ede8;display:block;}
+.card .noimg{width:100%;height:140px;background:#f0ede8;display:flex;align-items:center;justify-content:center;font-size:36px;color:#c4b8a8;}
+.card-body{padding:10px 12px;}
+.card-name{font-size:14px;font-weight:700;margin-bottom:6px;}
+.card-code{font-family:monospace;font-size:13px;color:#8b5e3c;font-weight:700;}
+.card canvas{width:100%;height:40px;margin-top:4px;}
+.empty{text-align:center;padding:60px 20px;color:#9e9890;font-size:14px;}
+@media print{.toolbar{display:none;}.sync-bar{display:none;}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧸 自編商品條碼清單</h1>
+  <p>奧斯卡商行 · 無原廠條碼商品的內部編碼對照</p>
+</header>
+<div class="sync-bar" id="sync-bar">連線中…</div>
+<div class="toolbar">
+  <input id="search" placeholder="搜尋商品名稱或編碼…" oninput="filterCards()">
+  <span class="count" id="count"></span>
+  <button onclick="window.print()">🖨️ 列印清單</button>
+  <button onclick="location.reload()">🔄 重新整理</button>
+</div>
+<div class="grid" id="grid"></div>
+
+<script>
+// ── Firebase config (same project as main system) ──
+firebase.initializeApp({
+  apiKey: "AIzaSyC2uTpifBeWqKxBYrS6XUA-FxLerZCl-mM",
+  authDomain: "toy-wholesale.firebaseapp.com",
+  projectId: "toy-wholesale",
+  storageBucket: "toy-wholesale.firebasestorage.app",
+  messagingSenderId: "1058358181383",
+  appId: "1:1058358181383:web:47efb231eb3b4a975474a2"
+});
+const fsdb = firebase.firestore();
+const DOC_REF = fsdb.collection('data').doc('main');
+
+let allItems = [];
+
+function setSyncStatus(state, text){
+  const el = document.getElementById('sync-bar');
+  el.className = 'sync-bar ' + state;
+  el.textContent = text;
+}
+
+function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+
+function render(list){
+  const grid = document.getElementById('grid');
+  document.getElementById('count').textContent = list.length + ' 項';
+  if(!list.length){
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">沒有符合的商品</div>';
+    return;
+  }
+  grid.innerHTML = list.map(function(it, i){
+    const imgHtml = it.image
+      ? '<img src="' + escAttr(it.image) + '">'
+      : '<div class="noimg">' + String.fromCodePoint(0x1F4E6) + '</div>';
+    return '<div class="card">' + imgHtml +
+      '<div class="card-body">' +
+      '<div class="card-name">' + it.name + '</div>' +
+      '<canvas id="bc-' + i + '"></canvas>' +
+      '</div></div>';
+  }).join('');
+  list.forEach(function(it, i){
+    try{ JsBarcode('#bc-' + i, it.barcode, {format:'CODE128', displayValue:false, margin:0, height:34}); }
+    catch(e){}
+  });
+}
+
+function filterCards(){
+  const q = document.getElementById('search').value.toLowerCase();
+  render(allItems.filter(function(it){
+    return it.name.toLowerCase().includes(q) || it.barcode.toLowerCase().includes(q);
+  }));
+}
+
+DOC_REF.onSnapshot(function(snap){
+  setSyncStatus('ok', '● 已連線・即時同步');
+  if(!snap.exists){
+    allItems = [];
+    render(allItems);
+    return;
+  }
+  const data = snap.data();
+  const products = (data.products || []);
+  allItems = products
+    .filter(function(p){ return /^ASK\d{4}$/.test(p.barcode || ''); })
+    .map(function(p){ return {name: p.name, barcode: p.barcode, image: p.image || ''}; })
+    .sort(function(a,b){ return a.barcode.localeCompare(b.barcode); });
+  filterCards();
+}, function(err){
+  console.error(err);
+  setSyncStatus('error', '⚠️ 連線失敗，請檢查網路');
+});
+</script>
+</body>
+</html>
