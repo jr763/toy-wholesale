@@ -506,13 +506,12 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
           <button id="sa-pack-none" onclick="toggleSaPack('none')" style="flex:1;padding:9px;border:1.5px solid var(--brown);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;background:var(--brown);color:#fff;">一般</button>
         </div>
       </div>
-      <!-- Variant selector - stepper cards -->
+      <!-- Variant picker trigger -->
       <div id="sa-variant-wrap" style="margin-bottom:6px;display:none;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div style="font-size:13px;font-weight:700;">種類數量分配</div>
-          <div id="sa-variant-sum-hint" style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:12px;background:var(--surface2);color:var(--text2);"></div>
-        </div>
-        <div id="sa-variant-rows" style="display:flex;flex-direction:column;gap:6px;"></div>
+        <button id="sa-variant-pick-btn" onclick="openVariantPicker()" type="button" style="width:100%;padding:11px 14px;border:1.5px dashed var(--border);border-radius:9px;background:#fff;font-size:14px;font-weight:700;color:var(--brown-dark);cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+          <span>🏷️ 挑選種類</span>
+          <span id="sa-variant-summary" style="font-size:12px;font-weight:600;color:var(--text2);">未挑選</span>
+        </button>
       </div>
     </div>
     <!-- Add button footer -->
@@ -541,6 +540,28 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 <!-- Image Lightbox -->
 <div id="img-lightbox" onclick="closeLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:500;align-items:center;justify-content:center;">
   <img id="img-lightbox-img" src="" style="max-width:92%;max-height:92%;border-radius:8px;object-fit:contain;">
+</div>
+
+
+<!-- Variant Picker (sub-screen) -->
+<div class="modal-overlay" id="modal-variant-picker" style="z-index:310;">
+  <div style="background:var(--surface);width:90%;max-width:420px;max-height:85vh;display:flex;flex-direction:column;border-radius:18px;overflow:hidden;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="background:var(--brown);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+      <div style="font-size:16px;font-weight:700;">挑選種類</div>
+      <button onclick="closeModal('modal-variant-picker')" style="background:rgba(255,255,255,.95);border:none;color:#8b5e3c;font-size:18px;width:30px;height:30px;border-radius:50%;cursor:pointer;font-weight:900;line-height:1;">×</button>
+    </div>
+    <div style="display:flex;border-bottom:1.5px solid var(--border);flex-shrink:0;">
+      <button id="vp-tab-include" onclick="setVariantPickMode('include')" type="button" style="flex:1;padding:11px;border:none;font-size:14px;font-weight:700;cursor:pointer;">選擇</button>
+      <button id="vp-tab-exclude" onclick="setVariantPickMode('exclude')" type="button" style="flex:1;padding:11px;border:none;font-size:14px;font-weight:700;cursor:pointer;">排除</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:14px;">
+      <div id="vp-rows" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <div id="vp-sum-hint" style="margin-top:10px;font-size:12px;font-weight:700;padding:6px 10px;border-radius:10px;text-align:center;"></div>
+    </div>
+    <div style="padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0;">
+      <button onclick="confirmVariantPicker()" type="button" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:9px;font-size:15px;font-weight:700;cursor:pointer;">確認</button>
+    </div>
+  </div>
 </div>
 
 <!-- Scanner -->
@@ -2782,7 +2803,7 @@ let _saVariantQtys={}; // {variantName: qty}
 
 function loadScanAddProduct(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
-  _saPid=pid;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};
+  _saPid=pid;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};_saVariantSelected={};
   G('sa-prod-name').textContent=p.name;
   if(p.image){G('sa-prod-image').src=p.image;G('sa-prod-image-wrap').style.display='block';}
   else G('sa-prod-image-wrap').style.display='none';
@@ -2797,11 +2818,15 @@ function loadScanAddProduct(pid){
   
   // Quantity (total qty)
   _saQty=1;G('sa-qty-display').value='1';
-  // Variants - checkbox + qty rows
+  // Variants - picker button
   const variants=p.variants||[];
+  _saVariantVariants=variants;
+  _saVariantImages=p.variantImages||{};
+  _saVariantMode='include';
+  _saVariantToggled={};
   if(variants.length>0){
     G('sa-variant-wrap').style.display='block';
-    renderSaVariantRows(variants,p.variantImages||{});
+    if(G('sa-variant-summary'))G('sa-variant-summary').textContent='未挑選';
   } else {
     G('sa-variant-wrap').style.display='none';
   }
@@ -2816,73 +2841,108 @@ function loadScanAddProduct(pid){
 
 let _saVariantSelected={}; // {variantName: true/false} - just selection, independent of qty
 
-function renderSaVariantRows(variants,variantImages){
-  const wrap=G('sa-variant-rows');if(!wrap)return;
-  _saVariantSelected={};
-  variantImages=variantImages||{};
-  wrap.innerHTML=variants.map(v=>{
-    const img=variantImages[v];
-    return `<div id="sa-vrow-${v}" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff;gap:8px;">
-      <div onclick="toggleSaVariantSelect('${v}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;padding:4px 0;">
-        ${img?`<img src="${img}" style="width:42px;height:42px;object-fit:cover;border-radius:7px;flex-shrink:0;">`:''}
+let _saVariantVariants=[];
+let _saVariantImages={};
+let _saVariantMode='include';
+let _saVariantToggled={};
+
+function openVariantPicker(){
+  if(!_saVariantVariants.length)return;
+  renderVariantPickerRows();
+  updateVariantPickModeUI();
+  openModal('modal-variant-picker');
+}
+
+function setVariantPickMode(mode){
+  _saVariantMode=mode;
+  updateVariantPickModeUI();
+  updateVpRowStyles();
+  updateVpSumHint();
+}
+
+function updateVariantPickModeUI(){
+  const inc=G('vp-tab-include'),exc=G('vp-tab-exclude');
+  if(!inc||!exc)return;
+  if(_saVariantMode==='include'){
+    inc.style.background='var(--brown)';inc.style.color='#fff';
+    exc.style.background='#fff';exc.style.color='var(--text2)';
+  } else {
+    exc.style.background='var(--brown)';exc.style.color='#fff';
+    inc.style.background='#fff';inc.style.color='var(--text2)';
+  }
+}
+
+function renderVariantPickerRows(){
+  const wrap=G('vp-rows');if(!wrap)return;
+  wrap.innerHTML=_saVariantVariants.map(v=>{
+    const img=_saVariantImages[v];
+    const qty=_saVariantQtys[v]||0;
+    return `<div id="vp-row-${v}" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff;gap:8px;">
+      <div onclick="toggleVpVariant('${v}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;padding:4px 0;">
+        ${img?`<img src="${img}" style="width:38px;height:38px;object-fit:cover;border-radius:7px;flex-shrink:0;">`:''}
         <span style="font-size:14px;font-weight:600;">${v}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-        <button onclick="changeSaVariantQty('${v}',-1)" style="width:28px;height:28px;font-size:15px;font-weight:700;background:#f0ede8;border:none;border-radius:6px;cursor:pointer;flex-shrink:0;">－</button>
-        <input id="sa-vqty-${v}" type="number" min="0" value="0" inputmode="numeric"
-          oninput="onSaVariantQtyTyped('${v}',this.value)"
+        <button onclick="changeVpQty('${v}',-1)" type="button" style="width:28px;height:28px;font-size:15px;font-weight:700;background:#f0ede8;border:none;border-radius:6px;cursor:pointer;flex-shrink:0;">－</button>
+        <input id="vp-qty-${v}" type="number" min="0" value="${qty}" inputmode="numeric"
+          oninput="onVpQtyTyped('${v}',this.value)"
           style="width:44px;text-align:center;font-size:15px;font-weight:800;color:var(--brown);border:1.5px solid var(--border);border-radius:6px;padding:4px 2px;">
-        <button onclick="changeSaVariantQty('${v}',1)" style="width:28px;height:28px;font-size:15px;font-weight:700;background:#f0ede8;border:none;border-radius:6px;cursor:pointer;flex-shrink:0;">＋</button>
+        <button onclick="changeVpQty('${v}',1)" type="button" style="width:28px;height:28px;font-size:15px;font-weight:700;background:#f0ede8;border:none;border-radius:6px;cursor:pointer;flex-shrink:0;">＋</button>
       </div>
     </div>`;
   }).join('');
-  updateSaVariantSumHint();
+  updateVpRowStyles();
+  updateVpSumHint();
 }
 
-function onSaVariantQtyTyped(v,val){
-  const n=parseInt(val);
-  const qty=(!isNaN(n)&&n>0)?n:0;
-  if(qty===0) delete _saVariantQtys[v];
-  else _saVariantQtys[v]=qty;
-  const row=G('sa-vrow-'+v);
-  if(row&&!_saVariantSelected[v]) row.style.borderColor=qty>0?'var(--brown)':'var(--border)';
-  updateSaVariantSumHint();
+function toggleVpVariant(v){
+  _saVariantToggled[v]=!_saVariantToggled[v];
+  updateVpRowStyles();
+  updateVpSumHint();
 }
 
-function toggleSaVariantSelect(v){
-  _saVariantSelected[v]=!_saVariantSelected[v];
-  const row=G('sa-vrow-'+v);
-  if(row){
-    row.style.background=_saVariantSelected[v]?'var(--orange-bg)':'#fff';
-    row.style.borderColor=_saVariantSelected[v]?'var(--brown)':((_saVariantQtys[v]||0)>0?'var(--brown)':'var(--border)');
-  }
-  updateSaVariantSumHint();
+function updateVpRowStyles(){
+  _saVariantVariants.forEach(v=>{
+    const row=G('vp-row-'+v);if(!row)return;
+    const isToggled=!!_saVariantToggled[v];
+    const included=_saVariantMode==='include'?isToggled:!isToggled;
+    row.style.background=included?'var(--orange-bg)':'#fff';
+    row.style.borderColor=included?'var(--brown)':'var(--border)';
+    row.style.opacity=included?'1':'0.5';
+  });
 }
 
-function changeSaVariantQty(v,delta){
+function changeVpQty(v,delta){
   const cur=_saVariantQtys[v]||0;
   const next=Math.max(0,cur+delta);
-  if(next===0) delete _saVariantQtys[v];
-  else _saVariantQtys[v]=next;
-  const el=G('sa-vqty-'+v);
-  if(el)el.value=next;
-  const row=G('sa-vrow-'+v);
-  if(row&&!_saVariantSelected[v]) row.style.borderColor=next>0?'var(--brown)':'var(--border)';
-  updateSaVariantSumHint();
+  if(next===0) delete _saVariantQtys[v]; else _saVariantQtys[v]=next;
+  const el=G('vp-qty-'+v);if(el)el.value=next;
+  updateVpSumHint();
 }
 
-function updateSaVariantSumHint(){
-  const hint=G('sa-variant-sum-hint');if(!hint)return;
-  const sum=Object.values(_saVariantQtys).reduce((s,n)=>s+n,0);
+function onVpQtyTyped(v,val){
+  const n=parseInt(val);
+  const qty=(!isNaN(n)&&n>0)?n:0;
+  if(qty===0) delete _saVariantQtys[v]; else _saVariantQtys[v]=qty;
+  updateVpSumHint();
+}
+
+function getEffectiveVariantList(){
+  if(_saVariantMode==='include') return _saVariantVariants.filter(v=>_saVariantToggled[v]);
+  return _saVariantVariants.filter(v=>!_saVariantToggled[v]);
+}
+
+function updateVpSumHint(){
+  const hint=G('vp-sum-hint');if(!hint)return;
+  const effective=getEffectiveVariantList();
+  const sum=effective.reduce((s,v)=>s+(_saVariantQtys[v]||0),0);
   const total=_saQty||0;
-  const selectedCount=Object.values(_saVariantSelected).filter(Boolean).length;
-  if(sum===0&&selectedCount>0){
-    // Selected without qty - will auto-split evenly
-    hint.textContent=`已選 ${selectedCount} 種，將平均分配 ${total}`;
-    hint.style.background='var(--blue-bg)';hint.style.color='var(--blue)';
-  } else if(sum===0){
-    hint.textContent=`未分配`;
+  if(effective.length===0){
+    hint.textContent='尚未挑選任何種類';
     hint.style.background='var(--surface2)';hint.style.color='var(--text2)';
+  } else if(sum===0){
+    hint.textContent=`已選 ${effective.length} 種，將平均分配 ${total}`;
+    hint.style.background='var(--blue-bg)';hint.style.color='var(--blue)';
   } else if(sum===total){
     hint.textContent=`已分配 ${sum} / ${total}`;
     hint.style.background='var(--green)';hint.style.color='#fff';
@@ -2891,6 +2951,17 @@ function updateSaVariantSumHint(){
     hint.style.background='var(--red)';hint.style.color='#fff';
   }
 }
+
+function confirmVariantPicker(){
+  const effective=getEffectiveVariantList();
+  _saVariantSelected={};
+  effective.forEach(v=>{_saVariantSelected[v]=true;});
+  _saVariantVariants.forEach(v=>{ if(!effective.includes(v)) delete _saVariantQtys[v]; });
+  const el=G('sa-variant-summary');
+  if(el)el.textContent=effective.length?`已選 ${effective.length} 種`:'未挑選';
+  closeModal('modal-variant-picker');
+}
+
 
 function selectSaVariant(v,el){
   _saVariant=v;
@@ -2918,12 +2989,12 @@ function toggleSaPack(type){
 function changeSaQty(delta){
   _saQty=Math.max(1,(_saQty||1)+delta);
   G('sa-qty-display').value=_saQty;
-  updateSaVariantSumHint();
+  if(typeof updateVpSumHint==='function')updateVpSumHint();
 }
 function onSaQtyInput(val){
   const n=parseInt(val);
   _saQty=(!isNaN(n)&&n>=1)?n:1;
-  updateSaVariantSumHint();
+  if(typeof updateVpSumHint==='function')updateVpSumHint();
 }
 
 function confirmScanAdd(){
@@ -2966,7 +3037,8 @@ function confirmScanAdd(){
 
   renderOrderItems();
   // Reset for next scan
-  _saPid=null;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};_saVariantSelected={};
+  _saPid=null;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};_saVariantSelected={};_saVariantToggled={};
+  if(G('sa-variant-summary'))G('sa-variant-summary').textContent='未挑選';
   G('sa-product-area').style.display='none';
   G('sa-footer').style.display='none';
   G('sa-price').value='';
