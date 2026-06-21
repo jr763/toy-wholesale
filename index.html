@@ -240,8 +240,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   <div class="page-header">
     <div><h2>商品資料庫</h2></div>
     <div style="display:flex;gap:6px;">
-      <button class="btn btn-secondary btn-sm" onclick="openModal('modal-variants')">⚙ 管理種類</button>
-      <button class="btn btn-secondary btn-sm" onclick="printBarcodeLabels()">🏷️ 列印商品條碼</button>
       <button class="btn btn-secondary btn-sm" onclick="showCustomCodeList()">📋 自編商品條碼清單</button>
       <button class="btn btn-primary" onclick="openProductModal()">＋ 新增商品</button>
     </div>
@@ -603,17 +601,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       <div class="btn-row">
         <button class="btn btn-secondary" onclick="closeModal('modal-barcode')">關閉</button>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- Variants Management -->
-<div class="modal-overlay" id="modal-variants">
-  <div class="modal">
-    <div class="modal-header"><h3>管理種類</h3><button class="modal-close" onclick="closeModal('modal-variants')">×</button></div>
-    <div class="modal-body">
-      <input id="variant-barcode-search" placeholder="輸入條碼或商品名稱搜尋…" oninput="searchProductForVariant()" style="width:100%;margin-bottom:12px;" autocomplete="off">
-      <div id="variant-search-result"></div>
     </div>
   </div>
 </div>
@@ -2723,21 +2710,6 @@ function removeProductVariant(i){
   if(window._productVariantImages&&v) delete window._productVariantImages[v];
   renderProductVariantList();
 }
-function searchProductForVariant(){
-  const q=(G('variant-barcode-search')?.value||'').trim();
-  const res=G('variant-search-result');if(!res)return;
-  if(!q){res.innerHTML='';return;}
-  const hits=db.products.filter(p=>p.barcode&&p.barcode.toLowerCase().includes(q.toLowerCase())||p.name.toLowerCase().includes(q.toLowerCase()));
-  if(!hits.length){res.innerHTML='<div style="color:var(--text3);font-size:13px;">找不到商品</div>';return;}
-  res.innerHTML=hits.map(p=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
-      <div>
-        <div style="font-size:13px;font-weight:700;">${p.name}</div>
-        <div style="font-size:11px;color:var(--text2);">條碼：${p.barcode||'—'} · 種類：${(p.variants||[]).join('、')||'無'}</div>
-      </div>
-      <button class="btn btn-sm btn-secondary" onclick="editProduct('${p.id}');closeModal('modal-variants');">編輯</button>
-    </div>`).join('');
-}
 
 // ── SCAN-ADD 點餐介面 ─────────────────────────
 let _saStream=null, _saPid=null, _saQty=1, _saVariant='', _saPack='none';
@@ -3163,7 +3135,7 @@ function openLabelPrintWindow(priceList,prefix){
   <div class="sheet" id="sheet"></div>
   <scr`+`ipt>
     function fitTextWidth(el,targetPx){
-      let lo=3,hi=30;
+      let lo=3,hi=11;
       for(let i=0;i<18;i++){
         const mid=(lo+hi)/2;
         el.style.fontSize=mid+'px';
@@ -3192,12 +3164,6 @@ function openLabelPrintWindow(priceList,prefix){
   </body></html>`;
   w.document.write(html);
   w.document.close();
-}
-function printBarcodeLabels(){
-  const prices=prompt('請輸入要列印的售價，用逗號分隔（例：50,100,150,200,300）：','50,100,150,200,250,300,350,400,450,500');
-  if(!prices)return;
-  const list=prices.split(',').map(p=>parseInt(p.trim())).filter(p=>!isNaN(p)&&p>0);
-  openLabelPrintWindow(list);
 }
 
 function showCustomCodeList(){
