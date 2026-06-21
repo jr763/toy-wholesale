@@ -1084,6 +1084,7 @@ function editProduct(id){
   G('p-batch-wrap').style.display=hasM?'none':'block';
   G('p-batch').value=p.inspectionBatchNo||'';
   window._productVariants=[...(p.variants||[])];
+  window._productVariantImages={...(p.variantImages||{})};
   renderProductVariantList();
   window._prodImageData=p.image||null;
   if(G('p-image-img')){G('p-image-img').src=p.image||'';G('p-image-preview').style.display=p.image?'flex':'none';}
@@ -1121,6 +1122,7 @@ async function saveProduct(){
     location:G('p-loc')?.value||'一樓',
     hasInspectionMark:hasM,inspectionBatchNo:hasM?'':V('p-batch'),
     variants:[...(window._productVariants||[])],
+    variantImages:{...(window._productVariantImages||{})},
     image:window._prodImageData||''};
   if(editProdId){const i=db.products.findIndex(x=>x.id===editProdId);db.products[i]={...db.products[i],...data};}
   else db.products.push({id:uid(),...data});
@@ -2620,11 +2622,45 @@ async function submitEditConfirm(){
 function renderProductVariantList(){
   const list=G('p-variant-list');if(!list)return;
   const variants=window._productVariants||[];
-  list.innerHTML=variants.map((v,i)=>`
-    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:3px 10px;font-size:12px;">
-      ${v}
-      <span onclick="removeProductVariant(${i})" style="cursor:pointer;color:var(--text3);font-size:14px;line-height:1;">×</span>
-    </span>`).join('');
+  if(!window._productVariantImages)window._productVariantImages={};
+  list.innerHTML=variants.map((v,i)=>{
+    const img=window._productVariantImages[v];
+    return `<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;">
+      ${img?`<img src="${img}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">`:`<div style="width:32px;height:32px;background:#fff;border:1px dashed var(--border);border-radius:6px;flex-shrink:0;"></div>`}
+      <span style="font-size:13px;flex:1;">${v}</span>
+      <label style="font-size:11px;color:var(--text2);cursor:pointer;text-decoration:underline;">
+        ${img?'更換圖片':'＋圖片'}
+        <input type="file" accept="image/*" style="display:none;" onchange="onVariantImageChange('${v}',this)">
+      </label>
+      ${img?`<span onclick="removeVariantImage('${v}')" style="cursor:pointer;color:var(--red);font-size:12px;">移除圖</span>`:''}
+      <span onclick="removeProductVariant(${i})" style="cursor:pointer;color:var(--text3);font-size:16px;line-height:1;">×</span>
+    </div>`;
+  }).join('');
+}
+function onVariantImageChange(v,input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const maxSize=300;
+      let w=img.width,h=img.height;
+      if(w>h){if(w>maxSize){h=Math.round(h*maxSize/w);w=maxSize;}}
+      else{if(h>maxSize){w=Math.round(w*maxSize/h);h=maxSize;}}
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      if(!window._productVariantImages)window._productVariantImages={};
+      window._productVariantImages[v]=canvas.toDataURL('image/jpeg',0.75);
+      renderProductVariantList();
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function removeVariantImage(v){
+  if(window._productVariantImages)delete window._productVariantImages[v];
+  renderProductVariantList();
 }
 function addProductVariant(){
   const input=G('p-new-variant');
@@ -2639,7 +2675,9 @@ function addProductVariant(){
 }
 function removeProductVariant(i){
   if(!window._productVariants)return;
+  const v=window._productVariants[i];
   window._productVariants.splice(i,1);
+  if(window._productVariantImages&&v) delete window._productVariantImages[v];
   renderProductVariantList();
 }
 function searchProductForVariant(){
@@ -2741,7 +2779,7 @@ function loadScanAddProduct(pid){
   const variants=p.variants||[];
   if(variants.length>0){
     G('sa-variant-wrap').style.display='block';
-    renderSaVariantRows(variants);
+    renderSaVariantRows(variants,p.variantImages||{});
   } else {
     G('sa-variant-wrap').style.display='none';
   }
@@ -2756,20 +2794,26 @@ function loadScanAddProduct(pid){
 
 let _saVariantSelected={}; // {variantName: true/false} - just selection, independent of qty
 
-function renderSaVariantRows(variants){
+function renderSaVariantRows(variants,variantImages){
   const wrap=G('sa-variant-rows');if(!wrap)return;
   _saVariantSelected={};
-  wrap.innerHTML=variants.map(v=>`
-    <div id="sa-vrow-${v}" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff;">
-      <span onclick="toggleSaVariantSelect('${v}')" style="font-size:14px;font-weight:600;cursor:pointer;flex:1;padding:4px 0;">${v}</span>
-      <div style="display:flex;align-items:center;gap:6px;">
+  variantImages=variantImages||{};
+  wrap.innerHTML=variants.map(v=>{
+    const img=variantImages[v];
+    return `<div id="sa-vrow-${v}" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;background:#fff;gap:8px;">
+      <div onclick="toggleSaVariantSelect('${v}')" style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;padding:4px 0;">
+        ${img?`<img src="${img}" style="width:30px;height:30px;object-fit:cover;border-radius:6px;flex-shrink:0;">`:''}
+        <span style="font-size:14px;font-weight:600;">${v}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
         <button onclick="changeSaVariantQty('${v}',-1)" style="width:28px;height:28px;font-size:15px;font-weight:700;background:#f0ede8;border:none;border-radius:6px;cursor:pointer;flex-shrink:0;">－</button>
         <input id="sa-vqty-${v}" type="number" min="0" value="0" inputmode="numeric"
           oninput="onSaVariantQtyTyped('${v}',this.value)"
           style="width:44px;text-align:center;font-size:15px;font-weight:800;color:var(--brown);border:1.5px solid var(--border);border-radius:6px;padding:4px 2px;">
         <button onclick="changeSaVariantQty('${v}',1)" style="width:28px;height:28px;font-size:15px;font-weight:700;background:#f0ede8;border:none;border-radius:6px;cursor:pointer;flex-shrink:0;">＋</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   updateSaVariantSumHint();
 }
 
