@@ -94,8 +94,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 #scanner-video{width:100%;border-radius:8px;background:#000;max-height:280px;object-fit:cover}
 .print-area{display:none}
 @media print{
-  @page{margin:10mm;size:A4;}
-  @page{margin-top:0;margin-bottom:0;}
+  @page{margin:0;size:24.1cm 14cm;}
   .print-area *{color:#000!important;border-color:#000!important;}
   .print-area .total-row{background:#c8c8c8!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 
@@ -2175,20 +2174,20 @@ function printShipment(id){
     const amount=Math.round(discPrice*qty*10)/10;
     total+=amount;
     rowsHtml+=`<tr>
-      <td style="border:1px solid #000;padding:4px 5px;text-align:center;font-size:14px;">${idx+1}</td>
-      <td style="border:1px solid #000;padding:4px 7px;font-size:14px;">${name}</td>
-      <td style="border:1px solid #000;padding:4px 5px;text-align:center;font-size:14px;">${qty}</td>
-      <td style="border:1px solid #000;padding:4px 5px;text-align:right;font-size:14px;">${discPrice}</td>
-      <td style="border:1px solid #000;padding:4px 5px;text-align:right;font-size:14px;">${amount}</td>
+      <td style="border:1.8px solid #000;padding:6px 5px;text-align:center;font-size:17px;">${idx+1}</td>
+      <td style="border:1.8px solid #000;padding:6px 7px;font-size:17px;">${name}</td>
+      <td style="border:1.8px solid #000;padding:6px 5px;text-align:center;font-size:17px;">${qty}</td>
+      <td style="border:1.8px solid #000;padding:6px 5px;text-align:right;font-size:17px;">${discPrice}</td>
+      <td style="border:1.8px solid #000;padding:6px 5px;text-align:right;font-size:17px;">${amount}</td>
     </tr>`;
   });
   for(let i=rows.length;i<TOTAL_ROWS;i++){
-    rowsHtml+=`<tr style="height:24px;">
-      <td style="border:1px solid #000;font-size:14px;padding:4px 5px;text-align:center;">${i+1}</td>
-      <td style="border:1px solid #000;"></td>
-      <td style="border:1px solid #000;"></td>
-      <td style="border:1px solid #000;"></td>
-      <td style="border:1px solid #000;"></td>
+    rowsHtml+=`<tr style="height:28px;">
+      <td style="border:1.8px solid #000;font-size:17px;padding:6px 5px;text-align:center;">${i+1}</td>
+      <td style="border:1.8px solid #000;"></td>
+      <td style="border:1.8px solid #000;"></td>
+      <td style="border:1.8px solid #000;"></td>
+      <td style="border:1.8px solid #000;"></td>
     </tr>`;
   }
   // Note layout:
@@ -2198,21 +2197,21 @@ function printShipment(id){
   const dateRight = noteLines.length>=2 ? noteLines[1] : (noteLines[0]||'');
 
   G('print-area').innerHTML=`
-    <style>@page{size:21.59cm 13.97cm;margin:0.5cm;}</style>
-    <div style="font-family:'標楷體','DFKai-SB',serif;width:19.5cm;font-size:14px;margin:0 auto;">
-      <div style="text-align:center;font-size:30px;font-weight:bold;letter-spacing:5px;margin-bottom:2px;">奧斯卡商行</div>
+    <style>@page{size:24.1cm 14cm;margin:0.5cm;}</style>
+    <div style="font-family:'標楷體','DFKai-SB',serif;width:22cm;font-size:17px;margin:0 auto;">
+      <div style="text-align:center;font-size:34px;font-weight:bold;letter-spacing:5px;margin-bottom:2px;">奧斯卡商行</div>
       <div style="text-align:center;margin-bottom:8px;">
-        <span style="font-size:22px;font-weight:bold;letter-spacing:7px;border-bottom:3px double #000;padding-bottom:3px;">銷 貨 單 據 一 覽 表</span>
+        <span style="font-size:25px;font-weight:bold;letter-spacing:7px;border-bottom:4px double #000;padding-bottom:3px;">銷 貨 單 據 一 覽 表</span>
       </div>
-      <div style="font-size:14px;margin-bottom:4px;display:flex;">
+      <div style="font-size:17px;margin-bottom:5px;display:flex;">
         <span style="width:72%;">客戶名稱：${cust?cust.name:''}</span>
         <span>電話：${cust?.phone||''}</span>
       </div>
-      <div style="font-size:14px;margin-bottom:4px;display:flex;">
+      <div style="font-size:17px;margin-bottom:5px;display:flex;">
         <span style="width:72%;">客戶地址：${cust?.address||''}</span>
         <span>${addrRight}</span>
       </div>
-      <div style="font-size:14px;margin-bottom:8px;display:flex;">
+      <div style="font-size:17px;margin-bottom:10px;display:flex;">
         <span style="width:72%;">銷貨日期：${dateStr}</span>
         <span>${dateRight}</span>
       </div>
@@ -2226,22 +2225,22 @@ function printShipment(id){
         </colgroup>
         <thead>
           <tr>
-            <th style="border:1px solid #000;padding:5px;text-align:center;font-size:16px;">序號</th>
-            <th style="border:1px solid #000;padding:5px;text-align:center;font-size:16px;">商品名稱</th>
-            <th style="border:1px solid #000;padding:5px;text-align:center;font-size:16px;">數量</th>
-            <th style="border:1px solid #000;padding:5px;text-align:center;font-size:16px;">進價</th>
-            <th style="border:1px solid #000;padding:5px;text-align:center;font-size:16px;">金額</th>
+            <th style="border:1.8px solid #000;padding:7px;text-align:center;font-size:19px;">序號</th>
+            <th style="border:1.8px solid #000;padding:7px;text-align:center;font-size:19px;">商品名稱</th>
+            <th style="border:1.8px solid #000;padding:7px;text-align:center;font-size:19px;">數量</th>
+            <th style="border:1.8px solid #000;padding:7px;text-align:center;font-size:19px;">進價</th>
+            <th style="border:1.8px solid #000;padding:7px;text-align:center;font-size:19px;">金額</th>
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
         <tr class="total-row" style="background:#c8c8c8;">
-          <td style="border:1px solid #000;padding:5px;text-align:right;font-size:15px;font-weight:bold;" colspan="4">總計：</td>
-          <td style="border:1px solid #000;padding:5px;text-align:right;font-size:15px;font-weight:bold;">${Math.round(total*10)/10}</td>
+          <td style="border:1.8px solid #000;padding:7px;text-align:right;font-size:18px;font-weight:bold;" colspan="4">總計：</td>
+          <td style="border:1.8px solid #000;padding:7px;text-align:right;font-size:18px;font-weight:bold;">${Math.round(total*10)/10}</td>
         </tr>
       </table>
       <div style="margin-top:10px;display:flex;">
         <span style="width:72%;"></span>
-        <span style="width:28%;font-size:20px;font-weight:bold;border-bottom:1px solid #000;padding-bottom:3px;">客戶簽收：</span>
+        <span style="width:28%;font-size:23px;font-weight:bold;border-bottom:2px solid #000;padding-bottom:3px;">客戶簽收：</span>
       </div>
     </div>`;
   window.print();
