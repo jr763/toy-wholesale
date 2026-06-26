@@ -802,8 +802,8 @@ async function saveData(){
 // 即時監聽（其他人存檔會自動更新）
 DOC_REF.onSnapshot({includeMetadataChanges:true},snap=>{
   G('loading-overlay').style.display='none';
-  if(snap.metadata.fromCache && !navigator.onLine){
-    setSyncStatus('loading','📴 離線中・變更會在恢復連線後自動同步');
+  if(snap.metadata.fromCache){
+    setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');
   } else {
     setSyncStatus('ok','雲端同步・所有人共用');
   }
