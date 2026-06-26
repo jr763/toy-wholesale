@@ -691,6 +691,10 @@ firebase.initializeApp({
   appId: "1:1058358181383:web:47efb231eb3b4a975474a2"
 });
 const fsdb = firebase.firestore();
+// 啟用離線快取：沒網路時可繼續操作，連線恢復後自動同步
+fsdb.enablePersistence({synchronizeTabs:true}).catch(err=>{
+  console.warn('離線快取無法啟用：', err.code);
+});
 const DOC_REF = fsdb.collection('data').doc('main');
 
 // ── LINE NOTIFY ──────────────────────────────
@@ -722,6 +726,8 @@ const G     = id => document.getElementById(id);
 const V     = id => (G(id)?.value||'').trim();
 
 function setSyncStatus(s,t){ G('sync-dot').className='sync-dot '+s; G('sync-text').textContent=t; }
+window.addEventListener('offline',()=>setSyncStatus('loading','📴 離線中・變更會在恢復連線後自動同步'));
+window.addEventListener('online',()=>setSyncStatus('loading','🔄 連線恢復，同步中…'));
 function openModal(id){ G(id).classList.add('open'); }
 function closeModal(id){
   G(id).classList.remove('open');
@@ -794,9 +800,13 @@ async function saveData(){
   isSaving=false;
 }
 // 即時監聽（其他人存檔會自動更新）
-DOC_REF.onSnapshot(snap=>{
+DOC_REF.onSnapshot({includeMetadataChanges:true},snap=>{
   G('loading-overlay').style.display='none';
-  setSyncStatus('ok','雲端同步・所有人共用');
+  if(snap.metadata.fromCache && !navigator.onLine){
+    setSyncStatus('loading','📴 離線中・變更會在恢復連線後自動同步');
+  } else {
+    setSyncStatus('ok','雲端同步・所有人共用');
+  }
   if(isSaving)return;
   if(snap.exists){
     const data=snap.data();
