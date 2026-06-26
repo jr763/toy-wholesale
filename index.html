@@ -3293,6 +3293,10 @@ function closeLightbox(){
 
 loadData();
 setTimeout(handleHashChange,200);
+// 註冊 Service Worker，讓網頁本身能離線開啟
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('SW 註冊失敗：',err));
+}
 </script>
 </body>
 </html>
