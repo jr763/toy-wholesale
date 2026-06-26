@@ -6,112 +6,69 @@
 <title>奧斯卡商行 · 使用教學</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans TC',sans-serif;background:#f0ede8;color:#1a1a1a;font-size:15px;}
-
-/* Progress bar */
 .progress-bar{position:fixed;top:0;left:0;height:3px;background:#c8401a;z-index:100;transition:width .3s;}
-
-/* Hero */
-.hero{background:linear-gradient(135deg,#5c3d2e 0%,#8b5e3c 100%);color:#fff;padding:60px 24px 80px;text-align:center;}
-.hero-icon{font-size:56px;margin-bottom:16px;}
-.hero h1{font-size:26px;font-weight:900;letter-spacing:1px;margin-bottom:8px;}
-.hero p{font-size:14px;opacity:.75;margin-bottom:24px;}
+.hero{background:linear-gradient(135deg,#5c3d2e 0%,#8b5e3c 100%);color:#fff;padding:50px 24px 70px;text-align:center;}
+.hero-icon{font-size:50px;margin-bottom:14px;}
+.hero h1{font-size:24px;font-weight:900;letter-spacing:1px;margin-bottom:6px;}
+.hero p{font-size:13px;opacity:.75;margin-bottom:20px;}
 .hero-chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
-.chip{background:rgba(255,255,255,.15);padding:4px 14px;border-radius:20px;font-size:12px;}
-
-/* Chapter nav */
-.chapter-nav{background:#fff;padding:0;display:flex;overflow-x:auto;border-bottom:1px solid #e0d8d0;position:sticky;top:0;z-index:50;scrollbar-width:none;}
+.chip{background:rgba(255,255,255,.15);padding:4px 14px;border-radius:20px;font-size:11px;}
+.chapter-nav{background:#fff;display:flex;overflow-x:auto;border-bottom:1px solid #e0d8d0;position:sticky;top:0;z-index:50;scrollbar-width:none;}
 .chapter-nav::-webkit-scrollbar{display:none;}
-.chapter-btn{padding:14px 20px;font-size:13px;font-weight:700;color:#999;white-space:nowrap;cursor:pointer;border-bottom:2px solid transparent;transition:.2s;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit;}
+.chapter-btn{padding:13px 16px;font-size:12px;font-weight:700;color:#999;white-space:nowrap;cursor:pointer;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit;}
 .chapter-btn.active{color:#c8401a;border-bottom-color:#c8401a;}
-
-/* Chapter */
-.chapter{display:none;padding:0 0 60px;}
+.chapter{display:none;padding:0 0 50px;}
 .chapter.active{display:block;}
-
-/* Lesson card */
-.lesson{background:#fff;margin:16px 16px 0;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.06);}
-.lesson-header{padding:20px 20px 0;}
-.lesson-num{display:inline-block;background:#f0ede8;color:#8b5e3c;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:10px;}
-.lesson h2{font-size:18px;font-weight:900;margin-bottom:6px;}
-.lesson .desc{font-size:13px;color:#666;line-height:1.7;margin-bottom:16px;}
-
-/* Phone frame */
-.phone-wrap{background:#e8e2db;padding:24px 16px;display:flex;justify-content:center;}
-.phone{width:240px;background:#1a1a1a;border-radius:32px;padding:10px;box-shadow:0 16px 40px rgba(0,0,0,.3);}
-.phone-inner{background:#f0ede8;border-radius:24px;overflow:hidden;}
-.phone-notch{background:#1a1a1a;height:28px;display:flex;align-items:center;justify-content:center;}
-.phone-notch::after{content:'';width:60px;height:8px;background:#333;border-radius:4px;}
-.p-nav{background:#5c3d2e;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;}
-.p-nav span{color:#fff;font-size:12px;font-weight:700;}
-.p-nav-r{color:#fff;font-size:14px;}
-.p-sync{background:#4a3526;padding:4px;text-align:center;font-size:9px;color:#a89080;}
+.lesson{background:#fff;margin:14px 14px 0;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.06);}
+.lesson-header{padding:18px 18px 0;}
+.lesson-num{display:inline-block;background:#f0ede8;color:#8b5e3c;font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:8px;}
+.lesson h2{font-size:17px;font-weight:900;margin-bottom:5px;}
+.lesson .desc{font-size:12.5px;color:#666;line-height:1.6;margin-bottom:14px;}
+.steps-wrap{padding:14px 18px 18px;}
+.step-item{display:flex;gap:10px;margin-bottom:12px;}
+.step-circle{width:26px;height:26px;border-radius:50%;background:#c8401a;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.step-title{font-size:13.5px;font-weight:700;margin-bottom:2px;}
+.step-desc{font-size:12px;color:#666;line-height:1.55;}
+.tip-box{margin:0 14px 14px;background:#fff8f0;border-left:3px solid #e07b39;padding:11px 13px;border-radius:0 8px 8px 0;font-size:12px;color:#5c3d2e;line-height:1.6;}
+.tip-box strong{color:#c8401a;display:block;margin-bottom:3px;}
+.warn-box{margin:0 14px 14px;background:#fff1f0;border-left:3px solid #d94f4f;padding:11px 13px;border-radius:0 8px 8px 0;font-size:12px;color:#5c3d2e;line-height:1.6;}
+.warn-box strong{color:#d94f4f;display:block;margin-bottom:3px;}
+.phone-wrap{background:#e8e2db;padding:20px 14px;display:flex;justify-content:center;}
+.phone{width:230px;background:#1a1a1a;border-radius:30px;padding:9px;box-shadow:0 14px 36px rgba(0,0,0,.3);}
+.phone-inner{background:#f0ede8;border-radius:22px;overflow:hidden;}
+.phone-notch{background:#1a1a1a;height:24px;display:flex;align-items:center;justify-content:center;}
+.phone-notch::after{content:'';width:50px;height:7px;background:#333;border-radius:4px;}
+.p-nav{background:#5c3d2e;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;}
+.p-nav span{color:#fff;font-size:11px;font-weight:700;}
 .p-body{padding:10px;}
-.p-card{background:#fff;border-radius:8px;padding:10px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
-.p-card-title{font-size:10px;font-weight:700;color:#8b5e3c;margin-bottom:6px;}
-.p-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f0ede8;font-size:10px;}
+.p-card{background:#fff;border-radius:8px;padding:9px;margin-bottom:7px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.p-card-title{font-size:9.5px;font-weight:700;color:#8b5e3c;margin-bottom:5px;}
+.p-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f0ede8;font-size:9.5px;}
 .p-row:last-child{border:none;}
-.p-badge{display:inline-block;padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;}
-.p-btn{background:#5c3d2e;color:#fff;border:none;border-radius:5px;padding:3px 8px;font-size:9px;font-weight:700;font-family:inherit;}
+.p-badge{display:inline-block;padding:1px 6px;border-radius:10px;font-size:8.5px;font-weight:700;}
+.p-btn{background:#5c3d2e;color:#fff;border:none;border-radius:5px;padding:3px 8px;font-size:8.5px;font-weight:700;font-family:inherit;}
 .p-btn.green{background:#4a9b6f;}
 .p-btn.outline{background:#fff;color:#5c3d2e;border:1px solid #5c3d2e;}
-.p-input{width:100%;border:1px solid #ddd;border-radius:5px;padding:5px 8px;font-size:10px;font-family:inherit;margin-bottom:6px;}
-.p-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:8px;text-align:center;}
-.p-cal-day{padding:3px 1px;border-radius:3px;cursor:pointer;}
-.p-cal-day.today{background:#5c3d2e;color:#fff;border-radius:5px;}
-.p-cal-day.holiday{color:#d94f4f;}
-.p-dot-row{display:flex;justify-content:center;gap:1px;margin-top:1px;}
-.p-dot{width:4px;height:4px;border-radius:50%;display:inline-block;}
-
-/* Steps */
-.steps-wrap{padding:16px 20px 20px;}
-.step-item{display:flex;gap:12px;margin-bottom:14px;}
-.step-circle{width:28px;height:28px;border-radius:50%;background:#c8401a;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
-.step-body{flex:1;}
-.step-title{font-size:14px;font-weight:700;margin-bottom:3px;}
-.step-desc{font-size:12px;color:#666;line-height:1.6;}
-.step-line{width:1px;background:#e0d8d0;margin-left:13px;height:10px;}
-
-/* Tips */
-.tip-box{margin:0 16px 16px;background:#fff8f0;border-left:3px solid #e07b39;padding:12px 14px;border-radius:0 8px 8px 0;font-size:12px;color:#5c3d2e;line-height:1.7;}
-.tip-box strong{color:#c8401a;display:block;margin-bottom:3px;}
-
-.warn-box{margin:0 16px 16px;background:#fff1f0;border-left:3px solid #d94f4f;padding:12px 14px;border-radius:0 8px 8px 0;font-size:12px;color:#5c3d2e;line-height:1.7;}
-.warn-box strong{color:#d94f4f;display:block;margin-bottom:3px;}
-
-/* Status flow */
-.flow-wrap{padding:16px 20px;overflow-x:auto;}
-.flow{display:flex;align-items:center;gap:6px;min-width:max-content;}
-.flow-node{background:#fff;border:1.5px solid #ddd;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;text-align:center;white-space:nowrap;}
+.status-table{margin:0 14px 14px;border-radius:8px;overflow:hidden;border:1px solid #e0d8d0;}
+.st-header{display:grid;grid-template-columns:auto 1fr auto;background:#5c3d2e;color:#fff;font-size:10.5px;font-weight:700;padding:6px 12px;gap:8px;}
+.st-row{display:grid;grid-template-columns:auto 1fr auto;padding:7px 12px;gap:8px;border-bottom:1px solid #f0ede8;font-size:10.5px;align-items:center;}
+.st-row:last-child{border:none;}
+.st-row:nth-child(even){background:#faf8f5;}
+.flow-wrap{padding:14px 18px 4px;overflow-x:auto;}
+.flow{display:flex;align-items:center;gap:5px;min-width:max-content;}
+.flow-node{background:#fff;border:1.5px solid #ddd;border-radius:7px;padding:5px 9px;font-size:10px;font-weight:700;text-align:center;white-space:nowrap;}
 .flow-node.orange{background:#fff7ed;border-color:#f59e0b;color:#d97706;}
 .flow-node.blue{background:#eff6ff;border-color:#3b82f6;color:#1d4ed8;}
 .flow-node.green{background:#f0fdf4;border-color:#22c55e;color:#15803d;}
-.flow-arrow{color:#aaa;font-size:14px;}
-
-/* Status table */
-.status-table{margin:0 16px 16px;border-radius:8px;overflow:hidden;border:1px solid #e0d8d0;}
-.st-header{display:grid;grid-template-columns:auto 1fr auto;background:#5c3d2e;color:#fff;font-size:11px;font-weight:700;padding:6px 12px;gap:8px;}
-.st-row{display:grid;grid-template-columns:auto 1fr auto;padding:8px 12px;gap:8px;border-bottom:1px solid #f0ede8;font-size:11px;align-items:center;}
-.st-row:last-child{border:none;}
-.st-row:nth-child(even){background:#faf8f5;}
-
-/* Bottom nav */
-.bottom-nav{background:#fff;border-top:1px solid #e0d8d0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin:0 16px;border-radius:0 0 16px 16px;}
-.nav-prev,.nav-next{background:#5c3d2e;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
-.nav-prev{background:#f0ede8;color:#5c3d2e;}
-.nav-dots{display:flex;gap:5px;}
-.nav-dot{width:6px;height:6px;border-radius:50%;background:#ddd;}
-.nav-dot.active{background:#c8401a;width:18px;border-radius:3px;}
-
+.flow-arrow{color:#aaa;font-size:13px;}
 </style>
 </head>
 <body>
 
 <div class="progress-bar" id="progress"></div>
 
-<!-- Hero -->
 <div class="hero">
   <div class="hero-icon">🧸</div>
   <h1>奧斯卡商行<br>系統使用教學</h1>
@@ -123,611 +80,258 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f0ede8;color:#1a1a1a;font
   </div>
 </div>
 
-<!-- Chapter nav -->
 <div class="chapter-nav" id="chapterNav">
   <button class="chapter-btn active" onclick="showChapter(0,this)">總覽</button>
   <button class="chapter-btn" onclick="showChapter(1,this)">行程日曆</button>
   <button class="chapter-btn" onclick="showChapter(2,this)">客戶進度</button>
   <button class="chapter-btn" onclick="showChapter(3,this)">抄貨單</button>
-  <button class="chapter-btn" onclick="showChapter(4,this)">撿貨</button>
-  <button class="chapter-btn" onclick="showChapter(5,this)">裝箱出貨</button>
-  <button class="chapter-btn" onclick="showChapter(6,this)">修改通知</button>
-  <button class="chapter-btn" onclick="showChapter(7,this)">商品補貨</button>
+  <button class="chapter-btn" onclick="showChapter(4,this)">新增商品(掃描)</button>
+  <button class="chapter-btn" onclick="showChapter(5,this)">撿貨</button>
+  <button class="chapter-btn" onclick="showChapter(6,this)">裝箱出貨</button>
+  <button class="chapter-btn" onclick="showChapter(7,this)">修改通知</button>
+  <button class="chapter-btn" onclick="showChapter(8,this)">商品/條碼</button>
 </div>
 
-<!-- ── Chapter 0: 總覽 ── -->
+<!-- 0 總覽 -->
 <div class="chapter active" id="ch0">
   <div class="lesson">
     <div class="lesson-header">
       <div class="lesson-num">第一章</div>
       <h2>開始使用</h2>
-      <p class="desc">用瀏覽器開啟網址，所有資料即時同步至雲端，2～3 人可同時使用。</p>
+      <p class="desc">用瀏覽器開啟網址，所有資料即時同步至雲端，多人可同時使用。每個頁面都有自己的網址，重新整理不會跳回首頁。</p>
     </div>
     <div class="phone-wrap">
-      <div class="phone">
-        <div class="phone-inner">
-          <div class="phone-notch"></div>
-          <div class="p-nav"><span>總覽</span><span class="p-nav-r">☰</span></div>
-          <div class="p-sync">● 雲端同步・所有人共用</div>
-          <div class="p-body">
-            <div class="p-card">
-              <div class="p-card-title">📅 行程日曆</div>
-              <div class="p-cal-grid">
-                <div style="color:#d94f4f;">日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div style="color:#d94f4f;">六</div>
-                <div class="p-cal-day holiday">1</div>
-                <div class="p-cal-day">2</div>
-                <div class="p-cal-day today">3<div class="p-dot-row"><div class="p-dot" style="background:#e07b39;"></div><div class="p-dot" style="background:#3a7bd5;"></div></div></div>
-                <div class="p-cal-day">4</div>
-                <div class="p-cal-day">5</div>
-                <div class="p-cal-day holiday">6</div>
-                <div class="p-cal-day holiday">7</div>
-              </div>
-              <div style="font-size:8px;color:#888;margin-top:6px;display:flex;gap:6px;">
-                <span>🟠抄貨</span><span>🟢出貨</span><span>🔵已安排</span><span style="color:#d94f4f;">●放假</span>
-              </div>
-            </div>
-            <div class="p-card">
-              <div class="p-card-title">📊 客戶進度</div>
-              <div class="p-row"><span style="font-weight:700;">大台中五金</span><span class="p-badge" style="background:#dbeafe;color:#1d4ed8;">未抄貨</span></div>
-              <div class="p-row"><span style="font-weight:700;">大龍(龍潭)</span><span class="p-badge" style="background:#fff7ed;color:#d97706;">撿貨中</span></div>
-            </div>
+      <div class="phone"><div class="phone-inner">
+        <div class="phone-notch"></div>
+        <div class="p-nav"><span>總覽</span><span style="color:#fff;font-size:14px;">☰</span></div>
+        <div style="background:#4a3526;padding:4px;text-align:center;font-size:9px;color:#a89080;">● 雲端同步・所有人共用</div>
+        <div class="p-body">
+          <div class="p-card">
+            <div class="p-card-title">⚠️ 待確認修改</div>
+            <div style="font-size:9px;color:#888;">有修改需要確認時會顯示在這裡</div>
+          </div>
+          <div class="p-card">
+            <div class="p-card-title">📅 行程日曆</div>
+          </div>
+          <div class="p-card">
+            <div class="p-card-title">📊 客戶進度</div>
           </div>
         </div>
-      </div>
+      </div></div>
     </div>
     <div class="steps-wrap">
-      <div class="step-item">
-        <div class="step-circle">1</div>
-        <div class="step-body">
-          <div class="step-title">開啟系統</div>
-          <div class="step-desc">瀏覽器輸入 <code style="background:#f0ede8;padding:1px 6px;border-radius:3px;font-size:11px;">jr763.github.io/toy-wholesale</code><br>建議加入手機主畫面書籤</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">2</div>
-        <div class="step-body">
-          <div class="step-title">確認同步狀態</div>
-          <div class="step-desc">頂端顯示「🟢 雲端同步・所有人共用」表示正常，多人使用時資料自動更新</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">3</div>
-        <div class="step-body">
-          <div class="step-title">切換頁面</div>
-          <div class="step-desc">點右上角 <strong>☰</strong> 展開選單，選擇商品、客戶、抄貨單、出貨單等頁面</div>
-        </div>
-      </div>
+      <div class="step-item"><div class="step-circle">1</div><div><div class="step-title">開啟系統</div><div class="step-desc">瀏覽器輸入網址，建議加入手機主畫面書籤</div></div></div>
+      <div class="step-item"><div class="step-circle">2</div><div><div class="step-title">點右上角 ☰</div><div class="step-desc">展開選單，切換商品、客戶、抄貨單、出貨單、退貨、補貨等頁面</div></div></div>
+      <div class="step-item"><div class="step-circle">3</div><div><div class="step-title">每頁都有專屬網址</div><div class="step-desc">切換頁面網址會跟著變，瀏覽器返回鍵可以正常回上一頁</div></div></div>
     </div>
   </div>
-
-  <div class="tip-box"><strong>💡 頁面說明</strong>總覽（首頁）· 商品 · 客戶 · 抄貨單 · 出貨單 · 退貨 · 補貨</div>
+  <div class="tip-box"><strong>💡 待確認修改</strong>總覽最上方會顯示所有需要你確認的抄貨單修改，處理完才會消失，不會被忽略。</div>
 </div>
 
-<!-- ── Chapter 1: 行程日曆 ── -->
+<!-- 1 行程日曆 -->
 <div class="chapter" id="ch1">
   <div class="lesson">
     <div class="lesson-header">
       <div class="lesson-num">第二章</div>
       <h2>行程日曆</h2>
-      <p class="desc">在日曆上安排每天要去的客戶，讓所有人知道今天的行程。</p>
-    </div>
-    <div class="phone-wrap">
-      <div class="phone">
-        <div class="phone-inner">
-          <div class="phone-notch"></div>
-          <div class="p-nav"><span>總覽</span><span class="p-nav-r">☰</span></div>
-          <div class="p-body">
-            <div class="p-card">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <span style="font-size:10px;font-weight:700;">📅 行程日曆</span>
-                <span style="font-size:9px;border:1px solid #ccc;border-radius:3px;padding:1px 6px;color:#888;">收起</span>
-              </div>
-              <!-- Calendar grid -->
-              <div class="p-cal-grid">
-                <div style="color:#d94f4f;font-size:8px;">日</div>
-                <div style="font-size:8px;">一</div><div style="font-size:8px;">二</div><div style="font-size:8px;">三</div><div style="font-size:8px;">四</div><div style="font-size:8px;">五</div>
-                <div style="color:#d94f4f;font-size:8px;">六</div>
-                <div class="p-cal-day holiday">1<br><div class="p-dot-row"><div class="p-dot" style="background:#4a9b6f;"></div></div></div>
-                <div class="p-cal-day">2</div>
-                <div class="p-cal-day" style="background:#fff8f0;border:1px solid #e07b39;border-radius:4px;">3<div class="p-dot-row"><div class="p-dot" style="background:#e07b39;"></div><div class="p-dot" style="background:#3a7bd5;"></div></div></div>
-                <div class="p-cal-day">4</div>
-                <div class="p-cal-day">5</div>
-                <div class="p-cal-day holiday">6</div>
-                <div class="p-cal-day holiday">7</div>
-              </div>
-              <!-- Clicked day popup -->
-              <div style="background:#fff;border:1px solid #e0d8d0;border-radius:8px;padding:8px;margin-top:8px;font-size:9px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                  <span style="font-weight:700;">2026-05-03</span>
-                  <button class="p-btn">安排客戶</button>
-                </div>
-                <div style="color:#666;font-weight:700;margin-bottom:2px;">抄貨：</div>
-                <div style="padding-left:8px;color:#333;">• 大龍(龍潭)</div>
-                <div style="color:#666;font-weight:700;margin-top:4px;margin-bottom:2px;">送貨：</div>
-                <div style="padding-left:8px;color:#333;">• 竹南文具</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <p class="desc">在日曆上安排每天要去的客戶，點開日期可以看到當天每位客戶的狀態。</p>
     </div>
     <div class="steps-wrap">
-      <div class="step-item">
-        <div class="step-circle">1</div>
-        <div class="step-body">
-          <div class="step-title">展開日曆</div>
-          <div class="step-desc">點右側「展開」按鈕顯示月曆，再點「收起」折疊</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">2</div>
-        <div class="step-body">
-          <div class="step-title">點擊日期</div>
-          <div class="step-desc">跳出視窗，顯示當天抄貨和送貨的客戶名單</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">3</div>
-        <div class="step-body">
-          <div class="step-title">點「安排客戶」</div>
-          <div class="step-desc">搜尋客戶名稱並新增，儲存後客戶進度自動同步</div>
-        </div>
-      </div>
+      <div class="step-item"><div class="step-circle">1</div><div><div class="step-title">展開/收起</div><div class="step-desc">點右側文字按鈕展開月曆</div></div></div>
+      <div class="step-item"><div class="step-circle">2</div><div><div class="step-title">點擊任一天</div><div class="step-desc">顯示當天每位客戶目前狀態（未抄貨/已抄貨/撿貨中…）和對應操作按鈕</div></div></div>
+      <div class="step-item"><div class="step-circle">3</div><div><div class="step-title">安排客戶</div><div class="step-desc">點「安排客戶」搜尋並加入，儲存後客戶進度會自動同步顯示</div></div></div>
     </div>
   </div>
-  <div class="tip-box"><strong>🔵 藍點 = 已安排</strong>安排了客戶但尚未建立抄貨單時顯示藍點；建立抄貨單後改為 🟠 橘點</div>
-  <div class="tip-box"><strong>📅 放假日</strong>週六、週日、國定假日的日期文字顯示紅色</div>
+  <div class="tip-box"><strong>🔵 藍點＝已安排</strong>橘點才代表已經建立抄貨單；綠點代表已出貨。週六日和國定假日日期文字會顯示紅色。</div>
 </div>
 
-<!-- ── Chapter 2: 客戶進度 ── -->
+<!-- 2 客戶進度 -->
 <div class="chapter" id="ch2">
   <div class="lesson">
     <div class="lesson-header">
       <div class="lesson-num">第三章</div>
       <h2>客戶進度</h2>
-      <p class="desc">一眼看清當天所有客戶的作業狀態，直接從這裡執行下一步。</p>
+      <p class="desc">一眼看清當天所有客戶的作業狀態，直接從這裡執行下一步動作。</p>
     </div>
-    <div class="phone-wrap">
-      <div class="phone">
-        <div class="phone-inner">
-          <div class="phone-notch"></div>
-          <div class="p-nav"><span>總覽</span><span class="p-nav-r">☰</span></div>
-          <div class="p-body">
-            <div class="p-card">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <span style="font-size:10px;font-weight:700;">📊 客戶進度</span>
-                <input type="date" style="font-size:8px;padding:1px 4px;border:1px solid #ccc;border-radius:3px;" value="2026-05-06" readonly>
-              </div>
-              <div style="font-size:8px;background:#faf8f5;padding:4px 6px;border-radius:4px;display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;color:#8b5e3c;">
-                <span>狀態說明：</span>
-                <span style="background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:8px;">未抄貨</span>›
-                <span style="background:#fff7ed;color:#d97706;padding:1px 5px;border-radius:8px;">已抄貨</span>›
-                <span style="background:#f0fdf4;color:#15803d;padding:1px 5px;border-radius:8px;">已完成</span>
-              </div>
-              <div style="font-size:9px;">
-                <div style="display:grid;grid-template-columns:1fr auto auto;gap:6px;background:#5c3d2e;color:#fff;padding:4px 6px;border-radius:4px 4px 0 0;font-weight:700;">
-                  <span>客戶</span><span>狀態</span><span>操作</span>
-                </div>
-                <div style="border:1px solid #e0d8d0;border-top:none;border-radius:0 0 4px 4px;">
-                  <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;padding:5px 6px;border-bottom:1px solid #f0ede8;align-items:center;">
-                    <span style="font-weight:700;">大台中五金</span>
-                    <span class="p-badge" style="background:#dbeafe;color:#1d4ed8;">未抄貨</span>
-                    <button class="p-btn" style="font-size:8px;">+ 抄貨單</button>
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;padding:5px 6px;border-bottom:1px solid #f0ede8;align-items:center;">
-                    <span style="font-weight:700;">大龍(龍潭)</span>
-                    <span class="p-badge" style="background:#fff7ed;color:#d97706;">撿貨中</span>
-                    <div style="display:flex;flex-direction:column;gap:2px;">
-                      <button class="p-btn outline" style="font-size:7px;">查看</button>
-                      <button class="p-btn" style="font-size:7px;">撿貨</button>
-                    </div>
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;padding:5px 6px;align-items:center;">
-                    <span style="font-weight:700;">竹南文具</span>
-                    <span class="p-badge" style="background:#f0fdf4;color:#15803d;">已完成</span>
-                    <button class="p-btn green" style="font-size:7px;">出貨單</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="steps-wrap">
-      <p style="font-size:13px;font-weight:700;margin-bottom:12px;">各狀態對應操作：</p>
-    </div>
+    <div class="steps-wrap"><p style="font-size:12.5px;font-weight:700;">每個狀態對應的操作按鈕：</p></div>
     <div class="status-table">
       <div class="st-header"><span>狀態</span><span>說明</span><span>按鈕</span></div>
-      <div class="st-row"><span class="p-badge" style="background:#dbeafe;color:#1d4ed8;white-space:nowrap;">未抄貨</span><span style="color:#666;">已安排，尚未建立抄貨單</span><span style="color:#8b5e3c;font-weight:700;white-space:nowrap;">+ 抄貨單</span></div>
-      <div class="st-row"><span class="p-badge" style="background:#fff7ed;color:#d97706;white-space:nowrap;">已抄貨</span><span style="color:#666;">抄貨單已確認</span><span style="color:#8b5e3c;font-weight:700;white-space:nowrap;">撿貨</span></div>
-      <div class="st-row"><span class="p-badge" style="background:#fff7ed;color:#d97706;white-space:nowrap;">撿貨中</span><span style="color:#666;">撿貨進行中</span><span style="color:#8b5e3c;font-weight:700;white-space:nowrap;">撿貨</span></div>
-      <div class="st-row"><span class="p-badge" style="background:#fff7ed;color:#d97706;white-space:nowrap;">已撿貨</span><span style="color:#666;">撿貨完成</span><span style="color:#8b5e3c;font-weight:700;white-space:nowrap;">裝箱確認</span></div>
-      <div class="st-row"><span class="p-badge" style="background:#dbeafe;color:#1d4ed8;white-space:nowrap;">已裝箱</span><span style="color:#666;">有缺漏商品</span><span style="color:#8b5e3c;font-weight:700;white-space:nowrap;">撿貨(補)</span></div>
-      <div class="st-row"><span class="p-badge" style="background:#f0fdf4;color:#15803d;white-space:nowrap;">已完成</span><span style="color:#666;">全部裝箱完成</span><span style="color:#8b5e3c;font-weight:700;white-space:nowrap;">建立出貨單</span></div>
-      <div class="st-row"><span class="p-badge" style="background:#f0fdf4;color:#15803d;white-space:nowrap;">已出貨</span><span style="color:#666;">出貨單已建立</span><span style="color:#8b5e3c;font-weight:700;white-space:nowrap;">列印出貨單</span></div>
+      <div class="st-row"><span class="p-badge" style="background:#dbeafe;color:#1d4ed8;">未抄貨</span><span style="color:#666;">已安排，尚未建立抄貨單</span><span style="color:#8b5e3c;font-weight:700;">+ 抄貨單</span></div>
+      <div class="st-row"><span class="p-badge" style="background:#fff7ed;color:#d97706;">抄貨中</span><span style="color:#666;">草稿，已有商品</span><span style="color:#8b5e3c;font-weight:700;">+ 抄貨單</span></div>
+      <div class="st-row"><span class="p-badge" style="background:#fff7ed;color:#d97706;">已抄貨</span><span style="color:#666;">抄貨單已確認</span><span style="color:#8b5e3c;font-weight:700;">撿貨</span></div>
+      <div class="st-row"><span class="p-badge" style="background:#fff7ed;color:#d97706;">撿貨中</span><span style="color:#666;">撿貨進行中</span><span style="color:#8b5e3c;font-weight:700;">撿貨</span></div>
+      <div class="st-row"><span class="p-badge" style="background:#fff7ed;color:#d97706;">已撿貨</span><span style="color:#666;">撿貨完成</span><span style="color:#8b5e3c;font-weight:700;">裝箱確認</span></div>
+      <div class="st-row"><span class="p-badge" style="background:#dbeafe;color:#1d4ed8;">已裝箱</span><span style="color:#666;">有缺漏商品</span><span style="color:#8b5e3c;font-weight:700;">撿貨(補)</span></div>
+      <div class="st-row"><span class="p-badge" style="background:#f0fdf4;color:#15803d;">已完成</span><span style="color:#666;">全部裝箱完成</span><span style="color:#8b5e3c;font-weight:700;">建立出貨單</span></div>
+      <div class="st-row"><span class="p-badge" style="background:#f0fdf4;color:#15803d;">已出貨</span><span style="color:#666;">出貨單已建立</span><span style="color:#8b5e3c;font-weight:700;">列印出貨單</span></div>
     </div>
-    <div style="height:16px;"></div>
+    <div class="steps-wrap" style="padding-top:0;">
+      <div class="step-item"><div class="step-circle">①</div><div><div class="step-title">日期選擇</div><div class="step-desc">右上角可切換日期，預設顯示今天</div></div></div>
+      <div class="step-item"><div class="step-circle">②</div><div><div class="step-title">查看撿貨／編輯</div><div class="step-desc">每位客戶都有這兩個按鈕，任何狀態下（含已出貨）都能編輯抄貨單做帳務調整</div></div></div>
+    </div>
   </div>
 </div>
 
-<!-- ── Chapter 3: 抄貨單 ── -->
+<!-- 3 抄貨單 -->
 <div class="chapter" id="ch3">
   <div class="lesson">
     <div class="lesson-header">
       <div class="lesson-num">第四章</div>
-      <h2>建立抄貨單</h2>
-      <p class="desc">記錄每位客戶要買的商品清單，確認後進入撿貨流程。</p>
-    </div>
-    <div class="phone-wrap">
-      <div class="phone">
-        <div class="phone-inner">
-          <div class="phone-notch"></div>
-          <div class="p-nav"><span>抄貨單</span><span class="p-nav-r">☰</span></div>
-          <div class="p-body">
-            <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
-              <button class="p-btn" style="font-size:10px;padding:5px 10px;">＋ 新增抄貨單</button>
-            </div>
-            <!-- Filter -->
-            <div style="display:flex;gap:5px;margin-bottom:8px;">
-              <input class="p-input" placeholder="搜尋客戶名稱…" style="margin:0;flex:1;" readonly>
-              <input type="date" style="font-size:9px;border:1px solid #ddd;border-radius:4px;padding:3px;" readonly>
-            </div>
-            <!-- Order list -->
-            <div class="p-card" style="margin:0;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                <div>
-                  <div style="font-size:10px;font-weight:700;">大龍(龍潭)</div>
-                  <div style="font-size:9px;color:#888;">2026-05-06 · 3 項商品</div>
-                </div>
-                <span class="p-badge" style="background:#fff7ed;color:#d97706;">撿貨中</span>
-              </div>
-              <div style="display:flex;gap:4px;margin-top:6px;">
-                <button class="p-btn outline" style="font-size:8px;">查看撿貨</button>
-                <button class="p-btn outline" style="font-size:8px;">編輯</button>
-                <button class="p-btn" style="font-size:8px;">撿貨</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <h2>抄貨單</h2>
+      <p class="desc">記錄客戶要的商品清單，確認後進入撿貨流程。</p>
     </div>
     <div class="steps-wrap">
-      <div class="step-item">
-        <div class="step-circle">1</div>
-        <div class="step-body">
-          <div class="step-title">新增抄貨單</div>
-          <div class="step-desc">點「＋ 新增抄貨單」，輸入客戶名稱搜尋選擇，設定日期</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">2</div>
-        <div class="step-body">
-          <div class="step-title">加入商品</div>
-          <div class="step-desc">搜尋商品名稱，設定數量與售價，重複加入所有商品</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">3</div>
-        <div class="step-body">
-          <div class="step-title">確認抄貨單</div>
-          <div class="step-desc">點「確認抄貨單」→ 狀態變「已抄貨」→ 自動發送 LINE 通知</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">4</div>
-        <div class="step-body">
-          <div class="step-title">搜尋篩選</div>
-          <div class="step-desc">可用客戶名稱或日期篩選，快速找到特定抄貨單</div>
-        </div>
-      </div>
+      <div class="step-item"><div class="step-circle">1</div><div><div class="step-title">新增抄貨單</div><div class="step-desc">輸入客戶名稱搜尋選擇，設定日期（從客戶進度按「+抄貨單」會自動鎖定客戶和日期）</div></div></div>
+      <div class="step-item"><div class="step-circle">2</div><div><div class="step-title">用「＋新增商品」加入商品</div><div class="step-desc">跳出大字介面，掃描或搜尋商品後設定種類、數量、售價（詳見下一章）</div></div></div>
+      <div class="step-item"><div class="step-circle">3</div><div><div class="step-title">確認抄貨單</div><div class="step-desc">狀態變「已抄貨」，自動發送 LINE 通知</div></div></div>
+      <div class="step-item"><div class="step-circle">4</div><div><div class="step-title">篩選</div><div class="step-desc">抄貨單列表可用客戶名稱或日期篩選</div></div></div>
     </div>
   </div>
-  <div class="tip-box"><strong>💡 儲存草稿</strong>不確定商品清單時可先「儲存草稿」，之後再繼續編輯加入商品。</div>
+  <div class="tip-box"><strong>💡 編輯彈性</strong>已完成或已出貨的抄貨單也能編輯——增加數量會自動進入「撿貨(修改)」流程；減少/刪除只需確認一次，狀態不受影響，方便事後做帳。</div>
 </div>
 
-<!-- ── Chapter 4: 撿貨 ── -->
+<!-- 4 新增商品(掃描) -->
 <div class="chapter" id="ch4">
   <div class="lesson">
     <div class="lesson-header">
       <div class="lesson-num">第五章</div>
-      <h2>撿貨作業</h2>
-      <p class="desc">按照存放地點排列商品，逐一打勾確認，完成後進入裝箱。</p>
+      <h2>新增商品（掃描介面）</h2>
+      <p class="desc">點餐式的大字介面，掃完一個商品馬上可以接著掃下一個，不用切換畫面找按鈕。</p>
     </div>
     <div class="phone-wrap">
-      <div class="phone">
-        <div class="phone-inner">
-          <div class="phone-notch"></div>
-          <div class="p-nav"><span>大龍(龍潭)</span><span class="p-nav-r">✕</span></div>
-          <div class="p-body">
-            <div style="margin-bottom:8px;"><button class="p-btn" style="font-size:9px;">🏷 顯示條碼列印清單</button></div>
-            <div class="p-card" style="padding:6px;margin:0;">
-              <table style="width:100%;border-collapse:collapse;font-size:9px;">
-                <tr style="background:#f5f0eb;"><th style="padding:2px 4px;">✓</th><th>地點</th><th>商品</th><th>數量</th></tr>
-                <tr style="opacity:.35;text-decoration:line-through;">
-                  <td style="padding:3px 4px;text-align:center;">☑</td>
-                  <td><span class="p-badge" style="background:#dbeafe;color:#1d4ed8;font-size:8px;">地下室</span></td>
-                  <td style="padding:2px 4px;">50元玩具</td><td style="padding:2px 4px;">12</td>
-                </tr>
-                <tr style="background:#f0fdf4;">
-                  <td style="padding:3px 4px;text-align:center;"><input type="checkbox" checked disabled style="width:12px;height:12px;"></td>
-                  <td><span class="p-badge" style="background:#dbeafe;color:#1d4ed8;font-size:8px;">一樓</span></td>
-                  <td style="padding:2px 4px;font-weight:700;">100元玩具</td><td style="padding:2px 4px;">8</td>
-                </tr>
-                <tr>
-                  <td style="padding:3px 4px;text-align:center;"><input type="checkbox" disabled style="width:12px;height:12px;"></td>
-                  <td><span class="p-badge" style="background:#dbeafe;color:#1d4ed8;font-size:8px;">二樓</span></td>
-                  <td style="padding:2px 4px;">200元玩具</td><td style="padding:2px 4px;">5</td>
-                </tr>
-              </table>
-              <div style="display:flex;gap:5px;margin-top:8px;">
-                <button class="p-btn outline" style="font-size:8px;">⚠ 缺少商品</button>
-                <button class="p-btn green" style="font-size:8px;">撿貨完成</button>
+      <div class="phone"><div class="phone-inner">
+        <div class="phone-notch"></div>
+        <div class="p-nav"><span>加入商品</span><span style="color:#fff;font-size:13px;">✕</span></div>
+        <div class="p-body">
+          <input style="width:100%;font-size:10px;padding:7px;border:2px solid #ddd;border-radius:6px;margin-bottom:8px;" placeholder="掃描條碼或輸入商品名稱…" readonly>
+          <div class="p-card" style="display:flex;gap:8px;align-items:center;margin:0 0 8px;">
+            <div style="width:36px;height:36px;background:#eee;border-radius:6px;flex-shrink:0;"></div>
+            <div style="flex:1;">
+              <div style="font-size:10px;font-weight:900;">50元玩具水槍</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;">
+                <div><div style="font-size:8px;color:#888;">售價</div><div style="font-size:11px;font-weight:700;border:1px solid #ddd;border-radius:5px;text-align:center;">50</div></div>
+                <div><div style="font-size:8px;color:#888;">數量</div><div style="font-size:11px;font-weight:700;border:1px solid #ddd;border-radius:5px;text-align:center;">12</div></div>
               </div>
             </div>
           </div>
+          <div class="p-card" style="margin:0;">
+            <div style="display:flex;justify-content:space-between;font-size:9px;font-weight:700;margin-bottom:5px;"><span>種類數量分配</span><span style="background:#4a9b6f;color:#fff;padding:1px 6px;border-radius:8px;">已分配 12/12</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #ddd;border-radius:6px;padding:5px 8px;margin-bottom:4px;">
+              <span style="font-size:9px;">紅色</span><span style="font-size:9px;">－ 7 ＋</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #ddd;border-radius:6px;padding:5px 8px;">
+              <span style="font-size:9px;">藍色</span><span style="font-size:9px;">－ 5 ＋</span>
+            </div>
+          </div>
         </div>
-      </div>
+      </div></div>
     </div>
     <div class="steps-wrap">
-      <div class="step-item">
-        <div class="step-circle">1</div>
-        <div class="step-body">
-          <div class="step-title">依地點撿貨</div>
-          <div class="step-desc">商品依「地下室 → 一樓 → 樓梯間 → 二樓 → 其他」排序</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">2</div>
-        <div class="step-body">
-          <div class="step-title">打勾確認</div>
-          <div class="step-desc">撿到商品打勾 → 自動劃線、儲存狀態。關閉後重開仍保留</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">3</div>
-        <div class="step-body">
-          <div class="step-title">條碼列印</div>
-          <div class="step-desc">點「🏷 顯示條碼列印清單」預覽已勾選商品的 EAN-13 條碼，可截圖列印</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">4</div>
-        <div class="step-body">
-          <div class="step-title">撿貨完成</div>
-          <div class="step-desc">全部或部分完成後點「撿貨完成」，有缺貨也可先按，之後再補</div>
-        </div>
-      </div>
+      <div class="step-item"><div class="step-circle">1</div><div><div class="step-title">輸入框打名稱或掃條碼</div><div class="step-desc">輸入時即時顯示符合的商品，點選或按 Enter 進入下一步</div></div></div>
+      <div class="step-item"><div class="step-circle">2</div><div><div class="step-title">填售價、調數量</div><div class="step-desc">數量可用 ＋／－按鈕或直接打數字</div></div></div>
+      <div class="step-item"><div class="step-circle">3</div><div><div class="step-title">種類數量分配（如果商品有種類）</div><div class="step-desc">有兩種用法：①只點種類名稱選取（不指定數量，加入時自動平均分配）②用＋／－或直接打數字精確分配每種數量，右上角會顯示「已分配 X/Y」，顏色綠色表示加總正確</div></div></div>
+      <div class="step-item"><div class="step-circle">4</div><div><div class="step-title">特殊出貨方式</div><div class="step-desc">可選盒裝／吊卡／一般</div></div></div>
+      <div class="step-item"><div class="step-circle">5</div><div><div class="step-title">按「✓ 加入抄貨單」</div><div class="step-desc">加入後畫面重置，可以馬上掃下一個商品</div></div></div>
     </div>
   </div>
-  <div class="warn-box"><strong>⚠ 注意</strong>至少要打勾一個商品，「撿貨完成」按鈕才會亮起可點。</div>
+  <div class="warn-box"><strong>⚠ 注意</strong>有種類的商品，種類數量加總必須等於商品總數量才能加入，否則會跳警告。</div>
 </div>
 
-<!-- ── Chapter 5: 裝箱出貨 ── -->
+<!-- 5 撿貨 -->
 <div class="chapter" id="ch5">
   <div class="lesson">
     <div class="lesson-header">
       <div class="lesson-num">第六章</div>
-      <h2>裝箱與出貨</h2>
-      <p class="desc">確認商品裝箱完成，建立出貨單並列印給客戶。</p>
-    </div>
-    <div class="phone-wrap">
-      <div class="phone">
-        <div class="phone-inner">
-          <div class="phone-notch"></div>
-          <div class="p-nav"><span>裝箱確認</span><span class="p-nav-r">✕</span></div>
-          <div class="p-body">
-            <div class="p-card" style="margin:0;padding:6px;">
-              <table style="width:100%;border-collapse:collapse;font-size:9px;">
-                <tr style="background:#f5f0eb;"><th style="padding:2px 4px;">✓</th><th>售價</th><th>數量</th></tr>
-                <tr><td style="padding:3px 4px;text-align:center;">☑</td><td style="padding:2px 4px;">$50</td><td style="padding:2px 4px;">12</td></tr>
-                <tr><td style="padding:3px 4px;text-align:center;">☑</td><td style="padding:2px 4px;">$100</td><td style="padding:2px 4px;">8</td></tr>
-                <tr><td style="padding:3px 4px;text-align:center;"><input type="checkbox" disabled style="width:12px;height:12px;"></td><td style="padding:2px 4px;">$200</td><td style="padding:2px 4px;">5</td></tr>
-              </table>
-              <div style="margin-top:8px;text-align:center;">
-                <button class="p-btn" style="font-size:8px;opacity:.5;">確認裝箱完成（需全勾）</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <h2>撿貨作業</h2>
+      <p class="desc">依存放地點排列商品，逐一打勾確認，同一商品的不同種類會排在一起方便一次拿齊。</p>
     </div>
     <div class="steps-wrap">
-      <p style="font-size:13px;font-weight:700;margin-bottom:4px;">裝箱流程</p>
-      <div class="flow-wrap" style="padding:12px 0 16px;">
-        <div class="flow">
-          <div class="flow-node orange">已撿貨</div><div class="flow-arrow">›</div>
-          <div class="flow-node orange">裝箱中</div><div class="flow-arrow">›</div>
-          <div class="flow-node green">已完成</div><div class="flow-arrow">›</div>
-          <div class="flow-node green">已出貨</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">1</div>
-        <div class="step-body">
-          <div class="step-title">開啟裝箱確認</div>
-          <div class="step-desc">狀態「已撿貨」後點「裝箱確認」</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">2</div>
-        <div class="step-body">
-          <div class="step-title">逐一打勾</div>
-          <div class="step-desc">確認每項商品已放入箱中，全部打勾後「確認裝箱完成」才可點</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">3</div>
-        <div class="step-body">
-          <div class="step-title">有缺漏 → 已裝箱</div>
-          <div class="step-desc">若商品未到齊，先裝好的裝箱完成 → 狀態「已裝箱」，補貨到後點「撿貨(補)」繼續</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">4</div>
-        <div class="step-body">
-          <div class="step-title">建立出貨單</div>
-          <div class="step-desc">狀態「已完成」→ 點「建立出貨單」→ 自動扣庫存，狀態變「已出貨」</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">5</div>
-        <div class="step-body">
-          <div class="step-title">列印出貨單</div>
-          <div class="step-desc">至「出貨單」頁面點「列印」，格式為標楷體，含條碼、折扣金額</div>
-        </div>
-      </div>
+      <div class="step-item"><div class="step-circle">1</div><div><div class="step-title">依地點排序撿貨</div><div class="step-desc">地下室→一樓→樓梯間→二樓→其他，同商品不同種類相鄰顯示</div></div></div>
+      <div class="step-item"><div class="step-circle">2</div><div><div class="step-title">打勾確認</div><div class="step-desc">撿到商品打勾即時儲存，關閉重開仍保留狀態</div></div></div>
+      <div class="step-item"><div class="step-circle">3</div><div><div class="step-title">🏷 條碼列印清單</div><div class="step-desc">勾選商品後點開，依售價分組顯示數量，點「列印這些條碼」自動產生對應售價的條碼標籤並開啟列印</div></div></div>
+      <div class="step-item"><div class="step-circle">4</div><div><div class="step-title">撿貨完成</div><div class="step-desc">至少勾一項才能按，有缺貨也可先按，狀態變「已撿貨」</div></div></div>
     </div>
   </div>
+  <div class="tip-box"><strong>🏷️ 撿貨(補)</strong>已裝箱但有缺漏時，再次進入撿貨頁面只會顯示尚未補齊的商品，已裝箱的商品會鎖定不能動。</div>
 </div>
 
-<!-- ── Chapter 6: 修改通知 ── -->
+<!-- 6 裝箱出貨 -->
 <div class="chapter" id="ch6">
   <div class="lesson">
     <div class="lesson-header">
       <div class="lesson-num">第七章</div>
-      <h2>修改通知系統</h2>
-      <p class="desc">撿貨中或已完成的抄貨單被修改時，系統會主動通知需要處理的項目。</p>
+      <h2>裝箱與出貨</h2>
+      <p class="desc">確認商品裝箱完成，建立出貨單並列印給客戶。</p>
     </div>
-    <div class="phone-wrap">
-      <div class="phone">
-        <div class="phone-inner">
-          <div class="phone-notch"></div>
-          <div class="p-nav"><span>總覽</span><span class="p-nav-r">☰</span></div>
-          <div class="p-body">
-            <div class="p-card" style="border-left:3px solid #e07b39;margin:0;">
-              <div style="font-size:10px;font-weight:700;margin-bottom:8px;">⚠️ 待確認修改（1）</div>
-              <div style="padding:6px 0;border-bottom:1px solid #f0ede8;">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                  <div>
-                    <div style="font-size:9px;font-weight:700;">大龍(龍潭) <span class="p-badge" style="background:#fff7ed;color:#d97706;font-size:8px;">撿貨中</span></div>
-                    <div style="font-size:8px;color:#888;margin-top:3px;">• 新增：300元玩具<br>• 減少：100元玩具 (8→5)</div>
-                  </div>
-                  <button class="p-btn" style="font-size:8px;flex-shrink:0;">查看並確認</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div class="flow-wrap">
+      <div class="flow">
+        <div class="flow-node orange">已撿貨</div><div class="flow-arrow">›</div>
+        <div class="flow-node orange">裝箱中</div><div class="flow-arrow">›</div>
+        <div class="flow-node green">已完成</div><div class="flow-arrow">›</div>
+        <div class="flow-node green">已出貨</div>
       </div>
     </div>
     <div class="steps-wrap">
-      <p style="font-size:13px;font-weight:700;margin-bottom:12px;">三種修改情況：</p>
-      <div class="step-item">
-        <div class="step-circle" style="background:#e07b39;">A</div>
-        <div class="step-body">
-          <div class="step-title">撿貨中被修改</div>
-          <div class="step-desc">已勾選的商品有變動 → 出現在「⚠️ 待確認修改」區塊<br>點「查看並確認」，逐項打勾確認才能完成撿貨</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle" style="background:#3a7bd5;">B</div>
-        <div class="step-body">
-          <div class="step-title">已完成後新增/增加</div>
-          <div class="step-desc">狀態改「已完成(待修改)」→ 需重新走 撿貨(修改) → 裝箱(修改) → 完成</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle" style="background:#4a9b6f;">C</div>
-        <div class="step-body">
-          <div class="step-title">已完成後減少/刪除</div>
-          <div class="step-desc">跳出確認視窗，確認後維持「已完成」狀態，可直接出貨</div>
-        </div>
-      </div>
+      <div class="step-item"><div class="step-circle">1</div><div><div class="step-title">裝箱確認</div><div class="step-desc">逐一打勾每項商品已裝箱，按價格由小到大排序，全部打勾才能按「確認裝箱完成」</div></div></div>
+      <div class="step-item"><div class="step-circle">2</div><div><div class="step-title">有缺漏 → 已裝箱</div><div class="step-desc">先裝好的先確認，狀態變「已裝箱」，等補貨到再點「撿貨(補)」繼續</div></div></div>
+      <div class="step-item"><div class="step-circle">3</div><div><div class="step-title">建立出貨單</div><div class="step-desc">狀態「已完成」時可建立，畫面只顯示售價/數量/小計，按售價排序，確認後自動扣庫存</div></div></div>
+      <div class="step-item"><div class="step-circle">4</div><div><div class="step-title">列印出貨單</div><div class="step-desc">標楷體、含條碼、折扣計算，固定20行印在一張橫向紙上</div></div></div>
     </div>
   </div>
-  <div class="warn-box"><strong>⚠ 重要</strong>未確認修改前，無法按「撿貨完成」或「裝箱完成」。</div>
 </div>
 
-<!-- ── Chapter 7: 商品補貨 ── -->
+<!-- 7 修改通知 -->
 <div class="chapter" id="ch7">
   <div class="lesson">
     <div class="lesson-header">
       <div class="lesson-num">第八章</div>
-      <h2>商品管理與補貨</h2>
-      <p class="desc">管理商品庫存、掃描條碼，庫存不足時自動發送 LINE 補貨通知。</p>
-    </div>
-    <div class="phone-wrap">
-      <div class="phone">
-        <div class="phone-inner">
-          <div class="phone-notch"></div>
-          <div class="p-nav"><span>補貨</span><span class="p-nav-r">☰</span></div>
-          <div class="p-body">
-            <div class="p-card" style="margin:0;background:#fff1f0;border:1px solid #fecaca;">
-              <div style="font-size:10px;color:#d94f4f;font-weight:700;margin-bottom:6px;">⚠️ 有 3 項商品庫存不足</div>
-              <div style="font-size:9px;">
-                <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #fee2e2;">
-                  <span>50元玩具</span><span>庫存:2 建議補:50</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #fee2e2;">
-                  <span>100元玩具</span><span>庫存:5 建議補:20</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;padding:3px 0;">
-                  <span>200元玩具</span><span>庫存:0 建議補:15</span>
-                </div>
-              </div>
-              <div style="margin-top:8px;text-align:center;">
-                <button class="p-btn" style="font-size:9px;padding:4px 12px;">📲 發送補貨 LINE 通知</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <h2>修改通知系統</h2>
+      <p class="desc">抄貨單被修改時，系統會主動提醒需要處理的項目，避免漏掉異動。</p>
     </div>
     <div class="steps-wrap">
-      <div class="step-item">
-        <div class="step-circle">1</div>
-        <div class="step-body">
-          <div class="step-title">新增商品</div>
-          <div class="step-desc">至「商品」頁面，填入名稱、成本、安全庫存、存放地點、商檢標</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">2</div>
-        <div class="step-body">
-          <div class="step-title">掃描 EAN 條碼</div>
-          <div class="step-desc">點相機圖示 → 開啟相機預覽 → 對準條碼 → 按「📷 掃描」執行</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">3</div>
-        <div class="step-body">
-          <div class="step-title">庫存警示</div>
-          <div class="step-desc">庫存 ≤ 安全庫存時，總覽頁面頂端出現紅色警告</div>
-        </div>
-      </div>
-      <div class="step-item">
-        <div class="step-circle">4</div>
-        <div class="step-body">
-          <div class="step-title">發送補貨通知</div>
-          <div class="step-desc">至「補貨」頁面點「發送補貨 LINE 通知」，群組自動收到缺貨清單</div>
-        </div>
-      </div>
+      <div class="step-item"><div class="step-circle">A</div><div><div class="step-title">撿貨中被修改</div><div class="step-desc">已勾選的商品有變動 → 出現在總覽「⚠️ 待確認修改」，點「查看並確認」逐項打勾才能繼續完成撿貨／裝箱</div></div></div>
+      <div class="step-item"><div class="step-circle">B</div><div><div class="step-title">已完成後新增/增加</div><div class="step-desc">狀態改「已完成(待修改)」→ 走撿貨(修改) → 裝箱(修改) → 完成</div></div></div>
+      <div class="step-item"><div class="step-circle">C</div><div><div class="step-title">已完成/已出貨後減少/刪除</div><div class="step-desc">跳確認視窗，確認後狀態不變，純粹調整明細方便算帳</div></div></div>
     </div>
   </div>
-  <div class="tip-box"><strong>📲 LINE 自動通知時機</strong>① 確認抄貨單 ② 修改已確認的抄貨單 ③ 發送補貨通知</div>
+  <div class="warn-box"><strong>⚠ 重要</strong>有未確認修改前，無法按「撿貨完成」或「裝箱完成」。</div>
+</div>
+
+<!-- 8 商品/條碼 -->
+<div class="chapter" id="ch8">
+  <div class="lesson">
+    <div class="lesson-header">
+      <div class="lesson-num">第九章</div>
+      <h2>商品管理與條碼</h2>
+      <p class="desc">管理商品資料、圖片、種類，以及列印售價條碼標籤。</p>
+    </div>
+    <div class="steps-wrap">
+      <div class="step-item"><div class="step-circle">1</div><div><div class="step-title">新增商品</div><div class="step-desc">名稱必填，條碼/成本選填。條碼槍掃描或留空，留空系統會自動產生編號（ASK0001…）</div></div></div>
+      <div class="step-item"><div class="step-circle">2</div><div><div class="step-title">商品圖片</div><div class="step-desc">選擇圖片自動壓縮上傳，顯示在商品列表、新增抄貨單搜尋、種類分配等畫面</div></div></div>
+      <div class="step-item"><div class="step-circle">3</div><div><div class="step-title">種類管理</div><div class="step-desc">每個商品各自獨立管理種類，互不相通；每個種類也可以各自上傳圖片方便辨識</div></div></div>
+      <div class="step-item"><div class="step-circle">4</div><div><div class="step-title">🏷️ 列印商品條碼</div><div class="step-desc">輸入要列印的售價（逗號分隔），自動產生對應的 EAN-13 條碼標籤，依規格排版列印</div></div></div>
+      <div class="step-item"><div class="step-circle">5</div><div><div class="step-title">補貨提醒</div><div class="step-desc">庫存≤安全庫存自動警示，補貨頁可一次發送 LINE 通知</div></div></div>
+    </div>
+  </div>
+  <div class="tip-box"><strong>📲 LINE 自動通知</strong>① 確認抄貨單 ② 修改已確認的抄貨單 ③ 發送補貨通知</div>
 </div>
 
 <script>
-let currentChapter = 0;
-const total = 8;
-
-function showChapter(n, btn) {
-  document.querySelectorAll('.chapter').forEach(c => c.classList.remove('active'));
-  document.querySelectorAll('.chapter-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('ch' + n).classList.add('active');
+let currentChapter=0;
+const total=9;
+function showChapter(n,btn){
+  document.querySelectorAll('.chapter').forEach(c=>c.classList.remove('active'));
+  document.querySelectorAll('.chapter-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('ch'+n).classList.add('active');
   btn.classList.add('active');
-  btn.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});
-  currentChapter = n;
+  btn.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+  currentChapter=n;
   updateProgress();
-  window.scrollTo({top: 0, behavior: 'smooth'});
+  window.scrollTo({top:0,behavior:'smooth'});
 }
-
-function updateProgress() {
-  const pct = ((currentChapter) / (total - 1)) * 100;
-  document.getElementById('progress').style.width = pct + '%';
+function updateProgress(){
+  document.getElementById('progress').style.width=((currentChapter)/(total-1)*100)+'%';
 }
-
 updateProgress();
 </script>
 </body>
