@@ -1077,7 +1077,7 @@ function openCalDetail(date){
         else if(st==='已抄貨'||st==='撿貨中') actionBtn=order?`<button class="btn btn-sm btn-primary" onclick="closeModal('modal-cal-visit');viewOrder('${order.id}')">撿貨</button>`:'';
         else if(st==='已撿貨'||st==='裝箱中') actionBtn=order?`<button class="btn btn-sm btn-primary" onclick="closeModal('modal-cal-visit');openBoxingModal('${order.id}')">裝箱確認</button>`:'';
         else if(st==='已裝箱') actionBtn=order?`<button class="btn btn-sm btn-primary" onclick="closeModal('modal-cal-visit');viewOrder('${order.id}')">撿貨(補)</button>`:'';
-        else if(st==='已完成') actionBtn=order?`<button class="btn btn-sm btn-green" onclick="closeModal('modal-cal-visit');openShipModal('${order.id}')">建立出貨單</button>`:'';
+        else if(st==='已完成'||(st==='已出貨'&&order&&!db.shipments.some(s=>s.orderId===order.id))) actionBtn=order?`<button class="btn btn-sm btn-green" onclick="closeModal('modal-cal-visit');openShipModal('${order.id}')">建立出貨單</button>`:'';
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
           <div>
             <div style="font-size:13px;font-weight:700;">${name}</div>
@@ -1775,7 +1775,7 @@ function renderOrders(){
         ${['draft','confirmed','picking','picked','boxing','packed','pending_edit','re_picking','re_boxing','completed','mod_pending','mod_picking','mod_picked','mod_boxing','shipped'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
         ${['confirmed','picking','re_picking','pending_edit'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button>`:''}
         ${['picked','boxing','re_boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">裝箱確認</button>`:''}
-        ${o.status==='completed'?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
+        ${(o.status==='completed'||(o.status==='shipped'&&!db.shipments.some(s=>s.orderId===o.id)))?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
         <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>
       </div>
     </div>`;
@@ -2689,7 +2689,8 @@ function renderCustStatus(){
           mainBtn=order?`<button class="btn btn-sm btn-green" onclick="openShipModal('${order.id}')">建立出貨單</button>`:'';
         } else if(st==='已出貨'){
           const ship=order?db.shipments.find(s=>s.orderId===order.id):null;
-          mainBtn=ship?`<button class="btn btn-sm btn-blue" onclick="printShipment('${ship.id}')">列印出貨單</button>`:'';
+          mainBtn=ship?`<button class="btn btn-sm btn-blue" onclick="printShipment('${ship.id}')">列印出貨單</button>`
+            :(order?`<button class="btn btn-sm btn-green" onclick="openShipModal('${order.id}')">建立出貨單</button>`:'');
         }
         const viewBtn=order?`<button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${order.id}')">查看撿貨</button>`:'';
         const editBtn=order?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${order.id}')">編輯</button>`:'';
