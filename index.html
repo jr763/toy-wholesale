@@ -418,6 +418,30 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
           </select>
         </div>
         <div class="form-group full"><label>備註</label><textarea id="c-note" placeholder="付款條件、交貨注意事項…"></textarea></div>
+        <div class="form-group full" style="background:var(--surface2);border-radius:8px;padding:12px;">
+          <label style="font-weight:700;margin-bottom:8px;display:block;">計價規則（出貨單進價計算）</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div><label style="font-size:12px;">一般折數（%）</label><input id="c-rule-normal" type="number" placeholder="例：75" min="0" max="100"></div>
+            <div><label style="font-size:12px;">計算方式</label>
+              <select id="c-rule-round">
+                <option value="decimal1">四捨五入到小數第1位</option>
+                <option value="floor">捨去到整數（無小數）</option>
+              </select>
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-bottom:8px;">
+            <input type="checkbox" id="c-rule-special-enable" onchange="toggleSpecialRuleUI()"> 啟用特價規則（尾數為 9 的售價套用不同算法）
+          </label>
+          <div id="c-rule-special-fields" style="display:none;grid-template-columns:1fr 1fr;gap:10px;">
+            <div><label style="font-size:12px;">特價折數（%）</label><input id="c-rule-special-rate" type="number" placeholder="例：70" min="0" max="100"></div>
+            <div>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-top:18px;">
+                <input type="checkbox" id="c-rule-special-adjust"> 先加 1 元再乘折數
+              </label>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-top:6px;">不設定的話，維持用上方「折扣(%)」欄位的單純折數計算。</div>
+        </div>
       </div>
             <div class="btn-row">
         <button class="btn btn-primary" id="btn-save-c" onclick="saveCustomer()">儲存客戶</button>
@@ -1241,6 +1265,12 @@ function openCustomerModal(){
   G('c-discount').value='0';
   G('c-barcode').value='7990341';
   if(G('c-invoice-format'))G('c-invoice-format').value='A';
+  G('c-rule-normal').value='';
+  G('c-rule-round').value='decimal1';
+  G('c-rule-special-enable').checked=false;
+  G('c-rule-special-rate').value='';
+  G('c-rule-special-adjust').checked=false;
+  toggleSpecialRuleUI();
   openModal('modal-customer');
 }
 function editCustomer(id){
@@ -1288,9 +1318,20 @@ function renderCPriceList(){
 async function saveCustomer(){
   if(!V('c-name')){alert('請輸入客戶名稱');return;}
   const btn=G('btn-save-c');btn.disabled=true;btn.textContent='儲存中…';
+  const normalRate=parseFloat(G('c-rule-normal').value);
+  let pricingRule=null;
+  if(!isNaN(normalRate)&&normalRate>0){
+    pricingRule={
+      normalRate,
+      roundMode:G('c-rule-round').value,
+      specialEnabled:G('c-rule-special-enable').checked,
+      specialRate:parseFloat(G('c-rule-special-rate').value)||normalRate,
+      specialAdjust:G('c-rule-special-adjust').checked
+    };
+  }
   const data={name:V('c-name'),phone:V('c-phone')||'',address:V('c-address')||'',note:V('c-note')||'',
     discount:parseFloat(G('c-discount').value)||0,labelBarcode:G('c-barcode').value,
-    invoiceFormat:G('c-invoice-format')?.value||'A'};
+    invoiceFormat:G('c-invoice-format')?.value||'A',pricingRule};
   if(editCustId){const i=db.customers.findIndex(x=>x.id===editCustId);db.customers[i]={...db.customers[i],...data};}
   else db.customers.push({id:uid(),...data});
   await saveData();
@@ -2244,6 +2285,18 @@ function printShipment(id){
   const o=db.orders.find(x=>x.id===s.orderId);
   const cust=o?db.customers.find(x=>x.id===o.customerId):null;
   const disc=cust?.discount||0;
+  const rule=cust?.pricingRule;
+  function calcDiscPrice(price){
+    if(rule&&rule.normalRate>0){
+      const isSpecial=rule.specialEnabled&&(price%10===9);
+      const rate=isSpecial?(rule.specialRate||rule.normalRate):rule.normalRate;
+      const base=(isSpecial&&rule.specialAdjust)?price+1:price;
+      let result=base*(rate/100);
+      result=rule.roundMode==='floor'?Math.floor(result):Math.round(result*10)/10;
+      return result;
+    }
+    return disc?Math.round(price*(1-disc/100)*10)/10:price;
+  }
   const note=cust?.note||'';
   const noteLines=note.split('\n').map(l=>l.trim()).filter(Boolean);
   const dateStr=(s.date||'').replace(/-/g,'/');
@@ -2253,7 +2306,7 @@ function printShipment(id){
   let rowsHtml='';
   rows.forEach((item,idx)=>{
     const basePrice=item.price;
-    const discPrice=disc?Math.round(basePrice*(1-disc/100)*10)/10:basePrice;
+    const discPrice=calcDiscPrice(basePrice);
     const priceBC=getPriceBarcode(basePrice,cust?.labelBarcode);
     const name=basePrice+'元玩具 '+priceBC;
     const qty=item.qty;
@@ -2295,15 +2348,15 @@ function printShipment(id){
       <div style="font-size:14px;margin-bottom:6px;">銷貨日期：${dateStr}${dateRight?'　'+dateRight:''}</div>
       <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
         <colgroup>
-          <col style="width:6%">
-          <col style="width:48%">
+          <col style="width:9%">
+          <col style="width:45%">
           <col style="width:13%">
           <col style="width:16%">
           <col style="width:17%">
         </colgroup>
         <thead>
           <tr>
-            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:15px;">序號</th>
+            <th style="border:1px solid #000;padding:4px 2px;text-align:center;font-size:15px;white-space:nowrap;">序號</th>
             <th style="border:1px solid #000;padding:4px;text-align:center;font-size:15px;">商品名稱</th>
             <th style="border:1px solid #000;padding:4px;text-align:center;font-size:15px;">數量</th>
             <th style="border:1px solid #000;padding:4px;text-align:center;font-size:15px;">進價</th>
@@ -2447,6 +2500,18 @@ function doExportCSV(shipId){
   const o=db.orders.find(x=>x.id===s.orderId);
   const cust=o?db.customers.find(x=>x.id===o.customerId):null;
   const disc=cust?.discount||0;
+  const rule=cust?.pricingRule;
+  function calcDiscPrice(price){
+    if(rule&&rule.normalRate>0){
+      const isSpecial=rule.specialEnabled&&(price%10===9);
+      const rate=isSpecial?(rule.specialRate||rule.normalRate):rule.normalRate;
+      const base=(isSpecial&&rule.specialAdjust)?price+1:price;
+      let result=base*(rate/100);
+      result=rule.roundMode==='floor'?Math.floor(result):Math.round(result*10)/10;
+      return result;
+    }
+    return disc?Math.round(price*(1-disc/100)*10)/10:price;
+  }
   const note=cust?.note||'';
   // 廠編 from note
   const factMatch=note.match(/廠編[：:][\s\S]*?(\S+)/);
@@ -2455,7 +2520,7 @@ function doExportCSV(shipId){
   // Build rows
   const items=(s.items||[]).map(item=>{
     const basePrice=item.price;
-    const discPrice=disc?Math.round(basePrice*(1-disc/100)*10)/10:basePrice;
+    const discPrice=calcDiscPrice(basePrice);
     const priceBC=getPriceBarcode(basePrice,cust?.labelBarcode);
     const name=basePrice+'元玩具 '+priceBC;
     const qty=item.qty;
@@ -3363,6 +3428,11 @@ function openLightbox(src){
 }
 function closeLightbox(){
   G('img-lightbox').style.display='none';
+}
+
+function toggleSpecialRuleUI(){
+  const enabled=G('c-rule-special-enable').checked;
+  G('c-rule-special-fields').style.display=enabled?'grid':'none';
 }
 
 loadData();
