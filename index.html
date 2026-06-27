@@ -1943,11 +1943,15 @@ function openShipModal(orderId){
     </div>
     <div class="table-wrap"><table>
       <thead><tr><th>售價</th><th>數量</th><th>小計</th></tr></thead>
-      <tbody>${shipmentItems.map((item,idx)=>`<tr>
-        <td>$${fmt(item.price)}</td>
-        <td>${item.qty}</td>
-        <td id="ss-${idx}">$${fmt(item.qty*item.price)}</td>
-      </tr>`).join('')}</tbody></table></div>
+      <tbody>${(()=>{
+        const grouped={};
+        shipmentItems.forEach(i=>{grouped[i.price]=(grouped[i.price]||0)+i.qty;});
+        return Object.keys(grouped).map(Number).sort((a,b)=>a-b).map(price=>`<tr>
+          <td>$${fmt(price)}</td>
+          <td>${grouped[price]}</td>
+          <td>$${fmt(price*grouped[price])}</td>
+        </tr>`).join('');
+      })()}</tbody></table></div>
     <div id="s-total" style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;border-top:2px solid var(--border);">總計：$${fmt(calcTotal())}</div>
     <div class="btn-row">
       <button class="btn btn-green" onclick="saveShipment('${orderId}')">✓ 確認出貨</button>
@@ -2256,16 +2260,16 @@ function printShipment(id){
     const amount=Math.round(discPrice*qty*10)/10;
     total+=amount;
     rowsHtml+=`<tr>
-      <td style="border:1px solid #000;padding:2px 4px;text-align:center;font-size:14px;">${idx+1}</td>
-      <td style="border:1px solid #000;padding:2px 5px;font-size:14px;">${name}</td>
-      <td style="border:1px solid #000;padding:2px 4px;text-align:center;font-size:14px;">${qty}</td>
-      <td style="border:1px solid #000;padding:2px 4px;text-align:right;font-size:14px;">${discPrice}</td>
-      <td style="border:1px solid #000;padding:2px 4px;text-align:right;font-size:14px;">${amount}</td>
+      <td style="border:1px solid #000;padding:5px 4px;text-align:center;font-size:17px;">${idx+1}</td>
+      <td style="border:1px solid #000;padding:5px 5px;font-size:17px;">${name}</td>
+      <td style="border:1px solid #000;padding:5px 4px;text-align:center;font-size:17px;">${qty}</td>
+      <td style="border:1px solid #000;padding:5px 4px;text-align:right;font-size:17px;">${discPrice}</td>
+      <td style="border:1px solid #000;padding:5px 4px;text-align:right;font-size:17px;">${amount}</td>
     </tr>`;
   });
   for(let i=rows.length;i<TOTAL_ROWS;i++){
-    rowsHtml+=`<tr style="height:18px;">
-      <td style="border:1px solid #000;font-size:14px;padding:2px 4px;text-align:center;">${i+1}</td>
+    rowsHtml+=`<tr style="height:30px;">
+      <td style="border:1px solid #000;font-size:17px;padding:5px 4px;text-align:center;">${i+1}</td>
       <td style="border:1px solid #000;"></td>
       <td style="border:1px solid #000;"></td>
       <td style="border:1px solid #000;"></td>
@@ -2279,50 +2283,41 @@ function printShipment(id){
   const dateRight = noteLines.length>=2 ? noteLines[1] : (noteLines[0]||'');
 
   G('print-area').innerHTML=`
-    <style>@page{size:24.1cm 14cm;margin:0.2cm;}</style>
-    <div style="font-family:'標楷體','DFKai-SB',serif;width:22.5cm;font-size:14px;margin:0 auto;">
-      <div style="text-align:center;font-size:28px;font-weight:bold;letter-spacing:3px;margin-bottom:0px;">奧斯卡商行</div>
-      <div style="text-align:center;margin-bottom:1px;">
-        <span style="font-size:19px;font-weight:bold;letter-spacing:3px;border-bottom:2px double #000;padding-bottom:0px;">銷 貨 單 據 一 覽 表</span>
+    <style>@page{size:14cm 24.1cm;margin:0.3cm;}</style>
+    <div style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:16px;margin:0 auto;">
+      <div style="text-align:center;font-size:34px;font-weight:bold;letter-spacing:4px;margin-bottom:1px;">奧斯卡商行</div>
+      <div style="text-align:center;margin-bottom:8px;">
+        <span style="font-size:24px;font-weight:bold;letter-spacing:4px;border-bottom:3px double #000;padding-bottom:1px;">銷 貨 單 據 一 覽 表</span>
       </div>
-      <div style="font-size:14px;margin-bottom:1px;display:flex;">
-        <span style="width:72%;">客戶名稱：${cust?cust.name:''}</span>
-        <span>電話：${cust?.phone||''}</span>
-      </div>
-      <div style="font-size:14px;margin-bottom:1px;display:flex;">
-        <span style="width:72%;">客戶地址：${cust?.address||''}</span>
-        <span>${addrRight}</span>
-      </div>
-      <div style="font-size:14px;margin-bottom:2px;display:flex;">
-        <span style="width:72%;">銷貨日期：${dateStr}</span>
-        <span>${dateRight}</span>
-      </div>
-      <table style="width:22.5cm;border-collapse:collapse;table-layout:fixed;">
+      <div style="font-size:16px;margin-bottom:4px;">客戶名稱：${cust?cust.name:''}</div>
+      <div style="font-size:16px;margin-bottom:4px;">電話：${cust?.phone||''}</div>
+      <div style="font-size:16px;margin-bottom:4px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
+      <div style="font-size:16px;margin-bottom:8px;">銷貨日期：${dateStr}${dateRight?'　'+dateRight:''}</div>
+      <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
         <colgroup>
           <col style="width:6%">
-          <col style="width:50%">
-          <col style="width:12%">
+          <col style="width:48%">
+          <col style="width:13%">
           <col style="width:16%">
-          <col style="width:16%">
+          <col style="width:17%">
         </colgroup>
         <thead>
           <tr>
-            <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">序號</th>
-            <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">商品名稱</th>
-            <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">數量</th>
-            <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">進價</th>
-            <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">金額</th>
+            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:17px;">序號</th>
+            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:17px;">商品名稱</th>
+            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:17px;">數量</th>
+            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:17px;">進價</th>
+            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:17px;">金額</th>
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
         <tr class="total-row" style="background:#c8c8c8;">
-          <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;font-weight:bold;" colspan="4">總計：</td>
-          <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;font-weight:bold;">${Math.round(total*10)/10}</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:17px;font-weight:bold;" colspan="4">總計：</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:17px;font-weight:bold;">${Math.round(total*10)/10}</td>
         </tr>
       </table>
-      <div style="margin-top:1px;display:flex;">
-        <span style="width:72%;"></span>
-        <span style="width:28%;font-size:16px;font-weight:bold;border-bottom:1px solid #000;padding-bottom:1px;">客戶簽收：</span>
+      <div style="margin-top:14px;text-align:right;">
+        <span style="font-size:19px;font-weight:bold;border-bottom:1.5px solid #000;padding-bottom:3px;">客戶簽收：</span>
       </div>
     </div>`;
   window.print();
