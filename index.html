@@ -1541,6 +1541,19 @@ function renderOrderItems(){
     </tr>`).join('')}</tbody></table></div>
     <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;">合計：$${fmt(total)}</div>`;
 }
+function adjustStock(oldItems,newItems){
+  const key=i=>i.productId+'|'+(i.variant||'');
+  const oldMap={};(oldItems||[]).forEach(i=>{oldMap[key(i)]=(oldMap[key(i)]||0)+i.qty;});
+  const newMap={};(newItems||[]).forEach(i=>{newMap[key(i)]=(newMap[key(i)]||0)+i.qty;});
+  const allKeys=new Set([...Object.keys(oldMap),...Object.keys(newMap)]);
+  allKeys.forEach(k=>{
+    const delta=(newMap[k]||0)-(oldMap[k]||0);
+    if(delta===0)return;
+    const pid=k.split('|')[0];
+    const pi=db.products.findIndex(x=>x.id===pid);
+    if(pi>=0) db.products[pi].currentStock=Math.max(0,(db.products[pi].currentStock||0)-delta);
+  });
+}
 async function saveOrder(status){
   const custId=G('o-cust').value;
   if(!custId){alert('請選擇客戶');return;}
@@ -1551,10 +1564,11 @@ async function saveOrder(status){
   const isEdit=!!editOrderId;
   const oldOrder=isEdit?db.orders.find(x=>x.id===editOrderId):null;
   const wasConfirmed=oldOrder?.status==='confirmed';
+  const oldItemsForStock=oldOrder?.items||[];
 
   // ── 編輯邏輯 ──────────────────────────────────
   if(isEdit&&oldOrder){
-    const oldItems=oldOrder.items||[];
+    const oldItems=oldItemsForStock;
     const savedState=(db.pickingState||{})[editOrderId]||{};
     const inPickFlow=['picking','picked','boxing','packed','mod_picking','mod_picked','mod_boxing'].includes(oldOrder.status);
     const isCompleted=oldOrder.status==='completed';
@@ -1630,7 +1644,16 @@ async function saveOrder(status){
   }
   // ────────────────────────────────────────────────
 
-  const data={customerId:custId,date:G('o-date').value,items:orderItems.map(i=>({...i})),status};
+  // ── 庫存連動：確認抄貨單時扣庫存，之後編輯只調整差額 ──
+  let stockDeducted=oldOrder?.stockDeducted||false;
+  if(isEdit&&stockDeducted){
+    adjustStock(oldItemsForStock,orderItems);
+  } else if(status==='confirmed'&&!stockDeducted){
+    adjustStock([],orderItems);
+    stockDeducted=true;
+  }
+
+  const data={customerId:custId,date:G('o-date').value,items:orderItems.map(i=>({...i})),status,stockDeducted};
   if(isEdit){
     const i=db.orders.findIndex(x=>x.id===editOrderId);
     db.orders[i]={...db.orders[i],...data};
@@ -1650,16 +1673,27 @@ async function saveOrder(status){
 async function deleteOrder(id){
   if(!confirm('確定刪除此抄貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
   const item=db.orders.find(x=>x.id===id);
-  if(item)moveToTrash('order',item);
+  if(item){
+    if(item.stockDeducted) adjustStock(item.items||[],[]);
+    moveToTrash('order',item);
+  }
   db.orders=db.orders.filter(x=>x.id!==id);
-  await saveData();renderOrders();
+  await saveData();renderOrders();renderProducts();renderDashboard();
+}
+
+async function deleteShipment(id){
+  if(!confirm('確定刪除此出貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。\n（庫存已於確認抄貨單時扣除，刪除出貨單不影響庫存）'))return;
+  const item=db.shipments.find(x=>x.id===id);
+  if(item)moveToTrash('shipment',item);
+  db.shipments=db.shipments.filter(x=>x.id!==id);
+  await saveData();renderShipments();renderDashboard();
 }
 
 function openTrashModal(){ renderTrash(); openModal('modal-trash'); }
 function renderTrash(){
   purgeOldTrash();
   const list=db.trash||[];
-  const typeLabel={product:'商品',customer:'客戶',order:'抄貨單'};
+  const typeLabel={product:'商品',customer:'客戶',order:'抄貨單',shipment:'出貨單'};
   const body=G('trash-list');if(!body)return;
   if(!list.length){
     body.innerHTML='<div class="empty-state"><div class="empty-icon">🗑️</div>沒有最近刪除的項目</div>';
@@ -1667,7 +1701,7 @@ function renderTrash(){
   }
   body.innerHTML=[...list].reverse().map((t,revIdx)=>{
     const idx=list.length-1-revIdx;
-    const name=t.item.name||'—';
+    const name=t.item.name||(t.type==='shipment'?('出貨單 '+(t.item.date||'')):'—');
     const daysLeft=Math.max(0,7-Math.floor((Date.now()-t.deletedAt)/86400000));
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
       <div>
@@ -1684,10 +1718,14 @@ async function restoreFromTrash(idx){
   const t=(db.trash||[])[idx];if(!t)return;
   if(t.type==='product')db.products.push(t.item);
   else if(t.type==='customer')db.customers.push(t.item);
-  else if(t.type==='order')db.orders.push(t.item);
+  else if(t.type==='order'){
+    db.orders.push(t.item);
+    if(t.item.stockDeducted) adjustStock([],t.item.items||[]);
+  }
+  else if(t.type==='shipment')db.shipments.push(t.item);
   db.trash.splice(idx,1);
   await saveData();
-  renderTrash();renderProducts();renderCustomers();renderOrders();renderDashboard();
+  renderTrash();renderProducts();renderCustomers();renderOrders();renderShipments();renderDashboard();
   alert('已恢復');
 }
 function filterOrders(f,btn){
@@ -1729,7 +1767,7 @@ function renderOrders(){
         ${['confirmed','picking','re_picking','pending_edit'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button>`:''}
         ${['picked','boxing','re_boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">裝箱確認</button>`:''}
         ${o.status==='completed'?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
-        ${o.status==='draft'?`<button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>`:''}
+        <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>
       </div>
     </div>`;
   }).join('');
@@ -2008,11 +2046,7 @@ async function saveShipment(orderId){
   const s={id:uid(),orderId,date:V('s-date')||today(),note:'',items:shipmentItems.map(i=>({...i}))};
   db.shipments.push(s);
   const oi=db.orders.findIndex(x=>x.id===orderId);if(oi>=0)db.orders[oi].status='shipped';
-  // Deduct inventory
-  shipmentItems.forEach(item=>{
-    const pi=db.products.findIndex(x=>x.id===item.productId);
-    if(pi>=0)db.products[pi].currentStock=Math.max(0,(db.products[pi].currentStock||0)-item.qty);
-  });
+  // 庫存已於確認抄貨單時扣除，此處不再重複扣庫存
   await saveData();
   closeModal('modal-shipment');renderOrders();renderShipments();renderProducts();renderRestock();renderDashboard();
 }
@@ -2046,7 +2080,10 @@ function renderShipments(){
           <div style="font-size:15px;font-weight:700;margin:3px 0;">${c?c.name:'未知客戶'}</div>
           <span class="badge badge-blue">已出貨</span>${s.note?`<span style="font-size:12px;color:var(--text3);margin-left:6px;">${s.note}</span>`:''}
         </div>
-        <button class="btn btn-sm btn-blue" onclick="printShipment('${s.id}')">🖨️ 列印出貨單</button>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-sm btn-blue" onclick="printShipment('${s.id}')">🖨️ 列印出貨單</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteShipment('${s.id}')">刪除</button>
+        </div>
       </div>
     </div>`;
   }).join('');
