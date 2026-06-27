@@ -313,7 +313,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 
 <!-- SHIPMENTS 出貨單 -->
 <div id="tab-shipments" class="page">
-  <div class="page-header"><div><h2>出貨單</h2></div></div>
+  <div class="page-header"><div><h2>出貨單</h2></div><button class="btn btn-primary btn-sm" onclick="printVisibleShipments()">🖨️ 一鍵列印（目前清單）</button></div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
     <div style="flex:1;min-width:130px;position:relative;">
       <input id="ship-filter-cust-input" placeholder="搜尋客戶名稱…" oninput="onShipCustSearch()" autocomplete="off" style="width:100%;">
@@ -2150,6 +2150,7 @@ function renderShipments(){
     if(filterMonth&&!s.date?.startsWith(filterMonth))return false;
     return true;
   });
+  window._visibleShipmentIds=rows.map(s=>s.id);
   if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">🚚</div>沒有符合的出貨單<br><span style="font-size:12px;">請從抄貨單建立出貨單</span></div>';return;}
   list.innerHTML=rows.map(s=>{
     const o=db.orders.find(x=>x.id===s.orderId);
@@ -2399,8 +2400,7 @@ function openBCPrint(orderId){
     <div style="margin-top:10px;font-size:12px;color:var(--text2);">共 ${rows.length} 種條碼，合計 ${rows.reduce((s,r)=>s+r.qty,0)} 張</div>`;
   openModal('modal-barcode');
 }
-function printShipment(id){
-  const s=db.shipments.find(x=>x.id===id);
+function buildShipmentHTML(s){
   const o=db.orders.find(x=>x.id===s.orderId);
   const cust=o?db.customers.find(x=>x.id===o.customerId):null;
   const disc=cust?.discount||0;
@@ -2420,7 +2420,6 @@ function printShipment(id){
   const noteLines=note.split('\n').map(l=>l.trim()).filter(Boolean);
   const dateStr=(s.date||'').replace(/-/g,'/');
   const TOTAL_ROWS=20;
-  // 同售價合併加總，不分開顯示
   const priceGroups={};
   (s.items||[]).forEach(item=>{priceGroups[item.price]=(priceGroups[item.price]||0)+item.qty;});
   const rows=Object.keys(priceGroups).map(Number).sort((a,b)=>a-b).map(price=>({price,qty:priceGroups[price]}));
@@ -2451,15 +2450,11 @@ function printShipment(id){
       <td style="border:1px solid #000;"></td>
     </tr>`;
   }
-  // Note layout:
-  // 1 line: date row right
-  // 2 lines: line1 → address row right, line2 → date row right
   const addrRight = noteLines.length>=2 ? noteLines[0] : '';
   const dateRight = noteLines.length>=2 ? noteLines[1] : (noteLines[0]||'');
 
-  G('print-area').innerHTML=`
-    <style>@page{size:14cm 24.1cm;margin:0.3cm;}</style>
-    <div style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:14px;margin:0 auto;">
+  return `
+    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:14px;margin:0 auto;">
       <div style="text-align:center;font-size:29px;font-weight:bold;letter-spacing:3px;margin-bottom:1px;">奧斯卡商行</div>
       <div style="text-align:center;margin-bottom:6px;">
         <span style="font-size:20px;font-weight:bold;letter-spacing:3px;border-bottom:2px double #000;padding-bottom:1px;">銷 貨 單 據 一 覽 表</span>
@@ -2497,6 +2492,18 @@ function printShipment(id){
         <span style="flex:1;border-bottom:1.5px solid #000;margin-left:6px;"></span>
       </div>
     </div>`;
+}
+function printShipment(id){
+  const s=db.shipments.find(x=>x.id===id);if(!s)return;
+  G('print-area').innerHTML=`<style>@page{size:14cm 24.1cm;margin:0.3cm;}</style>`+buildShipmentHTML(s);
+  window.print();
+}
+function printVisibleShipments(){
+  const ids=window._visibleShipmentIds||[];
+  if(!ids.length){alert('目前沒有可列印的出貨單（請確認篩選結果）');return;}
+  const pages=ids.map(id=>db.shipments.find(x=>x.id===id)).filter(Boolean)
+    .map(s=>`<div style="page-break-after:always;">${buildShipmentHTML(s)}</div>`).join('');
+  G('print-area').innerHTML=`<style>@page{size:14cm 24.1cm;margin:0.3cm;}</style>`+pages;
   window.print();
 }
 
