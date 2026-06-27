@@ -2254,7 +2254,7 @@ function printShipment(id){
   rows.forEach((item,idx)=>{
     const basePrice=item.price;
     const discPrice=disc?Math.round(basePrice*(1-disc/100)*10)/10:basePrice;
-    const priceBC=getPriceBarcode(basePrice);
+    const priceBC=getPriceBarcode(basePrice,cust?.labelBarcode);
     const name=basePrice+'元玩具 '+priceBC;
     const qty=item.qty;
     const amount=Math.round(discPrice*qty*10)/10;
@@ -2316,7 +2316,7 @@ function printShipment(id){
           <td style="border:1px solid #000;padding:4px;text-align:right;font-size:15px;font-weight:bold;">${Math.round(total*10)/10}</td>
         </tr>
       </table>
-      <div style="margin-top:30px;display:flex;align-items:flex-end;">
+      <div style="margin-top:10px;display:flex;align-items:flex-end;">
         <span style="width:54%;"></span>
         <span style="font-size:16px;font-weight:bold;white-space:nowrap;">客戶簽收：</span>
         <span style="flex:1;border-bottom:1.5px solid #000;margin-left:6px;"></span>
@@ -2411,7 +2411,12 @@ function calcEAN13(prefix, price){
   return prefix+priceStr+check;
 }
 function getPriceBarcode(price,prefix){
-  return calcEAN13(prefix||'7990341',price);
+  // 整數價格（個位數為0）用該前綴的「0結尾」家族：7990341→7990340、2003751→2003750
+  let p=prefix||'7990341';
+  if(price%10===0){
+    p = p.endsWith('1') ? p.slice(0,-1)+'0' : p;
+  }
+  return calcEAN13(p,price);
 }
 
 function exportShipmentCSV(){
@@ -2451,7 +2456,7 @@ function doExportCSV(shipId){
   const items=(s.items||[]).map(item=>{
     const basePrice=item.price;
     const discPrice=disc?Math.round(basePrice*(1-disc/100)*10)/10:basePrice;
-    const priceBC=getPriceBarcode(basePrice);
+    const priceBC=getPriceBarcode(basePrice,cust?.labelBarcode);
     const name=basePrice+'元玩具 '+priceBC;
     const qty=item.qty;
     const amount=Math.round(discPrice*qty*10)/10;
