@@ -169,6 +169,16 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     </div>
   </div>
 </div>
+
+<!-- Trash Detail Modal -->
+<div class="modal-overlay" id="modal-trash-detail" style="z-index:320;">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header"><h3>內容預覽</h3><button class="modal-close" onclick="closeModal('modal-trash-detail')">×</button></div>
+    <div class="modal-body">
+      <div id="trash-detail-body"></div>
+    </div>
+  </div>
+</div>
 <div id="menu-overlay" onclick="closeMenu()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:199;"></div>
 
 <!-- DASHBOARD -->
@@ -1699,6 +1709,7 @@ function renderTrash(){
   purgeOldTrash();
   const list=db.trash||[];
   const typeLabel={product:'商品',customer:'客戶',order:'抄貨單',shipment:'出貨單'};
+  const typeColor={product:'badge-blue',customer:'badge-green',order:'badge-orange',shipment:'badge-blue'};
   const body=G('trash-list');if(!body)return;
   if(!list.length){
     body.innerHTML='<div class="empty-state"><div class="empty-icon">🗑️</div>沒有最近刪除的項目</div>';
@@ -1706,17 +1717,79 @@ function renderTrash(){
   }
   body.innerHTML=[...list].reverse().map((t,revIdx)=>{
     const idx=list.length-1-revIdx;
-    const name=t.item.name||(t.type==='shipment'?('出貨單 '+(t.item.date||'')):'—');
+    let name='—',sub='';
+    if(t.type==='product'){
+      name=t.item.name||'—';
+      sub=(t.item.barcode?'條碼：'+t.item.barcode:'')+(t.item.location?'　存放：'+t.item.location:'');
+    } else if(t.type==='customer'){
+      name=t.item.name||'—';
+      sub=(t.item.phone?'電話：'+t.item.phone:'')+(t.item.address?'　地址：'+t.item.address:'');
+    } else if(t.type==='order'){
+      const cust=db.customers.find(x=>x.id===t.item.customerId);
+      name=(cust?cust.name:'未知客戶')+'　'+(t.item.date||'');
+      const itemCount=(t.item.items||[]).length;
+      sub=itemCount+' 項商品';
+    } else if(t.type==='shipment'){
+      const o=db.orders.find(x=>x.id===t.item.orderId);
+      const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+      name=(cust?cust.name:'未知客戶')+'　'+(t.item.date||'');
+      const itemCount=(t.item.items||[]).length;
+      sub=itemCount+' 項商品';
+    }
     const daysLeft=Math.max(0,7-Math.floor((Date.now()-t.deletedAt)/86400000));
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
-      <div>
-        <span class="badge badge-blue" style="margin-right:6px;">${typeLabel[t.type]||t.type}</span>
-        <strong>${name}</strong>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px;">剩 ${daysLeft} 天可恢復</div>
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="flex:1;min-width:0;cursor:pointer;" onclick="viewTrashDetail(${idx})">
+          <span class="badge ${typeColor[t.type]||'badge-blue'}" style="margin-right:6px;">${typeLabel[t.type]||t.type}</span>
+          <strong>${name}</strong>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px;">${sub}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">剩 ${daysLeft} 天可恢復 · 點擊查看內容</div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="restoreFromTrash(${idx})" style="flex-shrink:0;">↩ 恢復</button>
       </div>
-      <button class="btn btn-sm btn-primary" onclick="restoreFromTrash(${idx})">↩ 恢復</button>
     </div>`;
   }).join('');
+}
+
+function viewTrashDetail(idx){
+  const t=(db.trash||[])[idx];if(!t)return;
+  let html='';
+  if(t.type==='product'){
+    const p=t.item;
+    html=`${p.image?`<img src="${p.image}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;margin-bottom:10px;">`:''}
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px;">${p.name||'—'}</div>
+      <table class="doc" style="width:100%;font-size:13px;">
+        <tr><td style="color:var(--text2);">EAN條碼</td><td>${p.barcode||'—'}</td></tr>
+        <tr><td style="color:var(--text2);">成本</td><td>$${fmt(p.cost||0)}</td></tr>
+        <tr><td style="color:var(--text2);">庫存</td><td>${p.currentStock??0}</td></tr>
+        <tr><td style="color:var(--text2);">存放地點</td><td>${p.location||'—'}</td></tr>
+        <tr><td style="color:var(--text2);">種類</td><td>${(p.variants||[]).join('、')||'—'}</td></tr>
+      </table>`;
+  } else if(t.type==='customer'){
+    const c=t.item;
+    html=`<div style="font-size:16px;font-weight:700;margin-bottom:8px;">${c.name||'—'}</div>
+      <table class="doc" style="width:100%;font-size:13px;">
+        <tr><td style="color:var(--text2);">電話</td><td>${c.phone||'—'}</td></tr>
+        <tr><td style="color:var(--text2);">地址</td><td>${c.address||'—'}</td></tr>
+        <tr><td style="color:var(--text2);">折扣</td><td>${c.discount||0}%</td></tr>
+        <tr><td style="color:var(--text2);">客戶條碼</td><td>${c.labelBarcode||'—'}</td></tr>
+        <tr><td style="color:var(--text2);">備註</td><td>${c.note||'—'}</td></tr>
+      </table>`;
+  } else if(t.type==='order'||t.type==='shipment'){
+    const item=t.item;
+    const orderId=t.type==='shipment'?item.orderId:null;
+    const o=t.type==='shipment'?db.orders.find(x=>x.id===orderId):null;
+    const cust=db.customers.find(x=>x.id===(t.type==='order'?item.customerId:o?.customerId));
+    const itemRows=(item.items||[]).map(i=>`<tr><td>${i.name}${i.variant?' ('+i.variant+')':''}</td><td>${i.qty}</td><td>$${fmt(i.price)}</td><td>$${fmt(i.qty*i.price)}</td></tr>`).join('');
+    html=`<div style="font-size:16px;font-weight:700;margin-bottom:4px;">${cust?cust.name:'未知客戶'}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px;">日期：${item.date||'—'}</div>
+      <table class="doc" style="width:100%;font-size:13px;">
+        <thead><tr><th>商品</th><th>數量</th><th>售價</th><th>小計</th></tr></thead>
+        <tbody>${itemRows||'<tr><td colspan="4" style="color:var(--text3);">無商品明細</td></tr>'}</tbody>
+      </table>`;
+  }
+  G('trash-detail-body').innerHTML=html;
+  openModal('modal-trash-detail');
 }
 
 async function restoreFromTrash(idx){
@@ -3379,13 +3452,14 @@ function openLabelPrintWindow(priceQtyList,prefix){
   let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
   html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
   html+=`<style>
-    @page{size:6.7cm auto;margin:0;}
+    @page{size:32mm auto;margin:0;}
     *{box-sizing:border-box;}
     body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
-    .sheet{display:grid;grid-template-columns:3.2cm 3.2cm;column-gap:0.2cm;padding-right:0.1cm;width:6.7cm;}
-    .label{width:3.2cm;height:2.5cm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:0.06cm 0;border:0.5px dotted #ccc;}
+    .sheet{display:flex;flex-direction:column;width:32mm;}
+    .label{width:32mm;height:25mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;margin-bottom:29.5mm;}
+    .label:last-child{margin-bottom:0;}
     .label .brand{font-size:13px;font-weight:900;line-height:1.2;margin-bottom:2px;text-align:center;width:100%;letter-spacing:5px;}
-    .label canvas{width:2.85cm;height:0.85cm;display:block;}
+    .label canvas{width:28.5mm;height:8.5mm;display:block;}
     .label .code{font-family:monospace;margin-top:1px;line-height:1;white-space:nowrap;display:inline-block;}
     .label .price{font-weight:700;margin-top:2px;white-space:nowrap;display:inline-block;}
   </style></head><body>
@@ -3493,13 +3567,14 @@ function printCustomCodeLabels(){
   let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
   html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
   html+=`<style>
-    @page{size:6.7cm auto;margin:0;}
+    @page{size:32mm auto;margin:0;}
     *{box-sizing:border-box;}
     body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
-    .sheet{display:grid;grid-template-columns:3.2cm 3.2cm;column-gap:0.2cm;padding-right:0.1cm;width:6.7cm;}
-    .label{width:3.2cm;height:2.5cm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:0.06cm 0.1cm;border:0.5px dotted #ccc;}
-    .label .name{font-size:8px;font-weight:700;line-height:1.15;margin-bottom:1px;text-align:center;max-height:0.55cm;overflow:hidden;}
-    .label canvas{width:2.9cm;height:0.85cm;}
+    .sheet{display:flex;flex-direction:column;width:32mm;}
+    .label{width:32mm;height:25mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:0 1mm;margin-bottom:29.5mm;}
+    .label:last-child{margin-bottom:0;}
+    .label .name{font-size:8px;font-weight:700;line-height:1.15;margin-bottom:1px;text-align:center;max-height:5.5mm;overflow:hidden;}
+    .label canvas{width:29mm;height:8.5mm;}
     .label .code{font-size:7.5px;font-family:monospace;margin-top:1px;line-height:1;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
