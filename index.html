@@ -3456,39 +3456,31 @@ function openLabelPrintWindow(priceQtyList,prefix){
     *{box-sizing:border-box;}
     body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
     .sheet{display:flex;flex-direction:column;width:32mm;}
-    .label{width:32mm;height:25mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;margin-bottom:29.5mm;}
+    .label{width:32mm;height:25mm;box-sizing:border-box;padding:1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;margin-bottom:29.5mm;}
     .label:last-child{margin-bottom:0;}
-    .label .brand{font-size:13px;font-weight:900;line-height:1.2;margin-bottom:2px;text-align:center;width:100%;letter-spacing:5px;}
-    .label canvas{width:28.5mm;height:8.5mm;display:block;}
-    .label .code{font-family:monospace;margin-top:1px;line-height:1;white-space:nowrap;display:inline-block;}
-    .label .price{font-weight:700;margin-top:2px;white-space:nowrap;display:inline-block;}
+    .label .line{width:28.5mm;text-align:center;white-space:nowrap;overflow:hidden;}
+    .label .brand{font-size:12px;font-weight:900;line-height:1.2;margin-bottom:2px;letter-spacing:4px;}
+    .label canvas{display:block;}
+    .label .code{font-size:9px;font-family:monospace;margin-top:1px;line-height:1;}
+    .label .price{font-size:9px;font-weight:700;margin-top:2px;line-height:1;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
   <scr`+`ipt>
-    function fitTextWidth(el,targetPx){
-      let lo=3,hi=11;
-      for(let i=0;i<18;i++){
-        const mid=(lo+hi)/2;
-        el.style.fontSize=mid+'px';
-        const w=el.getBoundingClientRect().width;
-        if(w<targetPx) lo=mid; else hi=mid;
-      }
-      el.style.fontSize=lo+'px';
-    }
     const items=${itemsJson};
     const sheet=document.getElementById('sheet');
+    // EAN-13 固定95個模組寬，直接算出每個模組要多寬才會剛好28.5mm，不用CSS硬拉，避免疏密不一
+    const PX_PER_MM=96/25.4;
+    const moduleWidth=(28.5*PX_PER_MM)/95;
+    const barHeightPx=8.5*PX_PER_MM;
     items.forEach(it=>{
       const div=document.createElement('div');div.className='label';
-      const brand=document.createElement('div');brand.className='brand';brand.textContent='奧斯卡';
+      const brand=document.createElement('div');brand.className='line brand';brand.textContent='奧斯卡';
       const canvas=document.createElement('canvas');
-      const code=document.createElement('div');code.className='code';code.textContent=it.barcode;
-      const price=document.createElement('div');price.className='price';price.textContent='單價 '+it.price+' 元';
+      const code=document.createElement('div');code.className='line code';code.textContent=it.barcode;
+      const price=document.createElement('div');price.className='line price';price.textContent='單價 '+it.price+' 元';
       div.appendChild(brand);div.appendChild(canvas);div.appendChild(code);div.appendChild(price);
       sheet.appendChild(div);
-      try{ JsBarcode(canvas,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:60,width:2}); }catch(e){console.error(e);}
-      const targetW=canvas.getBoundingClientRect().width;
-      fitTextWidth(code,targetW);
-      fitTextWidth(price,targetW);
+      try{ JsBarcode(canvas,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:barHeightPx,width:moduleWidth}); }catch(e){console.error(e);}
     });
     window.onload=()=>setTimeout(()=>window.print(),400);
   </scr`+`ipt>
@@ -3571,11 +3563,11 @@ function printCustomCodeLabels(){
     *{box-sizing:border-box;}
     body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
     .sheet{display:flex;flex-direction:column;width:32mm;}
-    .label{width:32mm;height:25mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:0 1mm;margin-bottom:29.5mm;}
+    .label{width:32mm;height:25mm;box-sizing:border-box;padding:1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;margin-bottom:29.5mm;}
     .label:last-child{margin-bottom:0;}
-    .label .name{font-size:8px;font-weight:700;line-height:1.15;margin-bottom:1px;text-align:center;max-height:5.5mm;overflow:hidden;}
-    .label canvas{width:29mm;height:8.5mm;}
-    .label .code{font-size:7.5px;font-family:monospace;margin-top:1px;line-height:1;}
+    .label .name{width:28.5mm;font-size:8px;font-weight:700;line-height:1.15;margin-bottom:1px;text-align:center;max-height:5.5mm;overflow:hidden;}
+    .label canvas{width:28.5mm;height:8.5mm;}
+    .label .code{width:28.5mm;font-size:7.5px;font-family:monospace;margin-top:1px;line-height:1;text-align:center;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
   <scr`+`ipt>
