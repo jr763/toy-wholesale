@@ -1796,7 +1796,7 @@ function viewOrderReadonly(id){
           <td><span class="badge badge-blue">${i.location||'—'}</span></td>
           <td>${i.hasInspMark!==false?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'—')+'</span>'}</td>
           <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}</td>
-          <td>${i.variant||'—'}</td>
+          <td>${i.variant?i.variant:(i.excludeVariants&&i.excludeVariants.length?`<span style="color:var(--orange);">任選（不含：${i.excludeVariants.join('、')}）</span>`:'—')}</td>
           <td>${i.qty}</td>
           <td>$${fmt(i.price)}</td>
         </tr>`;
@@ -1850,7 +1850,7 @@ function viewOrder(id){
         <td><span class="badge badge-blue">${i.location||'—'}</span></td>
         <td>${i.hasInspMark?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'無批號')+'</span>'}</td>
         <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}</td>
-        <td>${i.variant||'—'}</td>
+        <td>${i.variant?i.variant:(i.excludeVariants&&i.excludeVariants.length?`<span style="color:var(--orange);">任選（不含：${i.excludeVariants.join('、')}）</span>`:'—')}</td>
         <td>${i.qty}</td>
         <td>$${fmt(i.price)}</td>
       </tr>`;}).join('')}</tbody></table></div>
@@ -2338,7 +2338,10 @@ function printShipment(id){
   const noteLines=note.split('\n').map(l=>l.trim()).filter(Boolean);
   const dateStr=(s.date||'').replace(/-/g,'/');
   const TOTAL_ROWS=20;
-  const rows=(s.items||[]);
+  // 同售價合併加總，不分開顯示
+  const priceGroups={};
+  (s.items||[]).forEach(item=>{priceGroups[item.price]=(priceGroups[item.price]||0)+item.qty;});
+  const rows=Object.keys(priceGroups).map(Number).sort((a,b)=>a-b).map(price=>({price,qty:priceGroups[price]}));
   let total=0;
   let rowsHtml='';
   rows.forEach((item,idx)=>{
@@ -2813,7 +2816,7 @@ function openEditConfirm(orderId){
         <td><span class="badge badge-blue">${i.location||'—'}</span></td>
         <td>${i.hasInspMark?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'無批號')+'</span>'}</td>
         <td><strong>${i.name}</strong></td>
-        <td>${i.variant||'—'}</td>
+        <td>${i.variant?i.variant:(i.excludeVariants&&i.excludeVariants.length?`<span style="color:var(--orange);">任選（不含：${i.excludeVariants.join('、')}）</span>`:'—')}</td>
         <td>${i.qty}</td>
         <td>$${i.price}</td>
       </tr>`).join('')}
@@ -3165,6 +3168,24 @@ function confirmScanAdd(){
   const hasVariants=(p.variants||[]).length>0;
   let variantEntries=Object.entries(_saVariantQtys).filter(([,n])=>n>0);
   const selectedNoQty=Object.entries(_saVariantSelected||{}).filter(([v,sel])=>sel&&!_saVariantQtys[v]).map(([v])=>v);
+  const anyQtyTyped=Object.values(_saVariantQtys||{}).some(n=>n>0);
+
+  // 排除模式且沒有手動輸入任何數量 → 任選種類，不強制拆成多行
+  if(hasVariants&&_saVariantMode==='exclude'&&!anyQtyTyped){
+    const excluded=_saVariantVariants.filter(v=>_saVariantToggled[v]);
+    const ex=orderItems.find(i=>i.productId===_saPid&&!i.variant&&JSON.stringify(i.excludeVariants||[])===JSON.stringify(excluded));
+    if(ex){ex.qty+=_saQty;ex.price=price;}
+    else orderItems.push({productId:_saPid,name:p.name,barcode:p.barcode||'',variant:'',excludeVariants:excluded,qty:_saQty,price,location:p.location||'',specialPacking:chosenPack});
+    renderOrderItems();
+    _saPid=null;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};_saVariantSelected={};_saVariantToggled={};
+    if(G('sa-variant-summary'))G('sa-variant-summary').textContent='未挑選';
+    G('sa-product-area').style.display='none';
+    G('sa-footer').style.display='none';
+    G('sa-price').value='';
+    G('sa-qty-display').value='1';
+    if(G('sa-barcode-input')){G('sa-barcode-input').value='';G('sa-barcode-input').focus();}
+    return;
+  }
 
   if(hasVariants&&variantEntries.length===0&&selectedNoQty.length>0){
     // Selected without specifying qty - auto-split evenly
