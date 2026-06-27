@@ -596,9 +596,13 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div style="display:flex;border-bottom:1.5px solid var(--border);flex-shrink:0;">
       <button id="vp-tab-include" onclick="setVariantPickMode('include')" type="button" style="flex:1;padding:11px;border:none;font-size:14px;font-weight:700;cursor:pointer;">選擇</button>
       <button id="vp-tab-exclude" onclick="setVariantPickMode('exclude')" type="button" style="flex:1;padding:11px;border:none;font-size:14px;font-weight:700;cursor:pointer;">排除</button>
+      <button id="vp-tab-any" onclick="setVariantPickMode('any')" type="button" style="flex:1;padding:11px;border:none;font-size:14px;font-weight:700;cursor:pointer;">任選</button>
     </div>
     <div style="flex:1;overflow-y:auto;padding:14px;">
       <div id="vp-rows" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <div id="vp-any-msg" style="display:none;text-align:center;padding:30px 10px;color:var(--text2);font-size:13px;">
+        🎲 不指定種類，撿貨者依架上庫存自由挑選任一款，數量以填寫的商品總數量為準。
+      </div>
       <div id="vp-sum-hint" style="margin-top:10px;font-size:12px;font-weight:700;padding:6px 10px;border-radius:10px;text-align:center;"></div>
     </div>
     <div style="padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0;">
@@ -1682,11 +1686,16 @@ async function deleteOrder(id){
 }
 
 async function deleteShipment(id){
-  if(!confirm('確定刪除此出貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。\n（庫存已於確認抄貨單時扣除，刪除出貨單不影響庫存）'))return;
+  if(!confirm('確定刪除此出貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。\n（庫存已於確認抄貨單時扣除，刪除出貨單不影響庫存，對應抄貨單會改回「已完成」可重新建立出貨單）'))return;
   const item=db.shipments.find(x=>x.id===id);
   if(item)moveToTrash('shipment',item);
   db.shipments=db.shipments.filter(x=>x.id!==id);
-  await saveData();renderShipments();renderDashboard();
+  // 把對應抄貨單狀態改回已完成，才能重新建立出貨單
+  if(item){
+    const oi=db.orders.findIndex(x=>x.id===item.orderId);
+    if(oi>=0&&db.orders[oi].status==='shipped') db.orders[oi].status='completed';
+  }
+  await saveData();renderShipments();renderOrders();renderDashboard();
 }
 
 function openTrashModal(){ renderTrash(); openModal('modal-trash'); }
@@ -1722,7 +1731,11 @@ async function restoreFromTrash(idx){
     db.orders.push(t.item);
     if(t.item.stockDeducted) adjustStock([],t.item.items||[]);
   }
-  else if(t.type==='shipment')db.shipments.push(t.item);
+  else if(t.type==='shipment'){
+    db.shipments.push(t.item);
+    const oi=db.orders.findIndex(x=>x.id===t.item.orderId);
+    if(oi>=0) db.orders[oi].status='shipped';
+  }
   db.trash.splice(idx,1);
   await saveData();
   renderTrash();renderProducts();renderCustomers();renderOrders();renderShipments();renderDashboard();
@@ -3024,15 +3037,15 @@ function setVariantPickMode(mode){
 }
 
 function updateVariantPickModeUI(){
-  const inc=G('vp-tab-include'),exc=G('vp-tab-exclude');
-  if(!inc||!exc)return;
-  if(_saVariantMode==='include'){
-    inc.style.background='var(--brown)';inc.style.color='#fff';
-    exc.style.background='#fff';exc.style.color='var(--text2)';
-  } else {
-    exc.style.background='var(--brown)';exc.style.color='#fff';
-    inc.style.background='#fff';inc.style.color='var(--text2)';
-  }
+  const inc=G('vp-tab-include'),exc=G('vp-tab-exclude'),any=G('vp-tab-any');
+  if(!inc||!exc||!any)return;
+  [inc,exc,any].forEach(btn=>{btn.style.background='#fff';btn.style.color='var(--text2)';});
+  const active=_saVariantMode==='include'?inc:_saVariantMode==='exclude'?exc:any;
+  active.style.background='var(--brown)';active.style.color='#fff';
+  const rowsWrap=G('vp-rows');
+  if(rowsWrap) rowsWrap.style.display=_saVariantMode==='any'?'none':'flex';
+  const anyMsg=G('vp-any-msg');
+  if(anyMsg) anyMsg.style.display=_saVariantMode==='any'?'block':'none';
 }
 
 function renderVariantPickerRows(){
@@ -3096,6 +3109,11 @@ function getEffectiveVariantList(){
 
 function updateVpSumHint(){
   const hint=G('vp-sum-hint');if(!hint)return;
+  if(_saVariantMode==='any'){
+    hint.textContent=`任選種類，共 ${_saQty||0} 件`;
+    hint.style.background='var(--blue-bg)';hint.style.color='var(--blue)';
+    return;
+  }
   const effective=getEffectiveVariantList();
   const sum=effective.reduce((s,v)=>s+(_saVariantQtys[v]||0),0);
   const total=_saQty||0;
@@ -3115,6 +3133,13 @@ function updateVpSumHint(){
 }
 
 function confirmVariantPicker(){
+  if(_saVariantMode==='any'){
+    _saVariantSelected={};_saVariantQtys={};
+    const el=G('sa-variant-summary');
+    if(el)el.textContent='🎲 任選種類';
+    closeModal('modal-variant-picker');
+    return;
+  }
   const effective=getEffectiveVariantList();
   _saVariantSelected={};
   effective.forEach(v=>{_saVariantSelected[v]=true;});
@@ -3170,9 +3195,9 @@ function confirmScanAdd(){
   const selectedNoQty=Object.entries(_saVariantSelected||{}).filter(([v,sel])=>sel&&!_saVariantQtys[v]).map(([v])=>v);
   const anyQtyTyped=Object.values(_saVariantQtys||{}).some(n=>n>0);
 
-  // 排除模式且沒有手動輸入任何數量 → 任選種類，不強制拆成多行
-  if(hasVariants&&_saVariantMode==='exclude'&&!anyQtyTyped){
-    const excluded=_saVariantVariants.filter(v=>_saVariantToggled[v]);
+  // 排除模式（沒打數量）或任選模式 → 任選種類，不強制拆成多行
+  if(hasVariants&&(_saVariantMode==='any'||(_saVariantMode==='exclude'&&!anyQtyTyped))){
+    const excluded=_saVariantMode==='any'?[]:_saVariantVariants.filter(v=>_saVariantToggled[v]);
     const ex=orderItems.find(i=>i.productId===_saPid&&!i.variant&&JSON.stringify(i.excludeVariants||[])===JSON.stringify(excluded));
     if(ex){ex.qty+=_saQty;ex.price=price;}
     else orderItems.push({productId:_saPid,name:p.name,barcode:p.barcode||'',variant:'',excludeVariants:excluded,qty:_saQty,price,location:p.location||'',specialPacking:chosenPack});
