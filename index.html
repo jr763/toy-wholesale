@@ -1598,6 +1598,19 @@ async function saveOrder(status){
     const hasAdd=added.length||increased.length;
     const hasDel=decreased.length||deleted.length;
 
+    // 撿貨紀錄一律改用「商品本身」對應到新清單位置，避免編輯後位置錯位
+    if(hasAdd||hasDel){
+      const remapped={};
+      oldItems.forEach((oi,oldIdx)=>{
+        if(!savedState[oldIdx])return;
+        const newIdx=orderItems.findIndex(n=>n.productId===oi.productId&&(n.variant||'')===(oi.variant||''));
+        if(newIdx<0)return;
+        if(orderItems[newIdx].qty<=oi.qty) remapped[newIdx]=true;
+      });
+      if(!db.pickingState)db.pickingState={};
+      db.pickingState[editOrderId]=remapped;
+    }
+
     const isShipped=oldOrder.status==='shipped';
     // 已出貨/已完成後編輯：有新增/增加 → 走撿貨(修改)流程；只有減少/刪除 → 僅調整明細不影響狀態
     if(isShipped||isCompleted){
@@ -1614,13 +1627,7 @@ async function saveOrder(status){
         }
         // 有新增或增加數量 → 需要重新撿貨，走撿貨(修改)→裝箱(修改)→完成
         status='mod_pending';
-        const newState={};
-        oldItems.forEach((oi,i)=>{
-          const ni=orderItems.find(n=>n.productId===oi.productId&&(n.variant||'')===(oi.variant||''));
-          if(ni&&ni.qty<=oi.qty) newState[i]=savedState[i];
-        });
-        if(!db.pickingState)db.pickingState={};
-        db.pickingState[editOrderId]=newState;
+        // 撿貨紀錄已在上方統一重新對應，這裡不用再處理
       } else {
         status=isShipped?'shipped':'completed';
       }
