@@ -1848,8 +1848,9 @@ function renderOrders(){
       <div style="margin-top:9px;display:flex;gap:5px;flex-wrap:wrap;">
         <button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${o.id}')">查看撿貨</button>
         ${['draft','confirmed','picking','picked','boxing','packed','pending_edit','re_picking','re_boxing','completed','mod_pending','mod_picking','mod_picked','mod_boxing','shipped'].includes(o.status)?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${o.id}')">編輯</button>`:''}
-        ${['confirmed','picking','re_picking','pending_edit'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨</button>`:''}
-        ${['picked','boxing','re_boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">裝箱確認</button>`:''}
+        ${['confirmed','picking','re_picking','pending_edit','mod_pending','mod_picking'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">${o.status.startsWith('mod_')||o.status==='pending_edit'?'撿貨(修改)':'撿貨'}</button>`:''}
+        ${o.status==='packed'?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨(補)</button>`:''}
+        ${['picked','boxing','re_boxing','mod_picked','mod_boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">${o.status.startsWith('mod_')?'裝箱(修改)':'裝箱確認'}</button>`:''}
         ${(o.status==='completed'||(o.status==='shipped'&&!db.shipments.some(s=>s.orderId===o.id)))?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
         <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>
       </div>
@@ -3470,8 +3471,8 @@ function openLabelPrintWindow(priceQtyList,prefix){
     .label .line{width:25.6mm;text-align:center;white-space:nowrap;overflow:hidden;}
     .label .brand{display:flex;justify-content:space-between;font-size:12px;font-weight:900;line-height:1.2;margin-bottom:2px;}
     .label svg{display:block;width:25.6mm;height:12mm;}
-    .label .code{font-size:9px;font-family:monospace;margin-top:1px;line-height:1;}
-    .label .price{font-size:12px;font-weight:400;margin-top:2px;line-height:1;}
+    .label .code{display:flex;justify-content:space-between;font-size:9px;font-family:monospace;margin-top:1px;line-height:1;}
+    .label .price{display:flex;justify-content:space-between;font-size:12px;font-weight:400;margin-top:2px;line-height:1;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
   <scr`+`ipt>
@@ -3482,16 +3483,19 @@ function openLabelPrintWindow(priceQtyList,prefix){
       const brand=document.createElement('div');brand.className='line brand';
       '奧斯卡'.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;brand.appendChild(s);});
       const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-      const code=document.createElement('div');code.className='line code';code.textContent=it.barcode;
-      const price=document.createElement('div');price.className='line price';price.textContent='單價 '+it.price+' 元';
+      const code=document.createElement('div');code.className='line code';
+      it.barcode.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;code.appendChild(s);});
+      const price=document.createElement('div');price.className='line price';
+      ('單價 '+it.price+' 元').split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;price.appendChild(s);});
       div.appendChild(brand);div.appendChild(svg);div.appendChild(code);div.appendChild(price);
       sheet.appendChild(div);
       try{
         JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:80,width:2});
-        // 強制統一上下長度，避免preserveAspectRatio造成有的留白有的不留白
+        // 強制統一上下長度：屬性跟CSS都鎖住，避免不同渲染引擎算法不同造成高度落差
         svg.setAttribute('preserveAspectRatio','none');
-        svg.removeAttribute('width');svg.removeAttribute('height');
-        svg.style.width='25.6mm';svg.style.height='12mm';
+        svg.setAttribute('width','25.6mm');
+        svg.setAttribute('height','12mm');
+        svg.style.width='25.6mm';svg.style.height='12mm';svg.style.display='block';
       }catch(e){console.error(e);}
     });
     window.onload=()=>setTimeout(()=>window.print(),400);
