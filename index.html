@@ -1599,26 +1599,21 @@ async function saveOrder(status){
     const hasDel=decreased.length||deleted.length;
 
     const isShipped=oldOrder.status==='shipped';
-    // 已出貨後編輯（客戶拒收等帳務調整）：直接更新明細，狀態維持已出貨
-    if(isShipped){
-      if(hasAdd||hasDel){
-        const msg='此抄貨單已出貨，確認要調整商品明細嗎？（僅用於帳務記錄，不影響庫存與撿貨）\n\n'+
-          [...added.map(x=>'新增：'+x),...increased.map(x=>'增加：'+x),...decreased.map(x=>'減少：'+x),...deleted.map(x=>'刪除：'+x)].join('\n');
-        if(!confirm(msg)){b1.disabled=b2.disabled=false;return;}
-      }
-      status='shipped';
-    }
-
-    // 已完成狀態被編輯
-    if(isCompleted){
-      if(hasDel){
-        const msg='確認減少/刪除以下商品？\n\n'+[...decreased.map(x=>'減少：'+x),...deleted.map(x=>'刪除：'+x)].join('\n');
+    // 已出貨/已完成後編輯：有新增/增加 → 走撿貨(修改)流程；只有減少/刪除 → 僅調整明細不影響狀態
+    if(isShipped||isCompleted){
+      if(hasDel&&!hasAdd){
+        const msg=(isShipped?'此抄貨單已出貨，':'')+'確認減少/刪除以下商品？\n\n'+
+          [...decreased.map(x=>'減少：'+x),...deleted.map(x=>'刪除：'+x)].join('\n')+
+          (isShipped?'\n\n（僅用於帳務記錄，不影響庫存與撿貨）':'');
         if(!confirm(msg)){b1.disabled=b2.disabled=false;return;}
       }
       if(hasAdd){
-        // 需要重新撿貨
+        if(hasDel){
+          const msg='以下商品有減少/刪除：\n\n'+[...decreased.map(x=>'減少：'+x),...deleted.map(x=>'刪除：'+x)].join('\n')+'\n\n確認連同新增/增加的部分一起調整嗎？';
+          if(!confirm(msg)){b1.disabled=b2.disabled=false;return;}
+        }
+        // 有新增或增加數量 → 需要重新撿貨，走撿貨(修改)→裝箱(修改)→完成
         status='mod_pending';
-        // 清除新增/增加商品的撿貨狀態
         const newState={};
         oldItems.forEach((oi,i)=>{
           const ni=orderItems.find(n=>n.productId===oi.productId&&(n.variant||'')===(oi.variant||''));
@@ -1627,7 +1622,7 @@ async function saveOrder(status){
         if(!db.pickingState)db.pickingState={};
         db.pickingState[editOrderId]=newState;
       } else {
-        status='completed';
+        status=isShipped?'shipped':'completed';
       }
     }
 
@@ -3465,11 +3460,11 @@ function openLabelPrintWindow(priceQtyList,prefix){
     .sheet{display:flex;flex-direction:column;width:32mm;}
     .label{width:32mm;height:25mm;box-sizing:border-box;padding:1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;margin-bottom:29.5mm;}
     .label:last-child{margin-bottom:0;}
-    .label .line{width:28.5mm;text-align:center;white-space:nowrap;overflow:hidden;}
-    .label .brand{font-size:12px;font-weight:900;line-height:1.2;margin-bottom:2px;letter-spacing:4px;}
-    .label svg{display:block;width:28.5mm;height:8.5mm;}
+    .label .line{width:25.6mm;text-align:center;white-space:nowrap;overflow:hidden;}
+    .label .brand{display:flex;justify-content:space-between;font-size:12px;font-weight:900;line-height:1.2;margin-bottom:2px;}
+    .label svg{display:block;width:25.6mm;height:12mm;}
     .label .code{font-size:9px;font-family:monospace;margin-top:1px;line-height:1;}
-    .label .price{font-size:12px;font-weight:900;margin-top:2px;line-height:1;}
+    .label .price{font-size:12px;font-weight:400;margin-top:2px;line-height:1;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
   <scr`+`ipt>
@@ -3477,13 +3472,20 @@ function openLabelPrintWindow(priceQtyList,prefix){
     const sheet=document.getElementById('sheet');
     items.forEach(it=>{
       const div=document.createElement('div');div.className='label';
-      const brand=document.createElement('div');brand.className='line brand';brand.textContent='奧斯卡';
+      const brand=document.createElement('div');brand.className='line brand';
+      '奧斯卡'.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;brand.appendChild(s);});
       const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
       const code=document.createElement('div');code.className='line code';code.textContent=it.barcode;
       const price=document.createElement('div');price.className='line price';price.textContent='單價 '+it.price+' 元';
       div.appendChild(brand);div.appendChild(svg);div.appendChild(code);div.appendChild(price);
       sheet.appendChild(div);
-      try{ JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:80,width:2}); }catch(e){console.error(e);}
+      try{
+        JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:80,width:2});
+        // 強制統一上下長度，避免preserveAspectRatio造成有的留白有的不留白
+        svg.setAttribute('preserveAspectRatio','none');
+        svg.removeAttribute('width');svg.removeAttribute('height');
+        svg.style.width='25.6mm';svg.style.height='12mm';
+      }catch(e){console.error(e);}
     });
     window.onload=()=>setTimeout(()=>window.print(),400);
   </scr`+`ipt>
@@ -3568,9 +3570,9 @@ function printCustomCodeLabels(){
     .sheet{display:flex;flex-direction:column;width:32mm;}
     .label{width:32mm;height:25mm;box-sizing:border-box;padding:1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;margin-bottom:29.5mm;}
     .label:last-child{margin-bottom:0;}
-    .label .name{width:28.5mm;font-size:8px;font-weight:700;line-height:1.15;margin-bottom:1px;text-align:center;max-height:5.5mm;overflow:hidden;}
-    .label svg{display:block;width:28.5mm;height:8.5mm;}
-    .label .code{width:28.5mm;font-size:7.5px;font-family:monospace;margin-top:1px;line-height:1;text-align:center;}
+    .label .name{width:25.6mm;font-size:8px;font-weight:700;line-height:1.15;margin-bottom:1px;text-align:center;max-height:5.5mm;overflow:hidden;}
+    .label svg{display:block;width:25.6mm;height:12mm;}
+    .label .code{width:25.6mm;font-size:7.5px;font-family:monospace;margin-top:1px;line-height:1;text-align:center;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
   <scr`+`ipt>
@@ -3583,7 +3585,12 @@ function printCustomCodeLabels(){
       const code=document.createElement('div');code.className='code';code.textContent=it.barcode;
       div.appendChild(name);div.appendChild(svg);div.appendChild(code);
       sheet.appendChild(div);
-      try{ JsBarcode(svg,it.barcode,{format:'CODE128',displayValue:false,margin:0,height:80,width:2}); }catch(e){console.error(e);}
+      try{
+        JsBarcode(svg,it.barcode,{format:'CODE128',displayValue:false,margin:0,height:80,width:2});
+        svg.setAttribute('preserveAspectRatio','none');
+        svg.removeAttribute('width');svg.removeAttribute('height');
+        svg.style.width='25.6mm';svg.style.height='12mm';
+      }catch(e){console.error(e);}
     });
     window.onload=()=>setTimeout(()=>window.print(),400);
   </scr`+`ipt>
