@@ -1832,6 +1832,8 @@ function renderOrders(){
   list.innerHTML=rows.map(o=>{
     const c=db.customers.find(x=>x.id===o.customerId);
     const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
+    const oPickState=(db.pickingState||{})[o.id]||{};
+    const hasUnpicked=o.status!=='draft'&&(o.items||[]).some((_,i)=>!oPickState[i]);
     return `<div class="card" style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:7px;">
         <div>
@@ -1851,6 +1853,7 @@ function renderOrders(){
         ${['confirmed','picking','re_picking','pending_edit','mod_pending','mod_picking'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">${o.status.startsWith('mod_')||o.status==='pending_edit'?'撿貨(修改)':'撿貨'}</button>`:''}
         ${o.status==='packed'?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨(補)</button>`:''}
         ${['picked','boxing','re_boxing','mod_picked','mod_boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">${o.status.startsWith('mod_')?'裝箱(修改)':'裝箱確認'}</button>`:''}
+        ${hasUnpicked&&!['confirmed','picking','re_picking','pending_edit','mod_pending','mod_picking','packed'].includes(o.status)?`<button class="btn btn-sm btn-orange" onclick="viewOrder('${o.id}')" style="background:var(--orange);color:#fff;">⚠ 撿貨(補)</button>`:''}
         ${(o.status==='completed'||(o.status==='shipped'&&!db.shipments.some(s=>s.orderId===o.id)))?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
         <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>
       </div>
