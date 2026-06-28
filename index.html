@@ -1919,9 +1919,11 @@ function viewOrder(id){
   });
   window._pickItems=items;
   window._pickOrderId=id;
-  // For packed orders, only show unpicked (missing) items
-  const isPacked2=o.status==='packed';
+  // 只要清單裡有「部分已撿、部分未撿」（混合狀態），就只顯示尚未撿到的商品，不要全部列出
   const savedState2=(db.pickingState||{})[id]||{};
+  const hasAnyPicked2=(items||[]).some((_,i)=>savedState2[i]);
+  const hasAnyUnpicked2=(items||[]).some((_,i)=>!savedState2[i]);
+  const isPacked2=hasAnyPicked2&&hasAnyUnpicked2;
   const displayItems=isPacked2?items.filter((_,idx)=>!savedState2[idx]):items;
   const displayOffset=isPacked2?items.map((_,i)=>i).filter(i=>!savedState2[i]):items.map((_,i)=>i);
   G('od-body').innerHTML=`
