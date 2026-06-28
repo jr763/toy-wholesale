@@ -1,5 +1,5 @@
 // sw.js — 讓網頁本身可以離線開啟（不只是資料離線）
-const CACHE_NAME = 'osc-app-v1';
+const CACHE_NAME = 'osc-app-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -34,6 +34,24 @@ self.addEventListener('activate', (event) => {
 
 // 策略：先試著向網路要新的，連不上網路就用本機快取的版本
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        // 拿到新版本就順手更新快取，下次離線時用最新的
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        // 連網頁本身都沒快取到時，至少回傳首頁殼子
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html');
+        }
+      }))
+  );
+});
   if (event.request.method !== 'GET') return;
   event.respondWith(
     fetch(event.request)
