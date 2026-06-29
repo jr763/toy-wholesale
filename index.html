@@ -836,8 +836,7 @@ function handleHashChange(){
 
 window.addEventListener('popstate',handleHashChange);
 
-['modal-product','modal-customer','modal-order','modal-order-detail','modal-shipment','modal-barcode','modal-variants','modal-return']
-  .forEach(id=>G(id)?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal(id);}));
+// 點擊背景不再自動關閉視窗，避免不小心誤觸把畫面關掉（一定要按 × 才會關閉）
 
 // ── FIRESTORE ────────────────────────────────
 function renderAll(){
@@ -2534,7 +2533,7 @@ function buildFormatB(s,cust,o){
     total+=amount;
     rowsHtml+=`<tr>
       <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">${idx+1}</td>
-      <td style="border:1px solid #000;padding:3px 4px;font-size:13px;">${basePrice}元玩具 ${priceBC}</td>
+      <td style="border:1px solid #000;padding:3px 4px;font-size:12px;white-space:nowrap;overflow:hidden;">${basePrice}元玩具 ${priceBC}</td>
       <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">個</td>
       <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${discPrice}</td>
       <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${basePrice}</td>
@@ -2592,7 +2591,7 @@ function buildFormatC(s,cust,o){
     rowsHtml+=`<tr>
       <td style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;"></td>
       <td style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">${idx===0?poNo:''}</td>
-      <td style="border:1px solid #000;padding:3px 4px;font-size:13px;">${basePrice}元玩具 ${priceBC}</td>
+      <td style="border:1px solid #000;padding:3px 4px;font-size:12px;white-space:nowrap;overflow:hidden;">${basePrice}元玩具 ${priceBC}</td>
       <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">${qty}</td>
       <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${discPrice}</td>
       <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${basePrice}</td>
