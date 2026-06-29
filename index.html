@@ -320,7 +320,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       <input type="hidden" id="ship-filter-cust" value="">
       <div id="ship-cust-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:7px;z-index:50;max-height:160px;overflow-y:auto;box-shadow:var(--shadow);"></div>
     </div>
-    <select id="ship-filter-month" onchange="renderShipments()" style="flex:1;min-width:110px;"><option value="">全部月份</option></select>
+    <input type="date" id="ship-filter-start" onchange="renderShipments()" style="flex:1;min-width:110px;">
+    <input type="date" id="ship-filter-end" onchange="renderShipments()" style="flex:1;min-width:110px;">
+    <button class="btn btn-secondary btn-sm" onclick="G('ship-filter-start').value='';G('ship-filter-end').value='';renderShipments();">清除</button>
   </div>
   <div id="shipments-list"></div>
 </div>
@@ -425,6 +427,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
         <div class="form-group"><label>出貨單格式</label>
           <select id="c-invoice-format">
             <option value="A">A 格式</option>
+            <option value="B">B 格式（品名及條碼/單位/進價/售價）</option>
+            <option value="C">C 格式（廠商編號/進貨單號/產品條碼）</option>
+            <option value="D">D 格式（商品條碼/品名/成本）</option>
           </select>
         </div>
         <div class="form-group full"><label>備註</label><textarea id="c-note" placeholder="付款條件、交貨注意事項…"></textarea></div>
@@ -451,6 +456,18 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
             </div>
           </div>
           <div style="font-size:11px;color:var(--text2);margin-top:6px;">不設定的話，維持用上方「折扣(%)」欄位的單純折數計算。</div>
+        </div>
+        <div class="form-group full">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="c-hide-barcode-name"> 出貨單商品名稱不顯示條碼（只顯示「OO元玩具」）
+          </label>
+        </div>
+        <div class="form-group full" style="background:var(--surface2);border-radius:8px;padding:12px;">
+          <label style="font-weight:700;margin-bottom:8px;display:block;">自訂進價（售價→進價對照表）</label>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">如果這個客戶的進價不是用折數算的，可以直接設定每個售價對應的進價。設定後優先使用，蓋掉上面的計價規則。</div>
+          <textarea id="c-cost-map-input" placeholder="貼上「售價 進價」每行一筆，例：&#10;19 14&#10;29 22&#10;39 30" style="width:100%;height:80px;font-family:monospace;font-size:12px;"></textarea>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px;">每行一筆，售價跟進價中間用空白或Tab分隔。儲存時會自動解析。</div>
+          <div id="c-cost-map-preview" style="margin-top:8px;font-size:12px;"></div>
         </div>
       </div>
             <div class="btn-row">
@@ -1286,6 +1303,8 @@ function openCustomerModal(){
   G('c-rule-special-rate').value='';
   G('c-rule-special-adjust').checked=false;
   toggleSpecialRuleUI();
+  G('c-hide-barcode-name').checked=false;
+  G('c-cost-map-input').value='';
   openModal('modal-customer');
 }
 function editCustomer(id){
@@ -1299,6 +1318,20 @@ function editCustomer(id){
   G('c-discount').value=c.discount||0;
   G('c-barcode').value=c.labelBarcode||'7990341';
   if(G('c-invoice-format'))G('c-invoice-format').value=c.invoiceFormat||'A';
+  const r=c.pricingRule;
+  if(G('c-rule-normal')){
+    G('c-rule-normal').value=r?.normalRate||'';
+    G('c-rule-round').value=r?.roundMode||'decimal1';
+    G('c-rule-special-enable').checked=r?.specialEnabled||false;
+    G('c-rule-special-rate').value=r?.specialRate||'';
+    G('c-rule-special-adjust').checked=r?.specialAdjust||false;
+    toggleSpecialRuleUI();
+  }
+  if(G('c-hide-barcode-name'))G('c-hide-barcode-name').checked=c.hideBarcodeInName||false;
+  if(G('c-cost-map-input')){
+    const cmap=c.customCostMap;
+    G('c-cost-map-input').value=cmap?Object.entries(cmap).map(([p,v])=>p+' '+v).join('\n'):'';
+  }
   openModal('modal-customer');
 }
 function renderCPriceSearch(){
@@ -1344,9 +1377,23 @@ async function saveCustomer(){
       specialAdjust:G('c-rule-special-adjust').checked
     };
   }
+  const costMapText=(G('c-cost-map-input')?.value||'').trim();
+  let customCostMap=null;
+  if(costMapText){
+    customCostMap={};
+    costMapText.split('\n').forEach(line=>{
+      const parts=line.trim().split(/[\s\t]+/).filter(Boolean);
+      if(parts.length>=2){
+        const price=parseFloat(parts[0]),cost=parseFloat(parts[1]);
+        if(!isNaN(price)&&!isNaN(cost)) customCostMap[price]=cost;
+      }
+    });
+    if(!Object.keys(customCostMap).length) customCostMap=null;
+  }
   const data={name:V('c-name'),phone:V('c-phone')||'',address:V('c-address')||'',note:V('c-note')||'',
     discount:parseFloat(G('c-discount').value)||0,labelBarcode:G('c-barcode').value,
-    invoiceFormat:G('c-invoice-format')?.value||'A',pricingRule};
+    invoiceFormat:G('c-invoice-format')?.value||'A',pricingRule,
+    hideBarcodeInName:G('c-hide-barcode-name').checked,customCostMap};
   if(editCustId){const i=db.customers.findIndex(x=>x.id===editCustId);db.customers[i]={...db.customers[i],...data};}
   else db.customers.push({id:uid(),...data});
   await saveData();
@@ -2147,20 +2194,16 @@ async function saveShipment(orderId){
 }
 function renderShipments(){
   const list=G('shipments-list');if(!list)return;
-  // Populate month filter
   const custSel=G('ship-filter-cust');
-  const monthSel=G('ship-filter-month');
-  if(monthSel&&monthSel.options.length<=1){
-    const months=[...new Set(db.shipments.map(s=>s.date?.slice(0,7)).filter(Boolean))].sort().reverse();
-    months.forEach(m=>{const opt=document.createElement('option');opt.value=m;opt.textContent=m;monthSel.appendChild(opt);});
-  }
   const filterCust=custSel?.value||'';
-  const filterMonth=monthSel?.value||'';
+  const filterStart=G('ship-filter-start')?.value||'';
+  const filterEnd=G('ship-filter-end')?.value||'';
   let rows=[...db.shipments].reverse().filter(s=>{
     const o=db.orders.find(x=>x.id===s.orderId);
     const cust=o?db.customers.find(x=>x.id===o.customerId):null;
     if(filterCust&&cust?.id!==filterCust)return false;
-    if(filterMonth&&!s.date?.startsWith(filterMonth))return false;
+    if(filterStart&&s.date<filterStart)return false;
+    if(filterEnd&&s.date>filterEnd)return false;
     return true;
   });
   window._visibleShipmentIds=rows.map(s=>s.id);
@@ -2416,9 +2459,239 @@ function openBCPrint(orderId){
 function buildShipmentHTML(s){
   const o=db.orders.find(x=>x.id===s.orderId);
   const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+  const fmt=cust?.invoiceFormat||'A';
+  if(fmt==='B') return buildFormatB(s,cust,o);
+  if(fmt==='C') return buildFormatC(s,cust,o);
+  if(fmt==='D') return buildFormatD(s,cust,o);
+  return buildFormatA(s,cust,o);
+}
+function shipHeaderHTML(cust,dateStr,addrRight,dateRight){
+  return `
+      <div style="text-align:center;font-size:29px;font-weight:bold;letter-spacing:3px;margin-bottom:1px;">奧斯卡商行</div>
+      <div style="text-align:center;margin-bottom:6px;">
+        <span style="font-size:20px;font-weight:bold;letter-spacing:3px;border-bottom:2px double #000;padding-bottom:1px;">銷 貨 單 據 一 覽 表</span>
+      </div>
+      <div style="font-size:14px;margin-bottom:3px;">客戶名稱：${cust?cust.name:''}</div>
+      <div style="font-size:14px;margin-bottom:3px;">電話：${cust?.phone||''}</div>
+      <div style="font-size:14px;margin-bottom:3px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
+      <div style="font-size:14px;margin-bottom:6px;">銷貨日期：${dateStr}${dateRight?'　'+dateRight:''}</div>`;
+}
+function shipSignatureHTML(){
+  return `
+      <div style="margin-top:10px;display:flex;align-items:flex-end;">
+        <span style="width:54%;"></span>
+        <span style="font-size:16px;font-weight:bold;white-space:nowrap;">客戶簽收：</span>
+        <span style="flex:1;border-bottom:1.5px solid #000;margin-left:6px;"></span>
+      </div>`;
+}
+function shipCalcSetup(s,cust){
   const disc=cust?.discount||0;
   const rule=cust?.pricingRule;
+  const costMap=cust?.customCostMap;
   function calcDiscPrice(price){
+    if(costMap&&costMap[price]!==undefined) return costMap[price];
+    if(rule&&rule.normalRate>0){
+      const isSpecial=rule.specialEnabled&&(price%10===9);
+      const rate=isSpecial?(rule.specialRate||rule.normalRate):rule.normalRate;
+      const base=(isSpecial&&rule.specialAdjust)?price+1:price;
+      let result=base*(rate/100);
+      result=rule.roundMode==='floor'?Math.floor(result):Math.round(result*10)/10;
+      return result;
+    }
+    return disc?Math.round(price*(1-disc/100)*10)/10:price;
+  }
+  const priceGroups={};
+  (s.items||[]).forEach(item=>{priceGroups[item.price]=(priceGroups[item.price]||0)+item.qty;});
+  const isSpecialPrice=p=>rule?.specialEnabled&&(p%10===9);
+  const rows=Object.keys(priceGroups).map(Number).sort((a,b)=>{
+    const aSp=isSpecialPrice(a)?1:0, bSp=isSpecialPrice(b)?1:0;
+    if(aSp!==bSp) return aSp-bSp;
+    return a-b;
+  }).map(price=>({price,qty:priceGroups[price]}));
+  return {calcDiscPrice,rows};
+}
+function shipNoteSplit(cust){
+  const note=cust?.note||'';
+  const noteLines=note.split('\n').map(l=>l.trim()).filter(Boolean);
+  const addrRight=noteLines.length>=2?noteLines[0]:'';
+  const dateRight=noteLines.length>=2?noteLines[1]:(noteLines[0]||'');
+  return {addrRight,dateRight};
+}
+
+// ── 格式 B：序號/品名及條碼/單位/進價/售價/數量/金額（總金額）──
+function buildFormatB(s,cust,o){
+  const {calcDiscPrice,rows}=shipCalcSetup(s,cust);
+  const {addrRight,dateRight}=shipNoteSplit(cust);
+  const dateStr=(s.date||'').replace(/-/g,'/');
+  const TOTAL_ROWS=20;
+  let total=0,rowsHtml='';
+  rows.forEach((item,idx)=>{
+    const basePrice=item.price;
+    const discPrice=calcDiscPrice(basePrice);
+    const priceBC=getPriceBarcode(basePrice,cust?.labelBarcode);
+    const qty=item.qty;
+    const amount=Math.round(discPrice*qty*10)/10;
+    total+=amount;
+    rowsHtml+=`<tr>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">${idx+1}</td>
+      <td style="border:1px solid #000;padding:3px 4px;font-size:13px;line-height:1.3;">${basePrice}元玩具<br><span style="font-size:11px;color:#333;">${priceBC}</span></td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">個</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${discPrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${basePrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">${qty}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${amount}</td>
+    </tr>`;
+  });
+  for(let i=rows.length;i<TOTAL_ROWS;i++){
+    rowsHtml+=`<tr style="height:22px;">
+      <td style="border:1px solid #000;font-size:14px;text-align:center;">${i+1}</td>
+      <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
+    </tr>`;
+  }
+  return `
+    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:14px;margin:0 auto;">
+      ${shipHeaderHTML(cust,dateStr,addrRight,dateRight)}
+      <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
+        <colgroup><col style="width:7%"><col style="width:30%"><col style="width:8%"><col style="width:15%"><col style="width:15%"><col style="width:10%"><col style="width:15%"></colgroup>
+        <thead><tr>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">序號</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">品名及條碼</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">單位</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">進價</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">售價</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">數量</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">金額</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tr style="background:#c8c8c8;">
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:15px;font-weight:bold;" colspan="6">總金額：</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:15px;font-weight:bold;">${Math.round(total)}</td>
+        </tr>
+      </table>
+      ${shipSignatureHTML()}
+    </div>`;
+}
+
+// ── 格式 C：廠商編號/進貨單號/產品條碼/數量/進價/零售價/金額（總金額）──
+function buildFormatC(s,cust,o){
+  const {calcDiscPrice,rows}=shipCalcSetup(s,cust);
+  const {addrRight,dateRight}=shipNoteSplit(cust);
+  const dateStr=(s.date||'').replace(/-/g,'/');
+  const TOTAL_ROWS=20;
+  const poNo=(s.date||'').replace(/-/g,'')+'001';
+  let total=0,rowsHtml='';
+  rows.forEach((item,idx)=>{
+    const basePrice=item.price;
+    const discPrice=calcDiscPrice(basePrice);
+    const priceBC=getPriceBarcode(basePrice,cust?.labelBarcode);
+    const qty=item.qty;
+    const amount=Math.round(discPrice*qty*10)/10;
+    total+=amount;
+    rowsHtml+=`<tr>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;"></td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">${idx===0?poNo:''}</td>
+      <td style="border:1px solid #000;padding:3px 4px;font-size:13px;">${basePrice}元玩具 ${priceBC}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">${qty}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${discPrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${basePrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${amount}</td>
+    </tr>`;
+  });
+  for(let i=rows.length;i<TOTAL_ROWS;i++){
+    rowsHtml+=`<tr style="height:22px;">
+      <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
+    </tr>`;
+  }
+  return `
+    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:14px;margin:0 auto;">
+      ${shipHeaderHTML(cust,dateStr,addrRight,dateRight)}
+      <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
+        <colgroup><col style="width:13%"><col style="width:16%"><col style="width:30%"><col style="width:10%"><col style="width:13%"><col style="width:13%"><col style="width:15%"></colgroup>
+        <thead><tr>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">廠商編號</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">進貨單號</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">產品/條碼</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">數量</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">進價</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">零售價</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">金額</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tr style="background:#c8c8c8;">
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:15px;font-weight:bold;" colspan="6">總金額：</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:15px;font-weight:bold;">${Math.round(total)}</td>
+        </tr>
+      </table>
+      ${shipSignatureHTML()}
+    </div>`;
+}
+
+// ── 格式 D：序號/商品條碼(顯示OO元玩具)/品名(顯示真實條碼)/單位/數量/成本/售價/金額，結尾"以下空白" ──
+function buildFormatD(s,cust,o){
+  const {calcDiscPrice,rows}=shipCalcSetup(s,cust);
+  const {addrRight,dateRight}=shipNoteSplit(cust);
+  const dateStr=(s.date||'').replace(/-/g,'/');
+  let total=0,rowsHtml='';
+  rows.forEach((item,idx)=>{
+    const basePrice=item.price;
+    const discPrice=calcDiscPrice(basePrice);
+    const priceBC=getPriceBarcode(basePrice,cust?.labelBarcode);
+    const qty=item.qty;
+    const amount=Math.round(discPrice*qty*10)/10;
+    total+=amount;
+    rowsHtml+=`<tr>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">${idx+1}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">${basePrice}元玩具</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">${priceBC}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">個</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">${qty}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${discPrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${basePrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:14px;">${amount}</td>
+    </tr>`;
+  });
+  rowsHtml+=`<tr style="height:24px;">
+    <td style="border:1px solid #000;"></td>
+    <td style="border:1px solid #000;"></td>
+    <td style="border:1px solid #000;text-align:center;font-size:13px;color:#555;">以下空白</td>
+    <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
+    <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
+  </tr>`;
+  return `
+    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:14px;margin:0 auto;">
+      ${shipHeaderHTML(cust,dateStr,addrRight,dateRight)}
+      <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
+        <colgroup><col style="width:7%"><col style="width:18%"><col style="width:22%"><col style="width:8%"><col style="width:10%"><col style="width:12%"><col style="width:11%"><col style="width:12%"></colgroup>
+        <thead><tr>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">序號</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">商品條碼</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">品名</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">單位</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">數量</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">成本</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">售價</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">金額</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tr style="background:#c8c8c8;">
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:15px;font-weight:bold;" colspan="7">總金額：</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:15px;font-weight:bold;">${Math.round(total)}</td>
+        </tr>
+      </table>
+      ${shipSignatureHTML()}
+    </div>`;
+}
+
+function buildFormatA(s,cust,o){
+  const disc=cust?.discount||0;
+  const rule=cust?.pricingRule;
+  const costMap=cust?.customCostMap;
+  function calcDiscPrice(price){
+    if(costMap&&costMap[price]!==undefined) return costMap[price];
     if(rule&&rule.normalRate>0){
       const isSpecial=rule.specialEnabled&&(price%10===9);
       const rate=isSpecial?(rule.specialRate||rule.normalRate):rule.normalRate;
@@ -2435,14 +2708,20 @@ function buildShipmentHTML(s){
   const TOTAL_ROWS=20;
   const priceGroups={};
   (s.items||[]).forEach(item=>{priceGroups[item.price]=(priceGroups[item.price]||0)+item.qty;});
-  const rows=Object.keys(priceGroups).map(Number).sort((a,b)=>a-b).map(price=>({price,qty:priceGroups[price]}));
+  // 特價(尾數9)排在所有正常價後面，各自由小到大排序
+  const isSpecialPrice=p=>rule?.specialEnabled&&(p%10===9);
+  const rows=Object.keys(priceGroups).map(Number).sort((a,b)=>{
+    const aSp=isSpecialPrice(a)?1:0, bSp=isSpecialPrice(b)?1:0;
+    if(aSp!==bSp) return aSp-bSp;
+    return a-b;
+  }).map(price=>({price,qty:priceGroups[price]}));
   let total=0;
   let rowsHtml='';
   rows.forEach((item,idx)=>{
     const basePrice=item.price;
     const discPrice=calcDiscPrice(basePrice);
     const priceBC=getPriceBarcode(basePrice,cust?.labelBarcode);
-    const name=basePrice+'元玩具 '+priceBC;
+    const name=cust?.hideBarcodeInName?(basePrice+'元玩具'):(basePrice+'元玩具 '+priceBC);
     const qty=item.qty;
     const amount=Math.round(discPrice*qty*10)/10;
     total+=amount;
@@ -2496,7 +2775,7 @@ function buildShipmentHTML(s){
         <tbody>${rowsHtml}</tbody>
         <tr class="total-row" style="background:#c8c8c8;">
           <td style="border:1px solid #000;padding:4px;text-align:right;font-size:15px;font-weight:bold;" colspan="4">總計：</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:15px;font-weight:bold;">${Math.round(total*10)/10}</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:15px;font-weight:bold;">${Math.round(total)}</td>
         </tr>
       </table>
       <div style="margin-top:10px;display:flex;align-items:flex-end;">
