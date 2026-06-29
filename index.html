@@ -156,6 +156,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div class="side-menu-item" onclick="switchTab('returns',this);closeMenu()">↩️ 退貨</div>
     <div class="side-menu-item" id="nav-restock" onclick="switchTab('restock',this);closeMenu()">🔔 補貨</div>
     <div class="side-menu-item" onclick="openTrashModal();closeMenu()">🗑️ 最近刪除</div>
+    <div class="side-menu-item" onclick="exportBackup();closeMenu()">📥 匯出備份</div>
   </div>
 </div>
 
@@ -440,6 +441,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
             <div><label style="font-size:12px;">計算方式</label>
               <select id="c-rule-round">
                 <option value="decimal1">四捨五入到小數第1位</option>
+                <option value="truncate1">不四捨五入，取到小數第1位</option>
                 <option value="floor">捨去到整數（無小數）</option>
               </select>
             </div>
@@ -763,6 +765,8 @@ firebase.initializeApp({
   appId: "1:1058358181383:web:47efb231eb3b4a975474a2"
 });
 const fsdb = firebase.firestore();
+// 啟用離線快取（不開synchronizeTabs，避免部分手機瀏覽器卡住）
+try{ fsdb.enablePersistence({synchronizeTabs:false}).catch(err=>console.warn('離線快取無法啟用：',err.code)); }catch(e){}
 const DOC_REF = fsdb.collection('data').doc('main');
 
 // ── LINE NOTIFY ──────────────────────────────
@@ -861,7 +865,18 @@ async function loadData(btn=false){
 async function saveData(){
   isSaving=true; setSyncStatus('loading','儲存中…');
   try{
+    // 衝突偵測：存檔前先確認雲端資料有沒有被別人在這之後改過
+    try{
+      const liveSnap=await DOC_REF.get({source:'server'});
+      const liveTime=liveSnap.exists&&liveSnap.updateTime?liveSnap.updateTime.toMillis():null;
+      if(window._lastSeenUpdateTime&&liveTime&&liveTime>window._lastSeenUpdateTime){
+        const ok=confirm('⚠️ 資料已被其他人修改過（可能是同事剛存檔），你的修改可能會覆蓋掉對方的內容。\n\n確定要繼續儲存嗎？\n（建議先取消，重新整理頁面看最新內容再操作）');
+        if(!ok){ isSaving=false; setSyncStatus('ok','雲端同步・所有人共用'); return; }
+      }
+    }catch(checkErr){ /* 衝突檢查本身失敗就不擋存檔，避免離線時卡住 */ }
     await DOC_REF.set(db);
+    const after=await DOC_REF.get();
+    window._lastSeenUpdateTime=after.updateTime?after.updateTime.toMillis():window._lastSeenUpdateTime;
     setSyncStatus('ok','已儲存・雲端同步'); updateRestockBadge();
   }catch(e){setSyncStatus('error','儲存失敗：'+e.message);}
   isSaving=false;
@@ -887,6 +902,7 @@ DOC_REF.onSnapshot({includeMetadataChanges:true},snap=>{
   if(snap.exists){
     const data=snap.data();
     db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},pickingState:{},boxingState:{},...data};
+    window._lastSeenUpdateTime=snap.updateTime?snap.updateTime.toMillis():null;
   }
   renderAll();
 }, err=>{
@@ -2494,7 +2510,7 @@ function shipCalcSetup(s,cust){
       const rate=isSpecial?(rule.specialRate||rule.normalRate):rule.normalRate;
       const base=(isSpecial&&rule.specialAdjust)?price+1:price;
       let result=base*(rate/100);
-      result=rule.roundMode==='floor'?Math.floor(result):Math.round(result*10)/10;
+      result=rule.roundMode==='floor'?Math.floor(result):rule.roundMode==='truncate1'?Math.floor(result*10)/10:Math.round(result*10)/10;
       return result;
     }
     return disc?Math.round(price*(1-disc/100)*10)/10:price;
@@ -2609,9 +2625,9 @@ function buildFormatC(s,cust,o){
     <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:14px;margin:0 auto;">
       ${shipHeaderHTML(cust,dateStr,addrRight,dateRight)}
       <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
-        <colgroup><col style="width:13%"><col style="width:16%"><col style="width:30%"><col style="width:10%"><col style="width:13%"><col style="width:13%"><col style="width:15%"></colgroup>
+        <colgroup><col style="width:17%"><col style="width:14%"><col style="width:27%"><col style="width:9%"><col style="width:12%"><col style="width:12%"><col style="width:13%"></colgroup>
         <thead><tr>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">廠商編號</th>
+          <th style="border:1px solid #000;padding:3px 1px;text-align:center;font-size:12px;white-space:nowrap;">廠商編號</th>
           <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">進貨單號</th>
           <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">產品/條碼</th>
           <th style="border:1px solid #000;padding:3px;text-align:center;font-size:13px;">數量</th>
@@ -2700,7 +2716,7 @@ function buildFormatA(s,cust,o){
       const rate=isSpecial?(rule.specialRate||rule.normalRate):rule.normalRate;
       const base=(isSpecial&&rule.specialAdjust)?price+1:price;
       let result=base*(rate/100);
-      result=rule.roundMode==='floor'?Math.floor(result):Math.round(result*10)/10;
+      result=rule.roundMode==='floor'?Math.floor(result):rule.roundMode==='truncate1'?Math.floor(result*10)/10:Math.round(result*10)/10;
       return result;
     }
     return disc?Math.round(price*(1-disc/100)*10)/10:price;
@@ -2931,7 +2947,7 @@ function doExportCSV(shipId){
       const rate=isSpecial?(rule.specialRate||rule.normalRate):rule.normalRate;
       const base=(isSpecial&&rule.specialAdjust)?price+1:price;
       let result=base*(rate/100);
-      result=rule.roundMode==='floor'?Math.floor(result):Math.round(result*10)/10;
+      result=rule.roundMode==='floor'?Math.floor(result):rule.roundMode==='truncate1'?Math.floor(result*10)/10:Math.round(result*10)/10;
       return result;
     }
     return disc?Math.round(price*(1-disc/100)*10)/10:price;
@@ -3914,6 +3930,16 @@ function closeLightbox(){
 function toggleSpecialRuleUI(){
   const enabled=G('c-rule-special-enable').checked;
   G('c-rule-special-fields').style.display=enabled?'grid':'none';
+}
+
+function exportBackup(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const ts=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  a.href=url;a.download='奧斯卡商行備份_'+ts+'.json';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 loadData();
