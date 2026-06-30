@@ -426,12 +426,15 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
           <select id="c-barcode"><option value="7990341">7990341</option><option value="2003751">2003751</option></select>
         </div>
         <div class="form-group"><label>出貨單格式</label>
-          <select id="c-invoice-format">
-            <option value="A">A 格式</option>
-            <option value="B">B 格式（品名及條碼/單位/進價/售價）</option>
-            <option value="C">C 格式（廠商編號/進貨單號/產品條碼）</option>
-            <option value="D">D 格式（商品條碼/品名/成本）</option>
-          </select>
+          <div style="display:flex;gap:6px;align-items:flex-end;">
+            <select id="c-invoice-format" style="flex:1;">
+              <option value="A">A 格式</option>
+              <option value="B">B 格式（品名及條碼/單位/進價/售價）</option>
+              <option value="C">C 格式（廠商編號/進貨單號/產品條碼）</option>
+              <option value="D">D 格式（商品條碼/品名/成本）</option>
+            </select>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="previewInvoiceFormat()" style="white-space:nowrap;">👁 預覽格式</button>
+          </div>
         </div>
         <div class="form-group full"><label>備註</label><textarea id="c-note" placeholder="付款條件、交貨注意事項…"></textarea></div>
         <div class="form-group full" style="background:var(--surface2);border-radius:8px;padding:12px;">
@@ -769,17 +772,29 @@ const fsdb = firebase.firestore();
 try{ fsdb.enablePersistence({synchronizeTabs:false}).catch(err=>console.warn('離線快取無法啟用：',err.code)); }catch(e){}
 const DOC_REF = fsdb.collection('data').doc('main');
 
-// ── LINE NOTIFY ──────────────────────────────
-const LINE_WEBHOOK = 'https://hook.us2.make.com/uwydctx8x63mim8j6cedh2s24ju6ugix';
-async function sendLineNotify(message){
-  try{
-    const clean=String(message).replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/g,'');
-    const params=new URLSearchParams({message:clean});
-    const resp=await fetch(LINE_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params.toString()});
-    console.log('LINE通知：',resp.status);
-  }catch(e){console.log('LINE通知失敗：',e);}
-}
+// ── LINE Messaging API ────────────────────────
+const LINE_TOKEN = 'hGt3K6b53F5pUIKdyPPHftGt7ILxab0GMSFSofpZf8Wl1xyowZGDptyUT+yUivmwnv3MRfAELaQR8qxy2038gFLNmMEX53BvuLuVLhq3olYlTRxMEyjGjB1uraCF9OWMzlgMkjwg3ykuWazSbxE5owdB04t89/1O/w1cDnyilFU=';
+const LINE_GROUP_ID = 'Caead4f6cf763f99f495887d72288fc25';
 
+async function sendLineNotify(message) {
+  try {
+    const clean = String(message).replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    await fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + LINE_TOKEN
+      },
+      body: JSON.stringify({
+        to: LINE_GROUP_ID,
+        messages: [{ type: 'text', text: clean }]
+      })
+    });
+    console.log('LINE通知：已送出');
+  } catch(e) {
+    console.log('LINE通知失敗：', e);
+  }
+}
 // ── STATE ─────────────────────────────────────
 let db = { products:[], customers:[], orders:[], shipments:[], returns:[],
   variantOptions:[] };
@@ -3941,6 +3956,71 @@ function exportBackup(){
   a.href=url;a.download='奧斯卡商行備份_'+ts+'.json';
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function previewInvoiceFormat(){
+  const fmt=G('c-invoice-format')?.value||'A';
+  // 用目前編輯中的客戶設定（折扣/計價規則/自訂進價/條碼前綴/商品名稱規則）+ 假資料 預覽
+  const normalRate=parseFloat(G('c-rule-normal')?.value);
+  let pricingRule=null;
+  if(!isNaN(normalRate)&&normalRate>0){
+    pricingRule={
+      normalRate,
+      roundMode:G('c-rule-round')?.value||'decimal1',
+      specialEnabled:G('c-rule-special-enable')?.checked||false,
+      specialRate:parseFloat(G('c-rule-special-rate')?.value)||normalRate,
+      specialAdjust:G('c-rule-special-adjust')?.checked||false
+    };
+  }
+  const costMapText=(G('c-cost-map-input')?.value||'').trim();
+  let customCostMap=null;
+  if(costMapText){
+    customCostMap={};
+    costMapText.split('\n').forEach(line=>{
+      const parts=line.trim().split(/[\s\t]+/).filter(Boolean);
+      if(parts.length>=2){
+        const price=parseFloat(parts[0]),cost=parseFloat(parts[1]);
+        if(!isNaN(price)&&!isNaN(cost)) customCostMap[price]=cost;
+      }
+    });
+  }
+  const fakeCust={
+    name:V('c-name')||'（範例客戶）',
+    phone:V('c-phone')||'04-12345678',
+    address:V('c-address')||'台中市西屯區範例路123號',
+    note:V('c-note')||'',
+    discount:parseFloat(G('c-discount')?.value)||0,
+    labelBarcode:G('c-barcode')?.value||'7990341',
+    invoiceFormat:fmt,
+    pricingRule,
+    hideBarcodeInName:G('c-hide-barcode-name')?.checked||false,
+    customCostMap
+  };
+  fakeCust.id='preview';
+  const fakeOrder={id:'preview',customerId:'preview',date:today()};
+  const fakeShipment={id:'preview',orderId:'preview',date:today(),items:[
+    {productId:'p1',name:'50元玩具',price:50,qty:12},
+    {productId:'p2',name:'100元玩具',price:100,qty:8},
+    {productId:'p3',name:'150元玩具',price:150,qty:5},
+    {productId:'p4',name:'300元玩具',price:300,qty:3},
+  ]};
+  // 暫時塞進db查找用，預覽完還原
+  const origCust=db.customers,origOrder=db.orders;
+  db.customers=[...db.customers,fakeCust];
+  db.orders=[...db.orders,fakeOrder];
+  let html;
+  try{
+    html=buildShipmentHTML(fakeShipment);
+  }catch(e){
+    alert('預覽失敗：'+e.message);
+    db.customers=origCust;db.orders=origOrder;
+    return;
+  }
+  db.customers=origCust;db.orders=origOrder;
+  const w=window.open('','_blank');
+  if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>格式預覽</title></head><body>'+html+'</body></html>');
+  w.document.close();
 }
 
 loadData();
