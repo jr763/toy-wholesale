@@ -3777,7 +3777,6 @@ function openLabelPrintWindow(priceQtyList,prefix){
   if(!priceQtyList.length){alert('沒有售價可列印');return;}
   const w=window.open('','_blank');
   if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
-  // priceQtyList: [{price,qty}] or plain numbers (qty defaults to 2 for manual entry)
   const normalized=priceQtyList.map(it=>typeof it==='object'?it:{price:it,qty:2});
   const itemsJson=JSON.stringify(normalized.flatMap(({price,qty})=>{
     const barcode=getPriceBarcode(price,prefix);
@@ -3786,12 +3785,24 @@ function openLabelPrintWindow(priceQtyList,prefix){
   let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
   html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
   html+=`<style>
-    @page{size:32mm auto;margin:0;}
+    @page{size:34mm 28mm;margin:0;}
     *{box-sizing:border-box;}
     body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
-    .sheet{display:flex;flex-direction:column;width:32mm;}
-    .label{width:32mm;height:25mm;box-sizing:border-box;padding:1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;margin-bottom:29.5mm;}
-    .label:last-child{margin-bottom:0;}
+    .sheet{display:flex;flex-direction:column;width:34mm;}
+    .label{
+      width:32mm;
+      height:25mm;
+      box-sizing:border-box;
+      padding:1mm;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+      margin:0 1mm 3mm 1mm;
+      page-break-after:always;
+    }
+    .label:last-child{margin-bottom:0;page-break-after:avoid;}
     .label .line{width:25.6mm;text-align:center;white-space:nowrap;overflow:hidden;}
     .label .brand{display:flex;justify-content:space-between;font-size:11px;font-weight:900;line-height:1.1;margin-bottom:1px;}
     .label svg{display:block;width:25.6mm;height:9mm;}
@@ -3815,7 +3826,6 @@ function openLabelPrintWindow(priceQtyList,prefix){
       sheet.appendChild(div);
       try{
         JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:80,width:2});
-        // 強制統一上下長度：屬性跟CSS都鎖住，避免不同渲染引擎算法不同造成高度落差
         svg.setAttribute('preserveAspectRatio','none');
         svg.setAttribute('width','25.6mm');
         svg.setAttribute('height','9mm');
