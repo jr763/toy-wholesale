@@ -156,7 +156,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div class="side-menu-item" onclick="switchTab('returns',this);closeMenu()">↩️ 退貨</div>
     <div class="side-menu-item" id="nav-restock" onclick="switchTab('restock',this);closeMenu()">🔔 補貨</div>
     <div class="side-menu-item" onclick="openTrashModal();closeMenu()">🗑️ 最近刪除</div>
-    <div class="side-menu-item" onclick="exportBackup();closeMenu()">📥 匯出備份</div>
+    <div class="side-menu-item" onclick="restoreFromLocalBackup();closeMenu()">🔄 從本地備份還原</div>
   </div>
 </div>
 
@@ -877,21 +877,76 @@ async function loadData(btn=false){
   }catch(e){ setSyncStatus('error','連線失敗：'+e.message); G('loading-text').textContent='連線失敗：'+e.message; G('loading-overlay').style.background='rgba(245,242,237,.95)'; console.error('Firebase error:',e); }
   if(btn){ const b=G('btn-refresh');if(b){b.disabled=false;b.textContent='🔄 重新整理';} }
 }
-async function saveData(){
+// 分區儲存函數
+async function saveProducts(){ await fsdb.collection('data').doc('products').set({list:db.products}); }
+async function saveCustomers(){ await fsdb.collection('data').doc('customers').set({list:db.customers}); }
+async function saveOrders(){ await fsdb.collection('data').doc('orders').set({list:db.orders}); }
+async function saveShipments(){ await fsdb.collection('data').doc('shipments').set({list:db.shipments}); }
+async function saveReturns(){ await fsdb.collection('data').doc('returns').set({list:db.returns}); }
+async function saveMeta(){
+  await fsdb.collection('data').doc('meta').set({
+    variantOptions:db.variantOptions||[],
+    calVisits:db.calVisits||{},
+    pickingState:db.pickingState||{},
+    boxingState:db.boxingState||{},
+    trash:db.trash||[]
+  });
+}
+
+// 每日自動備份到 localStorage
+function autoBackup(){
+  try{
+    if(!db.products.length&&!db.customers.length&&!db.orders.length)return;
+    const dateKey=new Date().toISOString().slice(0,10);
+    const backups=JSON.parse(localStorage.getItem('oscar_daily_backups')||'{}');
+    backups[dateKey]=JSON.stringify({...db,backupTime:Date.now()});
+    // 只保留最近 7 天
+    const keys=Object.keys(backups).sort().reverse();
+    keys.slice(7).forEach(k=>delete backups[k]);
+    localStorage.setItem('oscar_daily_backups',JSON.stringify(backups));
+    console.log('自動備份完成：'+dateKey);
+  }catch(e){console.warn('自動備份失敗：',e);}
+}
+
+// 從本地備份還原
+function restoreFromLocalBackup(){
+  try{
+    const backups=JSON.parse(localStorage.getItem('oscar_daily_backups')||'{}');
+    const keys=Object.keys(backups).sort().reverse();
+    if(!keys.length){alert('找不到本地備份');return;}
+    const dateStr=keys.length===1?keys[0]:prompt('選擇要還原的日期（輸入數字）：\n'+keys.map((k,i)=>(i+1)+'. '+k).join('\n'));
+    const selected=keys.length===1?keys[0]:keys[parseInt(dateStr)-1];
+    if(!selected){alert('取消');return;}
+    const backup=JSON.parse(backups[selected]);
+    const time=new Date(backup.backupTime).toLocaleString();
+    if(!confirm(`還原 ${selected} 的備份？\n備份時間：${time}\n\n注意：這會覆蓋目前雲端資料`))return;
+    delete backup.backupTime;
+    db={...db,...backup};
+    saveData();
+    renderAll();
+    alert('還原成功！');
+  }catch(e){alert('還原失敗：'+e.message);}
+}
+
+async function saveData(section=null){
+  // 空資料保護
+  if(!db.products.length&&!db.customers.length&&!db.orders.length){
+    console.warn('偵測到空資料，取消儲存');
+    return;
+  }
   isSaving=true; setSyncStatus('loading','儲存中…');
   try{
-    // 衝突偵測：存檔前先確認雲端資料有沒有被別人在這之後改過
-    try{
-      const liveSnap=await DOC_REF.get({source:'server'});
-      const liveTime=liveSnap.exists&&liveSnap.updateTime?liveSnap.updateTime.toMillis():null;
-      if(window._lastSeenUpdateTime&&liveTime&&liveTime>window._lastSeenUpdateTime){
-        const ok=confirm('⚠️ 資料已被其他人修改過（可能是同事剛存檔），你的修改可能會覆蓋掉對方的內容。\n\n確定要繼續儲存嗎？\n（建議先取消，重新整理頁面看最新內容再操作）');
-        if(!ok){ isSaving=false; setSyncStatus('ok','雲端同步・所有人共用'); return; }
-      }
-    }catch(checkErr){ /* 衝突檢查本身失敗就不擋存檔，避免離線時卡住 */ }
-    await DOC_REF.set(db);
-    const after=await DOC_REF.get();
-    window._lastSeenUpdateTime=after.updateTime?after.updateTime.toMillis():window._lastSeenUpdateTime;
+    if(section==='products') await saveProducts();
+    else if(section==='customers') await saveCustomers();
+    else if(section==='orders') await saveOrders();
+    else if(section==='shipments') await saveShipments();
+    else if(section==='returns') await saveReturns();
+    else if(section==='meta') await saveMeta();
+    else {
+      // 全部存（相容舊邏輯）
+      await Promise.all([saveProducts(),saveCustomers(),saveOrders(),saveShipments(),saveReturns(),saveMeta()]);
+    }
+    autoBackup();
     setSyncStatus('ok','已儲存・雲端同步'); updateRestockBadge();
   }catch(e){setSyncStatus('error','儲存失敗：'+e.message);}
   isSaving=false;
