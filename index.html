@@ -973,20 +973,22 @@ const _loadingTimeoutId=setTimeout(()=>{
 },10000);
 // 分區監聽：每個 section 各自獨立，不會互相覆蓋
 const _sectionKeys=['products','customers','orders','shipments','returns'];
+let _initialLoadDone=false;
 let _firstSnapshotDone=0;
 _sectionKeys.forEach(key=>{
   fsdb.collection('sections').doc(key).onSnapshot({includeMetadataChanges:true},snap=>{
     clearTimeout(_loadingTimeoutId);
     G('loading-overlay').style.display='none';
-    if(snap.metadata.fromCache){
-      setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');
-    } else {
-      setSyncStatus('ok','雲端同步・所有人共用');
-    }
+    if(snap.metadata.fromCache){setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');}
+    else{setSyncStatus('ok','雲端同步・所有人共用');}
     if(isSaving)return;
     if(snap.exists){ db[key]=snap.data().data||[]; }
-    _firstSnapshotDone++;
-    if(_firstSnapshotDone>=6) renderAll();
+    if(!_initialLoadDone){
+      _firstSnapshotDone++;
+      if(_firstSnapshotDone>=6){_initialLoadDone=true;renderAll();}
+    } else {
+      renderAll();
+    }
   },err=>{ console.error('onSnapshot error ('+key+'):',err); });
 });
 fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true},snap=>{
@@ -999,8 +1001,12 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
     db.boxingState=m.boxingState||{};
     db.trash=m.trash||[];
   }
-  _firstSnapshotDone++;
-  if(_firstSnapshotDone>=6) renderAll();
+  if(!_initialLoadDone){
+    _firstSnapshotDone++;
+    if(_firstSnapshotDone>=6){_initialLoadDone=true;renderAll();}
+  } else {
+    renderAll();
+  }
 },err=>{ console.error('onSnapshot meta error:',err); });
 
 // ── CAMERA SCANNER ────────────────────────────
