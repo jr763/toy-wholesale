@@ -941,7 +941,7 @@ function restoreFromLocalBackup(){
 
 async function saveData(section=null){
   // 空資料保護
-  if(!db.products.length&&!db.customers.length&&!db.orders.length){
+  if(!section&&!db.products.length&&!db.customers.length&&!db.orders.length){
     console.warn('偵測到空資料，取消儲存');
     return;
   }
@@ -954,13 +954,13 @@ async function saveData(section=null){
     else if(section==='returns') await saveReturns();
     else if(section==='meta') await saveMeta();
     else {
-      // 全部存（相容舊邏輯）
       await Promise.all([saveProducts(),saveCustomers(),saveOrders(),saveShipments(),saveReturns(),saveMeta()]);
     }
     autoBackup();
     setSyncStatus('ok','已儲存・雲端同步'); updateRestockBadge();
   }catch(e){setSyncStatus('error','儲存失敗：'+e.message);}
-  isSaving=false;
+  // 存完後延遲 2 秒才讓 onSnapshot 覆蓋，避免剛存的資料被舊快取蓋掉
+  setTimeout(()=>{ isSaving=false; }, 2000);
 }
 // 即時監聽（其他人存檔會自動更新）
 let _loadingTimedOut=false;
@@ -981,19 +981,17 @@ _sectionKeys.forEach(key=>{
     G('loading-overlay').style.display='none';
     if(snap.metadata.fromCache){setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');}
     else{setSyncStatus('ok','雲端同步・所有人共用');}
-    if(isSaving)return;
-    if(snap.exists){ db[key]=snap.data().data||[]; }
+    if(snap.exists&&!isSaving){ db[key]=snap.data().data||[]; }
     if(!_initialLoadDone){
       _firstSnapshotDone++;
       if(_firstSnapshotDone>=6){_initialLoadDone=true;renderAll();}
-    } else {
+    } else if(!isSaving){
       renderAll();
     }
   },err=>{ console.error('onSnapshot error ('+key+'):',err); });
 });
 fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true},snap=>{
-  if(isSaving)return;
-  if(snap.exists){
+  if(snap.exists&&!isSaving){
     const m=snap.data().data||{};
     db.variantOptions=m.variantOptions||[];
     db.calVisits=m.calVisits||{};
@@ -1004,7 +1002,7 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
   if(!_initialLoadDone){
     _firstSnapshotDone++;
     if(_firstSnapshotDone>=6){_initialLoadDone=true;renderAll();}
-  } else {
+  } else if(!isSaving){
     renderAll();
   }
 },err=>{ console.error('onSnapshot meta error:',err); });
