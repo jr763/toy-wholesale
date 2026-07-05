@@ -3871,7 +3871,7 @@ function openLabelPrintWindow(priceQtyList,prefix){
   width:32mm;
   height:25mm;
   box-sizing:border-box;
-  padding:1mm;
+  padding-top:2mm;padding-bottom:2mm;padding-left:1mm;padding-right:1mm;
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -3882,7 +3882,7 @@ function openLabelPrintWindow(priceQtyList,prefix){
 }
     .label:last-child{margin-bottom:0;page-break-after:avoid;}
     .label .line{width:25.6mm;text-align:center;white-space:nowrap;overflow:hidden;}
-    .label .brand{display:flex;justify-content:space-between;font-size:11px;font-weight:900;line-height:1.1;margin-bottom:1px;}
+    .label .brand{display:flex;justify-content:space-between;font-size:11px;font-weight:700;line-height:1.1;margin-bottom:2px;}
     .label svg{display:block;width:25.6mm;height:9mm;}
     .label .code{display:flex;justify-content:space-between;font-size:8px;font-family:monospace;margin-top:1px;line-height:1;}
     .label .price{display:flex;justify-content:space-between;font-size:11px;font-weight:400;margin-top:1px;line-height:1.1;}
