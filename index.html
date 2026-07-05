@@ -866,11 +866,22 @@ async function loadData(btn=false){
   if(btn){ const b=G('btn-refresh');if(b){b.disabled=true;b.textContent='載入中…';} }
   setSyncStatus('loading','載入中…');
   try{
-    const snap=await DOC_REF.get();
-    if(snap.exists){
-      const data=snap.data();
-      db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},pickingState:{},boxingState:{},...data};
-    }
+    const sections=['products','customers','orders','shipments','returns','meta'];
+    const snaps=await Promise.all(sections.map(s=>fsdb.collection('sections').doc(s).get()));
+    snaps.forEach((snap,i)=>{
+      if(!snap.exists)return;
+      const key=sections[i];
+      if(key==='meta'){
+        const m=snap.data().data||{};
+        db.variantOptions=m.variantOptions||[];
+        db.calVisits=m.calVisits||{};
+        db.pickingState=m.pickingState||{};
+        db.boxingState=m.boxingState||{};
+        db.trash=m.trash||[];
+      } else {
+        db[key]=snap.data().data||[];
+      }
+    });
     setSyncStatus('ok','雲端同步・所有人共用');
     G('loading-overlay').style.display='none';
     renderAll();
@@ -960,25 +971,37 @@ const _loadingTimeoutId=setTimeout(()=>{
     overlay.innerHTML='<div style="text-align:center;padding:20px;"><div style="font-size:32px;margin-bottom:10px;">⚠️</div><div style="margin-bottom:14px;">連線逾時，請檢查網路後重新整理</div><button onclick="location.reload()" style="padding:10px 24px;background:#8b5e3c;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;">重新整理</button></div>';
   }
 },10000);
-DOC_REF.onSnapshot({includeMetadataChanges:true},snap=>{
-  clearTimeout(_loadingTimeoutId);
-  G('loading-overlay').style.display='none';
-  if(snap.metadata.fromCache){
-    setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');
-  } else {
-    setSyncStatus('ok','雲端同步・所有人共用');
-  }
+// 分區監聽：每個 section 各自獨立，不會互相覆蓋
+const _sectionKeys=['products','customers','orders','shipments','returns'];
+let _firstSnapshotDone=0;
+_sectionKeys.forEach(key=>{
+  fsdb.collection('sections').doc(key).onSnapshot({includeMetadataChanges:true},snap=>{
+    clearTimeout(_loadingTimeoutId);
+    G('loading-overlay').style.display='none';
+    if(snap.metadata.fromCache){
+      setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');
+    } else {
+      setSyncStatus('ok','雲端同步・所有人共用');
+    }
+    if(isSaving)return;
+    if(snap.exists){ db[key]=snap.data().data||[]; }
+    _firstSnapshotDone++;
+    if(_firstSnapshotDone>=6) renderAll();
+  },err=>{ console.error('onSnapshot error ('+key+'):',err); });
+});
+fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true},snap=>{
   if(isSaving)return;
   if(snap.exists){
-    const data=snap.data();
-    db={products:[],customers:[],orders:[],shipments:[],returns:[],variantOptions:[],calVisits:{},pickingState:{},boxingState:{},...data};
-    window._lastSeenUpdateTime=snap.updateTime?snap.updateTime.toMillis():null;
+    const m=snap.data().data||{};
+    db.variantOptions=m.variantOptions||[];
+    db.calVisits=m.calVisits||{};
+    db.pickingState=m.pickingState||{};
+    db.boxingState=m.boxingState||{};
+    db.trash=m.trash||[];
   }
-  renderAll();
-}, err=>{
-  console.error('onSnapshot error:',err);
-  G('loading-text').textContent='連線失敗：'+err.message;
-});
+  _firstSnapshotDone++;
+  if(_firstSnapshotDone>=6) renderAll();
+},err=>{ console.error('onSnapshot meta error:',err); });
 
 // ── CAMERA SCANNER ────────────────────────────
 async function startScan(targetId, callback){
@@ -1214,12 +1237,12 @@ async function saveCalVisit(){
   if(!db.calVisits)db.calVisits={};
   if(calVisitCusts.length>0)db.calVisits[calEditDate]=calVisitCusts.join('、');
   else delete db.calVisits[calEditDate];
-  await saveData();closeModal('modal-cal-visit');renderCalendar();renderCustStatus();
+  await saveData('meta');closeModal('modal-cal-visit');renderCalendar();renderCustStatus();
 }
 async function deleteCalVisit(){
   if(!db.calVisits)return;
   delete db.calVisits[calEditDate];
-  await saveData();closeModal('modal-cal-visit');renderCalendar();
+  await saveData('meta');closeModal('modal-cal-visit');renderCalendar();
 }
 
 function renderDashboard(){
@@ -1254,13 +1277,13 @@ async function addVariant(){
   if(db.variantOptions.includes(v)){alert('已有此種類');return;}
   db.variantOptions.push(v);
   G('new-variant').value='';
-  await saveData(); renderVariantList(); renderProductVariantList();
+  await saveData('meta'); renderVariantList(); renderProductVariantList();
 }
 async function delVariant(v){
   if(!confirm(`確定刪除「${v}」？`))return;
   db.variantOptions=db.variantOptions.filter(x=>x!==v);
   db.products.forEach(p=>{if(p.variants)p.variants=p.variants.filter(x=>x!==v);});
-  await saveData(); renderVariantList(); renderProductVariantList();
+  await Promise.all([saveData('meta'),saveData('products')]); renderVariantList(); renderProductVariantList();
 }
 
 // ── PRODUCTS ──────────────────────────────────
@@ -1328,7 +1351,7 @@ async function saveProduct(){
     image:window._prodImageData||''};
   if(editProdId){const i=db.products.findIndex(x=>x.id===editProdId);db.products[i]={...db.products[i],...data};}
   else db.products.push({id:uid(),...data});
-  await saveData();
+  await saveData('products');
   closeModal('modal-product');renderProducts();renderDashboard();
   btn.disabled=false;btn.textContent='儲存商品';
 }
@@ -1346,7 +1369,7 @@ async function deleteProduct(id){
   const item=db.products.find(x=>x.id===id);
   if(item)moveToTrash('product',item);
   db.products=db.products.filter(x=>x.id!==id);
-  await saveData();renderProducts();
+  await saveData('products');renderProducts();
 }
 function renderProducts(){
   const q=(G('product-search')?.value||'').toLowerCase();
@@ -1481,7 +1504,7 @@ async function saveCustomer(){
     hideBarcodeInName:G('c-hide-barcode-name').checked,customCostMap};
   if(editCustId){const i=db.customers.findIndex(x=>x.id===editCustId);db.customers[i]={...db.customers[i],...data};}
   else db.customers.push({id:uid(),...data});
-  await saveData();
+  await saveData('customers');
   closeModal('modal-customer');renderCustomers();renderDashboard();
   btn.disabled=false;btn.textContent='儲存客戶';
 }
@@ -1490,7 +1513,7 @@ async function deleteCustomer(id){
   const item=db.customers.find(x=>x.id===id);
   if(item)moveToTrash('customer',item);
   db.customers=db.customers.filter(x=>x.id!==id);
-  await saveData();renderCustomers();
+  await saveData('customers');renderCustomers();
 }
 function renderCustomers(){
   const q=(G('customer-search')?.value||'').toLowerCase();
@@ -1809,7 +1832,7 @@ async function saveOrder(status){
   } else {
     db.orders.push({id:uid(),...data});
   }
-  await saveData();
+  await Promise.all([saveData('orders'),saveData('products')]);
   // LINE 通知
   if(status==='confirmed'){
     const custName=cust?cust.name:'—';
@@ -1827,7 +1850,7 @@ async function deleteOrder(id){
     moveToTrash('order',item);
   }
   db.orders=db.orders.filter(x=>x.id!==id);
-  await saveData();renderOrders();renderProducts();renderDashboard();
+  await Promise.all([saveData('orders'),saveData('products')]);renderOrders();renderProducts();renderDashboard();
 }
 
 async function deleteShipment(id){
@@ -1840,7 +1863,7 @@ async function deleteShipment(id){
     const oi=db.orders.findIndex(x=>x.id===item.orderId);
     if(oi>=0&&db.orders[oi].status==='shipped') db.orders[oi].status='completed';
   }
-  await saveData();renderShipments();renderOrders();renderDashboard();
+  await Promise.all([saveData('shipments'),saveData('orders')]);renderShipments();renderOrders();renderDashboard();
 }
 
 function openTrashModal(){ renderTrash(); openModal('modal-trash'); }
@@ -1945,7 +1968,7 @@ async function restoreFromTrash(idx){
     if(oi>=0) db.orders[oi].status='shipped';
   }
   db.trash.splice(idx,1);
-  await saveData();
+  await saveData(); // 全部存，因為可能恢復任何類型
   renderTrash();renderProducts();renderCustomers();renderOrders();renderShipments();renderDashboard();
   alert('已恢復');
 }
@@ -2174,7 +2197,7 @@ async function markPacked(orderId){
     if(db.orders[idx].status==='mod_picking')db.orders[idx].status='mod_picked';
     else db.orders[idx].status='picked';
   }
-  await saveData();
+  await saveData('orders');
   closeModal('modal-order-detail');
   renderDashboard();renderOrders();
 }
@@ -2226,7 +2249,7 @@ async function togglePicked(idx,cb){
     if(db.orders[oidx].status==='confirmed')db.orders[oidx].status='picking';
     else if(db.orders[oidx].status==='pending_edit')db.orders[oidx].status='re_picking';
   }
-  await saveData();
+  await Promise.all([saveData('orders'),saveData('meta')]);
   // Auto-refresh barcode summary if open
   const bcEl=G('bc-summary-inline');
   if(bcEl&&bcEl.style.display!=='none') showBCSummary();
@@ -2274,7 +2297,7 @@ async function saveShipment(orderId){
   db.shipments.push(s);
   const oi=db.orders.findIndex(x=>x.id===orderId);if(oi>=0)db.orders[oi].status='shipped';
   // 庫存已於確認抄貨單時扣除，此處不再重複扣庫存
-  await saveData();
+  await Promise.all([saveData('shipments'),saveData('orders')]);
   closeModal('modal-shipment');renderOrders();renderShipments();renderProducts();renderRestock();renderDashboard();
 }
 function renderShipments(){
@@ -2417,7 +2440,7 @@ async function saveReturn(){
       });
     }
   }
-  await saveData();
+  await Promise.all([saveData('returns'),saveData('products')]);
   closeModal('modal-return');renderReturns();renderProducts();renderDashboard();
   btn.disabled=false;btn.textContent='儲存退貨';
 }
@@ -2510,7 +2533,7 @@ async function onRestockCheck(pid, cb){
   const qty=parseInt(qtyStr);if(qty<=0)return;
   const pi=db.products.findIndex(x=>x.id===pid);
   db.products[pi].currentStock=(db.products[pi].currentStock||0)+qty;
-  await saveData();
+  await saveData('products');
   renderRestock();renderProducts();renderDashboard();
 }
 
@@ -2941,7 +2964,7 @@ async function toggleBoxing(idx,cb){
       else if(db.orders[oidx].status==='re_picking')db.orders[oidx].status='re_boxing';
     }
   }
-  await saveData();
+  await Promise.all([saveData('orders'),saveData('meta')]);
   renderOrders();
   const total=document.querySelectorAll('[id^="box-cb-"]').length;
   updateBoxingBtn(total);
@@ -2959,7 +2982,7 @@ async function confirmBoxing(){
   const wasRe=['re_boxing','re_picking'].includes(db.orders[idx]?.status);
   const isMod=['mod_boxing','mod_picked'].includes(db.orders[idx]?.status);
   if(idx>=0)db.orders[idx].status=missing.length?(isMod?'packed':'packed'):'completed';
-  await saveData();
+  await saveData('orders');
   closeModal('modal-boxing');
   renderDashboard();renderOrders();
 }
@@ -3306,7 +3329,7 @@ async function submitEditConfirm(){
   const orderId=window._editConfirmOrderId;if(!orderId)return;
   const oidx=db.orders.findIndex(x=>x.id===orderId);
   if(oidx>=0)db.orders[oidx].editAlert.confirmed=true;
-  await saveData();
+  await saveData('orders');
   closeModal('modal-edit-confirm');
   renderEditAlerts();renderDashboard();
 }
