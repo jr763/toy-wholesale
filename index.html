@@ -769,7 +769,8 @@ firebase.initializeApp({
 });
 const fsdb = firebase.firestore();
 // 啟用離線快取（不開synchronizeTabs，避免部分手機瀏覽器卡住）
-try{ fsdb.enablePersistence({synchronizeTabs:false}).catch(err=>console.warn('離線快取無法啟用：',err.code)); }catch(e){}
+// 離線快取已停用（避免快取舊資料覆蓋最新資料）
+// try{ fsdb.enablePersistence({synchronizeTabs:false}).catch(err=>console.warn('離線快取無法啟用：',err.code)); }catch(e){}
 const DOC_REF = fsdb.collection('data').doc('main');
 
 // ── LINE Messaging API ────────────────────────
