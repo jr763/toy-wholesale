@@ -867,7 +867,7 @@ async function loadData(btn=false){
   setSyncStatus('loading','載入中…');
   try{
     const sections=['products','customers','orders','shipments','returns','meta'];
-    const snaps=await Promise.all(sections.map(s=>fsdb.collection('sections').doc(s).get()));
+    const snaps=await Promise.all(sections.map(s=>fsdb.collection('sections').doc(s).get({source:'server'})));
     snaps.forEach((snap,i)=>{
       if(!snap.exists)return;
       const key=sections[i];
