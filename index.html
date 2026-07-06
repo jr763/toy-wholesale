@@ -1370,10 +1370,12 @@ function purgeOldTrash(){
 }
 async function deleteProduct(id){
   if(!confirm('確定刪除此商品？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
+  isSaving=true;
   const item=db.products.find(x=>x.id===id);
   if(item)moveToTrash('product',item);
   db.products=db.products.filter(x=>x.id!==id);
-  await saveData('products');renderProducts();
+  await Promise.all([saveData('products'),saveData('meta')]);renderProducts();
+  setTimeout(()=>{ isSaving=false; },2000);
 }
 function renderProducts(){
   const q=(G('product-search')?.value||'').toLowerCase();
@@ -1514,10 +1516,12 @@ async function saveCustomer(){
 }
 async function deleteCustomer(id){
   if(!confirm('確定刪除此客戶？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
+  isSaving=true;
   const item=db.customers.find(x=>x.id===id);
   if(item)moveToTrash('customer',item);
   db.customers=db.customers.filter(x=>x.id!==id);
-  await saveData('customers');renderCustomers();
+  await Promise.all([saveData('customers'),saveData('meta')]);renderCustomers();
+  setTimeout(()=>{ isSaving=false; },2000);
 }
 function renderCustomers(){
   const q=(G('customer-search')?.value||'').toLowerCase();
@@ -1848,17 +1852,20 @@ async function saveOrder(status){
 }
 async function deleteOrder(id){
   if(!confirm('確定刪除此抄貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
+  isSaving=true;
   const item=db.orders.find(x=>x.id===id);
   if(item){
     if(item.stockDeducted) adjustStock(item.items||[],[]);
     moveToTrash('order',item);
   }
   db.orders=db.orders.filter(x=>x.id!==id);
-  await Promise.all([saveData('orders'),saveData('products')]);renderOrders();renderProducts();renderDashboard();
+  await Promise.all([saveData('orders'),saveData('products'),saveData('meta')]);renderOrders();renderProducts();renderDashboard();
+  setTimeout(()=>{ isSaving=false; },2000);
 }
 
 async function deleteShipment(id){
   if(!confirm('確定刪除此出貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。\n（庫存已於確認抄貨單時扣除，刪除出貨單不影響庫存，對應抄貨單會改回「已完成」可重新建立出貨單）'))return;
+  isSaving=true;
   const item=db.shipments.find(x=>x.id===id);
   if(item)moveToTrash('shipment',item);
   db.shipments=db.shipments.filter(x=>x.id!==id);
@@ -1867,7 +1874,8 @@ async function deleteShipment(id){
     const oi=db.orders.findIndex(x=>x.id===item.orderId);
     if(oi>=0&&db.orders[oi].status==='shipped') db.orders[oi].status='completed';
   }
-  await Promise.all([saveData('shipments'),saveData('orders')]);renderShipments();renderOrders();renderDashboard();
+  await Promise.all([saveData('shipments'),saveData('orders'),saveData('meta')]);renderShipments();renderOrders();renderDashboard();
+  setTimeout(()=>{ isSaving=false; },2000);
 }
 
 function openTrashModal(){ renderTrash(); openModal('modal-trash'); }
