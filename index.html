@@ -890,19 +890,19 @@ async function loadData(btn=false){
   if(btn){ const b=G('btn-refresh');if(b){b.disabled=false;b.textContent='🔄 重新整理';} }
 }
 // 分區儲存函數
-async function saveProducts(){ await fsdb.collection('data').doc('products').set({list:db.products}); }
-async function saveCustomers(){ await fsdb.collection('data').doc('customers').set({list:db.customers}); }
-async function saveOrders(){ await fsdb.collection('data').doc('orders').set({list:db.orders}); }
-async function saveShipments(){ await fsdb.collection('data').doc('shipments').set({list:db.shipments}); }
-async function saveReturns(){ await fsdb.collection('data').doc('returns').set({list:db.returns}); }
+async function saveProducts(){ await fsdb.collection('sections').doc('products').set({data:db.products, updatedAt:Date.now()}); }
+async function saveCustomers(){ await fsdb.collection('sections').doc('customers').set({data:db.customers, updatedAt:Date.now()}); }
+async function saveOrders(){ await fsdb.collection('sections').doc('orders').set({data:db.orders, updatedAt:Date.now()}); }
+async function saveShipments(){ await fsdb.collection('sections').doc('shipments').set({data:db.shipments, updatedAt:Date.now()}); }
+async function saveReturns(){ await fsdb.collection('sections').doc('returns').set({data:db.returns, updatedAt:Date.now()}); }
 async function saveMeta(){
-  await fsdb.collection('data').doc('meta').set({
+  await fsdb.collection('sections').doc('meta').set({data:{
     variantOptions:db.variantOptions||[],
     calVisits:db.calVisits||{},
     pickingState:db.pickingState||{},
     boxingState:db.boxingState||{},
     trash:db.trash||[]
-  });
+  }, updatedAt:Date.now()});
 }
 
 // 每日自動備份到 localStorage
