@@ -774,22 +774,15 @@ const fsdb = firebase.firestore();
 const DOC_REF = fsdb.collection('data').doc('main');
 
 // ── LINE Messaging API ────────────────────────
-const LINE_TOKEN = 'hGt3K6b53F5pUIKdyPPHftGt7ILxab0GMSFSofpZf8Wl1xyowZGDptyUT+yUivmwnv3MRfAELaQR8qxy2038gFLNmMEX53BvuLuVLhq3olYlTRxMEyjGjB1uraCF9OWMzlgMkjwg3ykuWazSbxE5owdB04t89/1O/w1cDnyilFU=';
-const LINE_GROUP_ID = 'Caead4f6cf763f99f495887d72288fc25';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzgInw-wVKIE5eBuyPYteRtR6PA6KeUQcfSUI8pPTh1Wy_Z9Bi79DjKdVgs5o3w5gmxeA/exec';
 
 async function sendLineNotify(message) {
   try {
     const clean = String(message).replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/g, '');
-    await fetch('https://api.line.me/v2/bot/message/push', {
+    await fetch(GAS_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + LINE_TOKEN
-      },
-      body: JSON.stringify({
-        to: LINE_GROUP_ID,
-        messages: [{ type: 'text', text: clean }]
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: clean })
     });
     console.log('LINE通知：已送出');
   } catch(e) {
