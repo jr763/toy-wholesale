@@ -2592,10 +2592,10 @@ function shipHeaderHTML(cust,dateStr,addrRight,dateRight){
       <div style="text-align:center;margin-bottom:6px;">
         <span style="font-size:20px;font-weight:bold;letter-spacing:3px;border-bottom:2px double #000;padding-bottom:1px;">銷 貨 單 據 一 覽 表</span>
       </div>
-      <div style="font-size:14px;margin-bottom:3px;">客戶名稱：${cust?cust.name:''}</div>
-      <div style="font-size:14px;margin-bottom:3px;">電話：${cust?.phone||''}</div>
-      <div style="font-size:14px;margin-bottom:3px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
-      <div style="font-size:14px;margin-bottom:6px;">銷貨日期：${dateStr}${dateRight?'　'+dateRight:''}</div>`;
+      <div style="font-size:16px;margin-bottom:3px;">客戶名稱：${cust?cust.name:''}</div>
+      <div style="font-size:16px;margin-bottom:3px;">電話：${cust?.phone||''}</div>
+      <div style="font-size:16px;margin-bottom:3px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
+      <div style="font-size:16px;margin-bottom:6px;">銷貨日期：${dateStr}${dateRight?'　'+dateRight:''}</div>`;
 }
 function shipSignatureHTML(){
   return `
@@ -2876,10 +2876,10 @@ function buildFormatA(s,cust,o){
       <div style="text-align:center;margin-bottom:6px;">
         <span style="font-size:20px;font-weight:bold;letter-spacing:3px;border-bottom:2px double #000;padding-bottom:1px;">銷 貨 單 據 一 覽 表</span>
       </div>
-      <div style="font-size:14px;margin-bottom:3px;">客戶名稱：${cust?cust.name:''}</div>
-      <div style="font-size:14px;margin-bottom:3px;">電話：${cust?.phone||''}</div>
-      <div style="font-size:14px;margin-bottom:3px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
-      <div style="font-size:14px;margin-bottom:6px;">銷貨日期：${dateStr}${dateRight?'　'+dateRight:''}</div>
+      <div style="font-size:16px;margin-bottom:3px;">客戶名稱：${cust?cust.name:''}</div>
+      <div style="font-size:16px;margin-bottom:3px;">電話：${cust?.phone||''}</div>
+      <div style="font-size:16px;margin-bottom:3px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
+      <div style="font-size:16px;margin-bottom:6px;">銷貨日期：${dateStr}${dateRight?'　'+dateRight:''}</div>
       <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
         <colgroup>
           <col style="width:9%">
