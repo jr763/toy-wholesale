@@ -920,6 +920,9 @@ function autoBackup(){
   }catch(e){console.warn('自動備份失敗：',e);}
 }
 
+// 每小時自動備份
+setInterval(autoBackup, 60 * 60 * 1000);
+
 // 從本地備份還原
 function restoreFromLocalBackup(){
   try{
@@ -1346,6 +1349,7 @@ async function saveProduct(){
   if(G('p-safety').value===''){alert('請輸入安全庫存量');return;}
   const hasM=document.querySelector('input[name="p-insp"]:checked').value==='1';
   if(!hasM&&!V('p-batch')){alert('請輸入商檢批號');return;}
+  isSaving=true;
   const btn=G('btn-save-p');btn.disabled=true;btn.textContent='儲存中…';
   const data={name,barcode,cost:parseFloat(G('p-cost').value)||0,currentStock:parseFloat(G('p-stock').value)||0,
     safetyStock:parseFloat(G('p-safety').value)||0,
@@ -1359,6 +1363,7 @@ async function saveProduct(){
   await saveData('products');
   closeModal('modal-product');renderProducts();renderDashboard();
   btn.disabled=false;btn.textContent='儲存商品';
+  setTimeout(()=>{ isSaving=false; },2000);
 }
 function moveToTrash(type,item){
   if(!db.trash)db.trash=[];
@@ -1480,6 +1485,7 @@ function renderCPriceList(){
 }
 async function saveCustomer(){
   if(!V('c-name')){alert('請輸入客戶名稱');return;}
+  isSaving=true;
   const btn=G('btn-save-c');btn.disabled=true;btn.textContent='儲存中…';
   const normalRate=parseFloat(G('c-rule-normal').value);
   let pricingRule=null;
@@ -1514,6 +1520,7 @@ async function saveCustomer(){
   await saveData('customers');
   closeModal('modal-customer');renderCustomers();renderDashboard();
   btn.disabled=false;btn.textContent='儲存客戶';
+  setTimeout(()=>{ isSaving=false; },2000);
 }
 async function deleteCustomer(id){
   if(!confirm('確定刪除此客戶？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
@@ -1737,6 +1744,7 @@ async function saveOrder(status){
   const custId=G('o-cust').value;
   if(!custId){alert('請選擇客戶');return;}
   if(!orderItems.length){alert('請加入至少一項商品');return;}
+  isSaving=true;
   const b1=G('btn-o-draft'),b2=G('btn-o-confirm');
   b1.disabled=b2.disabled=true;
   const cust=db.customers.find(x=>x.id===custId);
@@ -1850,6 +1858,7 @@ async function saveOrder(status){
   }
   closeModal('modal-order');renderOrders();renderDashboard();renderEditAlerts();
   b1.disabled=b2.disabled=false;
+  setTimeout(()=>{ isSaving=false; },2000);
 }
 async function deleteOrder(id){
   if(!confirm('確定刪除此抄貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
@@ -2427,6 +2436,7 @@ async function saveReturn(){
   if(!G('r-cust').value){alert('請選擇客戶');return;}
   if(!G('r-reason').value){alert('請選擇退貨原因');return;}
   if(!retItems.length){alert('請加入至少一項商品');return;}
+  isSaving=true;
   const btn=G('btn-save-r');btn.disabled=true;btn.textContent='儲存中…';
   const disp=document.querySelector('input[name="r-disp"]:checked').value;
   const reason=G('r-reason').value;
@@ -2456,6 +2466,7 @@ async function saveReturn(){
   await Promise.all([saveData('returns'),saveData('products')]);
   closeModal('modal-return');renderReturns();renderProducts();renderDashboard();
   btn.disabled=false;btn.textContent='儲存退貨';
+  setTimeout(()=>{ isSaving=false; },2000);
 }
 let _retChart1=null;
 function renderReturns(){
