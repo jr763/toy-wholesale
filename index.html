@@ -2596,9 +2596,9 @@ function shipHeaderHTML(cust,dateStr,addrRight,dateRight){
       <div style="font-size:16px;margin-bottom:3px;">電話：${cust?.phone||''}</div>
       <div style="font-size:16px;margin-bottom:3px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
       <div style="font-size:16px;margin-bottom:6px;display:flex;justify-content:space-between;width:13cm;">
-  <span>銷貨日期：${dateStr}</span>
-  <span>${dateRight||''}</span>
-</div>
+        <span>銷貨日期：${dateStr}</span>
+        <span>${dateRight||''}</span>
+      </div>`;
 }
 function shipSignatureHTML(){
   return `
