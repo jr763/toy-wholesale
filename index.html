@@ -781,6 +781,7 @@ async function sendLineNotify(message) {
     const clean = String(message).replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/g, '');
     await fetch(GAS_URL, {
       method: 'POST',
+      mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: clean })
     });
