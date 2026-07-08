@@ -444,7 +444,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
             <div><label style="font-size:12px;">計算方式</label>
               <select id="c-rule-round">
                 <option value="decimal1">四捨五入到小數第1位</option>
+                <option value="decimal2">四捨五入到小數第2位</option>
                 <option value="truncate1">不四捨五入，取到小數第1位</option>
+                <option value="truncate2">不四捨五入，取到小數第2位</option>
                 <option value="floor">捨去到整數（無小數）</option>
               </select>
             </div>
@@ -2624,7 +2626,7 @@ function shipCalcSetup(s,cust){
       const rate=isSpecial?(rule.specialRate||rule.normalRate):rule.normalRate;
       const base=(isSpecial&&rule.specialAdjust)?price+1:price;
       let result=base*(rate/100);
-      result=rule.roundMode==='floor'?Math.floor(result):rule.roundMode==='truncate1'?Math.floor(result*10)/10:Math.round(result*10)/10;
+      result=rule.roundMode==='floor'?Math.floor(result):rule.roundMode==='truncate1'?Math.floor(result*10)/10:rule.roundMode==='decimal2'?Math.round(result*100)/100:rule.roundMode==='truncate2'?Math.floor(result*100)/100:Math.round(result*10)/10;
       return result;
     }
     return disc?Math.round(price*(1-disc/100)*10)/10:price;
@@ -2830,7 +2832,7 @@ function buildFormatA(s,cust,o){
       const rate=isSpecial?(rule.specialRate||rule.normalRate):rule.normalRate;
       const base=(isSpecial&&rule.specialAdjust)?price+1:price;
       let result=base*(rate/100);
-      result=rule.roundMode==='floor'?Math.floor(result):rule.roundMode==='truncate1'?Math.floor(result*10)/10:Math.round(result*10)/10;
+      result=rule.roundMode==='floor'?Math.floor(result):rule.roundMode==='truncate1'?Math.floor(result*10)/10:rule.roundMode==='decimal2'?Math.round(result*100)/100:rule.roundMode==='truncate2'?Math.floor(result*100)/100:Math.round(result*10)/10;
       return result;
     }
     return disc?Math.round(price*(1-disc/100)*10)/10:price;
@@ -3065,7 +3067,7 @@ function doExportCSV(shipId){
       const rate=isSpecial?(rule.specialRate||rule.normalRate):rule.normalRate;
       const base=(isSpecial&&rule.specialAdjust)?price+1:price;
       let result=base*(rate/100);
-      result=rule.roundMode==='floor'?Math.floor(result):rule.roundMode==='truncate1'?Math.floor(result*10)/10:Math.round(result*10)/10;
+      result=rule.roundMode==='floor'?Math.floor(result):rule.roundMode==='truncate1'?Math.floor(result*10)/10:rule.roundMode==='decimal2'?Math.round(result*100)/100:rule.roundMode==='truncate2'?Math.floor(result*100)/100:Math.round(result*10)/10;
       return result;
     }
     return disc?Math.round(price*(1-disc/100)*10)/10:price;
