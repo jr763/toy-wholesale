@@ -155,6 +155,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div class="side-menu-item" onclick="switchTab('shipments',this);closeMenu()">🚚 出貨單</div>
     <div class="side-menu-item" onclick="switchTab('returns',this);closeMenu()">↩️ 退貨</div>
     <div class="side-menu-item" id="nav-restock" onclick="switchTab('restock',this);closeMenu()">🔔 補貨</div>
+    <div class="side-menu-item" onclick="switchTab('analytics',this);closeMenu()">📊 銷售分析</div>
     <div class="side-menu-item" onclick="openTrashModal();closeMenu()">🗑️ 最近刪除</div>
     <div class="side-menu-item" onclick="restoreFromLocalBackup();closeMenu()">🔄 從本地備份還原</div>
   </div>
@@ -347,6 +348,51 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 <div id="tab-restock" class="page">
   <div class="page-header"><div><h2>補貨通知</h2><p>庫存低於安全庫存量的商品</p></div><button class="btn btn-green" onclick="sendRestockNotify()">📢 發送補貨通知到LINE</button></div>
   <div id="restock-list"></div>
+</div>
+
+<div id="tab-analytics" class="page">
+  <div class="page-header"><div><h2>銷售分析</h2></div></div>
+  
+  <!-- 篩選年份 -->
+  <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
+    <select id="analytics-year" onchange="renderAnalytics()" style="width:auto;">
+    </select>
+    <span style="font-size:13px;color:var(--text2);">年度資料</span>
+  </div>
+
+  <!-- 每月出貨金額趨勢 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:12px;">📈 每月出貨金額趨勢</div>
+    <canvas id="chart-monthly-revenue" height="120"></canvas>
+  </div>
+
+  <!-- 出貨量分析 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:12px;">🚚 客戶出貨統計</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>客戶</th><th>出貨次數</th><th>總金額</th><th>平均金額</th></tr></thead>
+        <tbody id="analytics-customer-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 全部商品熱銷排行 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:12px;">🏆 熱銷商品排行（依售價）</div>
+    <canvas id="chart-top-products" height="160"></canvas>
+  </div>
+
+  <!-- 每間客戶商品銷售分布 -->
+  <div class="card" style="margin-bottom:16px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:12px;">🥧 客戶商品銷售分布</div>
+    <div style="margin-bottom:10px;">
+      <select id="analytics-cust-select" onchange="renderCustPie()" style="width:100%;max-width:300px;">
+        <option value="">-- 選擇客戶 --</option>
+      </select>
+    </div>
+    <canvas id="chart-cust-pie" height="200"></canvas>
+  </div>
 </div>
 
 <!-- ======= MODALS ======= -->
@@ -826,9 +872,9 @@ function switchTab(t,btn,pushState=true){
   document.querySelectorAll('.nav-tab').forEach(n=>n.classList.remove('active'));
   G('tab-'+t).classList.add('active');
   if(btn) btn.classList.add('active');
-  ({dashboard:renderDashboard,products:renderProducts,customers:renderCustomers,orders:renderOrders,shipments:renderShipments,returns:renderReturns,restock:renderRestock})[t]?.();
+  ({dashboard:renderDashboard,products:renderProducts,customers:renderCustomers,orders:renderOrders,shipments:renderShipments,returns:renderReturns,restock:renderRestock,analytics:renderAnalytics})[t]?.();
   if(pushState){
-    const hashMap={dashboard:'/',products:'/products',customers:'/customers',orders:'/orders',shipments:'/shipments',returns:'/returns',restock:'/restock'};
+    const hashMap={dashboard:'/',products:'/products',customers:'/customers',orders:'/orders',shipments:'/shipments',returns:'/returns',restock:'/restock',analytics:'/analytics'};
     const newHash='#'+(hashMap[t]||'/');
     if(location.hash!==newHash) history.pushState({tab:t},'',' '+newHash);
   }
@@ -1892,7 +1938,7 @@ async function saveOrder(status){
   } else {
     db.orders.push({id:uid(),...data});
   }
-  await Promise.all([saveData('orders'),saveData('products')]);
+  await Promise.all([saveData('orders'),saveData('products'),saveData('meta')]);
   // LINE 通知
   if(status==='confirmed'){
     const custName=cust?cust.name:'—';
@@ -2362,7 +2408,7 @@ async function saveShipment(orderId){
   db.shipments.push(s);
   const oi=db.orders.findIndex(x=>x.id===orderId);if(oi>=0)db.orders[oi].status='shipped';
   // 庫存已於確認抄貨單時扣除，此處不再重複扣庫存
-  await Promise.all([saveData('shipments'),saveData('orders')]);
+  await Promise.all([saveData('shipments'),saveData('orders'),saveData('meta')]);
   closeModal('modal-shipment');renderOrders();renderShipments();renderProducts();renderRestock();renderDashboard();
 }
 function renderShipments(){
@@ -2506,7 +2552,7 @@ async function saveReturn(){
       });
     }
   }
-  await Promise.all([saveData('returns'),saveData('products')]);
+  await Promise.all([saveData('returns'),saveData('products'),saveData('meta')]);
   closeModal('modal-return');renderReturns();renderProducts();renderDashboard();
   btn.disabled=false;btn.textContent='儲存退貨';
   setTimeout(()=>{ isSaving=false; },2000);
@@ -2603,6 +2649,158 @@ async function onRestockCheck(pid, cb){
   await saveData('products');
   renderRestock();renderProducts();renderDashboard();
 }
+
+
+// ── 銷售分析 ──────────────────────────────────
+let _chartMonthly=null, _chartTopProducts=null, _chartCustPie=null;
+
+function renderAnalytics(){
+  const yearSel=G('analytics-year');
+  if(yearSel){
+    const years=new Set();
+    db.shipments.forEach(s=>{ if(s.date) years.add(s.date.slice(0,4)); });
+    if(!years.size) years.add(new Date().getFullYear().toString());
+    const currentYear=yearSel.value||[...years].sort().reverse()[0];
+    yearSel.innerHTML=[...years].sort().reverse().map(y=>`<option value="${y}" ${y===currentYear?'selected':''}>${y}</option>`).join('');
+    const selectedYear=yearSel.value;
+    renderMonthlyChart(selectedYear);
+    renderCustomerTable(selectedYear);
+    renderTopProductsChart(selectedYear);
+    renderCustPieSelect();
+  }
+}
+
+function getShipmentsByYear(year){
+  return db.shipments.filter(s=>s.date&&s.date.startsWith(year));
+}
+
+function renderMonthlyChart(year){
+  const months=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const monthlyData=Array(12).fill(0);
+  getShipmentsByYear(year).forEach(s=>{
+    const month=parseInt(s.date.slice(5,7))-1;
+    const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
+    monthlyData[month]+=total;
+  });
+  const ctx=G('chart-monthly-revenue');
+  if(!ctx)return;
+  if(_chartMonthly)_chartMonthly.destroy();
+  _chartMonthly=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:months,
+      datasets:[{
+        label:'出貨金額',
+        data:monthlyData,
+        borderColor:'#c8401a',
+        backgroundColor:'rgba(200,64,26,0.1)',
+        tension:0.3,
+        fill:true,
+        pointBackgroundColor:'#c8401a',
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{display:false}},
+      scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}
+    }
+  });
+}
+
+function renderCustomerTable(year){
+  const tb=G('analytics-customer-table');if(!tb)return;
+  const custMap={};
+  getShipmentsByYear(year).forEach(s=>{
+    const o=db.orders.find(x=>x.id===s.orderId);
+    const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+    const name=cust?cust.name:'未知客戶';
+    const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
+    if(!custMap[name])custMap[name]={count:0,total:0};
+    custMap[name].count++;
+    custMap[name].total+=total;
+  });
+  const rows=Object.entries(custMap).sort((a,b)=>b[1].total-a[1].total);
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="4" style="text-align:center;color:var(--text3);">無資料</td></tr>`;return;}
+  tb.innerHTML=rows.map(([name,data])=>`<tr>
+    <td><strong>${name}</strong></td>
+    <td style="text-align:center;">${data.count} 次</td>
+    <td style="text-align:right;color:var(--accent);font-weight:700;">$${data.total.toLocaleString()}</td>
+    <td style="text-align:right;">$${Math.round(data.total/data.count).toLocaleString()}</td>
+  </tr>`).join('');
+}
+
+function renderTopProductsChart(year){
+  const priceMap={};
+  getShipmentsByYear(year).forEach(s=>{
+    (s.items||[]).forEach(item=>{
+      const key='$'+item.price+'元';
+      priceMap[key]=(priceMap[key]||0)+item.qty;
+    });
+  });
+  const sorted=Object.entries(priceMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const ctx=G('chart-top-products');if(!ctx)return;
+  if(_chartTopProducts)_chartTopProducts.destroy();
+  _chartTopProducts=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:sorted.map(x=>x[0]),
+      datasets:[{
+        label:'銷售數量',
+        data:sorted.map(x=>x[1]),
+        backgroundColor:'rgba(200,64,26,0.7)',
+        borderRadius:4,
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{display:false}},
+      scales:{y:{ticks:{stepSize:1}}}
+    }
+  });
+}
+
+function renderCustPieSelect(){
+  const sel=G('analytics-cust-select');if(!sel)return;
+  const current=sel.value;
+  sel.innerHTML='<option value="">-- 選擇客戶 --</option>'+
+    db.customers.map(c=>`<option value="${c.id}" ${c.id===current?'selected':''}>${c.name}</option>`).join('');
+  if(current) renderCustPie();
+}
+
+function renderCustPie(){
+  const custId=G('analytics-cust-select')?.value;
+  const ctx=G('chart-cust-pie');if(!ctx)return;
+  if(_chartCustPie){_chartCustPie.destroy();_chartCustPie=null;}
+  if(!custId)return;
+  const priceMap={};
+  db.shipments.forEach(s=>{
+    const o=db.orders.find(x=>x.id===s.orderId);
+    if(!o||o.customerId!==custId)return;
+    (s.items||[]).forEach(item=>{
+      const key='$'+item.price+'元';
+      priceMap[key]=(priceMap[key]||0)+item.qty;
+    });
+  });
+  const entries=Object.entries(priceMap).sort((a,b)=>b[1]-a[1]);
+  if(!entries.length){ctx.style.display='none';return;}
+  ctx.style.display='block';
+  const colors=['#c8401a','#1a5c8a','#2a7a4f','#e07020','#9e9890','#e8956d','#4a90d9','#7a4f2a','#50c878','#ff6b6b'];
+  _chartCustPie=new Chart(ctx,{
+    type:'pie',
+    data:{
+      labels:entries.map(x=>x[0]),
+      datasets:[{data:entries.map(x=>x[1]),backgroundColor:colors.slice(0,entries.length)}]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.label}：${ctx.raw} 個（${Math.round(ctx.raw/entries.reduce((s,x)=>s+x[1],0)*100)}%）`}}
+      }
+    }
+  });
+}
+// ── END 銷售分析 ──────────────────────────────
 
 // ── BARCODE PRINT ─────────────────────────────
 function openBCPrint(orderId){
