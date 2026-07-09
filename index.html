@@ -352,46 +352,54 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 
 <div id="tab-analytics" class="page">
   <div class="page-header"><div><h2>銷售分析</h2></div></div>
-  
-  <!-- 篩選年份 -->
-  <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
-    <select id="analytics-year" onchange="renderAnalytics()" style="width:auto;">
-    </select>
-    <span style="font-size:13px;color:var(--text2);">年度資料</span>
-  </div>
 
-  <!-- 每月出貨金額趨勢 -->
+  <!-- 📈 每月出貨金額趨勢 -->
   <div class="card" style="margin-bottom:16px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:12px;">📈 每月出貨金額趨勢</div>
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">📈 每月出貨金額趨勢</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+      <select id="monthly-year" onchange="renderMonthlyChart()" style="width:auto;"></select>
+      <select id="monthly-month" onchange="renderMonthlyChart()" style="width:auto;">
+        <option value="">全年</option>
+        <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
+        <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
+        <option value="07">7月</option><option value="08">8月</option><option value="09">9月</option>
+        <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+      </select>
+      <select id="monthly-cust" onchange="renderMonthlyChart()" style="width:auto;flex:1;min-width:120px;">
+        <option value="">全部客戶</option>
+      </select>
+    </div>
     <canvas id="chart-monthly-revenue" height="120"></canvas>
   </div>
 
-  <!-- 出貨量分析 -->
+  <!-- 🏆 熱銷商品排行 -->
   <div class="card" style="margin-bottom:16px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:12px;">🚚 客戶出貨統計</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>客戶</th><th>出貨次數</th><th>總金額</th><th>平均金額</th></tr></thead>
-        <tbody id="analytics-customer-table"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- 全部商品熱銷排行 -->
-  <div class="card" style="margin-bottom:16px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:12px;">🏆 熱銷商品排行（依售價）</div>
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">🏆 熱銷商品排行（前10名）</div>
     <canvas id="chart-top-products" height="160"></canvas>
   </div>
 
-  <!-- 每間客戶商品銷售分布 -->
+  <!-- 🥧 商品銷售分布 -->
   <div class="card" style="margin-bottom:16px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:12px;">🥧 客戶商品銷售分布</div>
-    <div style="margin-bottom:10px;">
-      <select id="analytics-cust-select" onchange="renderCustPie()" style="width:100%;max-width:300px;">
-        <option value="">-- 選擇客戶 --</option>
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">🥧 商品銷售分布</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+      <select id="pie-year" onchange="renderSalesPie()" style="width:auto;"></select>
+      <select id="pie-month" onchange="renderSalesPie()" style="width:auto;">
+        <option value="">全年</option>
+        <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
+        <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
+        <option value="07">7月</option><option value="08">8月</option><option value="09">9月</option>
+        <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+      </select>
+      <select id="pie-cust" onchange="renderSalesPie()" style="width:auto;flex:1;min-width:120px;">
+        <option value="">全部客戶</option>
       </select>
     </div>
-    <canvas id="chart-cust-pie" height="200"></canvas>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:200px;max-width:300px;">
+        <canvas id="chart-cust-pie"></canvas>
+      </div>
+      <div id="pie-legend" style="flex:1;min-width:150px;font-size:13px;"></div>
+    </div>
   </div>
 </div>
 
@@ -2653,87 +2661,129 @@ async function onRestockCheck(pid, cb){
 
 // ── 銷售分析 ──────────────────────────────────
 let _chartMonthly=null, _chartTopProducts=null, _chartCustPie=null;
+const CHART_COLORS=['#c8401a','#1a5c8a','#2a7a4f','#e07020','#9e9890','#e8956d','#4a90d9','#7a4f2a','#50c878','#ff6b6b','#9b59b6','#f39c12'];
+
+function getAnalyticsYears(){
+  const years=new Set();
+  db.shipments.forEach(s=>{ if(s.date) years.add(s.date.slice(0,4)); });
+  if(!years.size) years.add(new Date().getFullYear().toString());
+  return [...years].sort().reverse();
+}
+
+function initYearSelect(selId){
+  const sel=G(selId);if(!sel)return;
+  const years=getAnalyticsYears();
+  const cur=sel.value||years[0];
+  sel.innerHTML=years.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y}</option>`).join('');
+}
+
+function initCustSelect(selId){
+  const sel=G(selId);if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">全部客戶</option>'+
+    db.customers.map(c=>`<option value="${c.id}" ${c.id===cur?'selected':''}>${c.name}</option>`).join('');
+}
+
+function filterShipments(year, month, custId){
+  return db.shipments.filter(s=>{
+    if(!s.date)return false;
+    if(year&&!s.date.startsWith(year))return false;
+    if(month&&s.date.slice(5,7)!==month)return false;
+    if(custId){
+      const o=db.orders.find(x=>x.id===s.orderId);
+      if(!o||o.customerId!==custId)return false;
+    }
+    return true;
+  });
+}
 
 function renderAnalytics(){
-  const yearSel=G('analytics-year');
-  if(yearSel){
-    const years=new Set();
-    db.shipments.forEach(s=>{ if(s.date) years.add(s.date.slice(0,4)); });
-    if(!years.size) years.add(new Date().getFullYear().toString());
-    const currentYear=yearSel.value||[...years].sort().reverse()[0];
-    yearSel.innerHTML=[...years].sort().reverse().map(y=>`<option value="${y}" ${y===currentYear?'selected':''}>${y}</option>`).join('');
-    const selectedYear=yearSel.value;
-    renderMonthlyChart(selectedYear);
-    renderCustomerTable(selectedYear);
-    renderTopProductsChart(selectedYear);
-    renderCustPieSelect();
+  initYearSelect('monthly-year');
+  initYearSelect('pie-year');
+  initCustSelect('monthly-cust');
+  initCustSelect('pie-cust');
+  renderMonthlyChart();
+  renderTopProductsChart();
+  renderSalesPie();
+}
+
+function renderMonthlyChart(){
+  const year=G('monthly-year')?.value||getAnalyticsYears()[0];
+  const month=G('monthly-month')?.value||'';
+  const custId=G('monthly-cust')?.value||'';
+  const filtered=filterShipments(year,month,custId);
+
+  let labels, dataRevenue, dataCount;
+  if(month){
+    // 選了月份：顯示該月每天
+    const daysInMonth=new Date(parseInt(year),parseInt(month),0).getDate();
+    labels=Array.from({length:daysInMonth},(_,i)=>`${i+1}日`);
+    dataRevenue=Array(daysInMonth).fill(0);
+    dataCount=Array(daysInMonth).fill(0);
+    filtered.forEach(s=>{
+      const day=parseInt(s.date.slice(8,10))-1;
+      const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
+      dataRevenue[day]+=total;
+      dataCount[day]++;
+    });
+  } else {
+    // 全年：顯示每月
+    labels=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    dataRevenue=Array(12).fill(0);
+    dataCount=Array(12).fill(0);
+    filtered.forEach(s=>{
+      const m=parseInt(s.date.slice(5,7))-1;
+      const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
+      dataRevenue[m]+=total;
+      dataCount[m]++;
+    });
   }
-}
 
-function getShipmentsByYear(year){
-  return db.shipments.filter(s=>s.date&&s.date.startsWith(year));
-}
-
-function renderMonthlyChart(year){
-  const months=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-  const monthlyData=Array(12).fill(0);
-  getShipmentsByYear(year).forEach(s=>{
-    const month=parseInt(s.date.slice(5,7))-1;
-    const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
-    monthlyData[month]+=total;
-  });
-  const ctx=G('chart-monthly-revenue');
-  if(!ctx)return;
+  const ctx=G('chart-monthly-revenue');if(!ctx)return;
   if(_chartMonthly)_chartMonthly.destroy();
   _chartMonthly=new Chart(ctx,{
     type:'line',
     data:{
-      labels:months,
-      datasets:[{
-        label:'出貨金額',
-        data:monthlyData,
-        borderColor:'#c8401a',
-        backgroundColor:'rgba(200,64,26,0.1)',
-        tension:0.3,
-        fill:true,
-        pointBackgroundColor:'#c8401a',
-      }]
+      labels,
+      datasets:[
+        {
+          label:'出貨金額',
+          data:dataRevenue,
+          borderColor:'#c8401a',
+          backgroundColor:'rgba(200,64,26,0.1)',
+          tension:0.3,fill:true,
+          pointBackgroundColor:'#c8401a',
+          yAxisID:'y',
+        },
+        {
+          label:'出貨次數',
+          data:dataCount,
+          borderColor:'#1a5c8a',
+          backgroundColor:'rgba(26,92,138,0.1)',
+          tension:0.3,fill:false,
+          pointBackgroundColor:'#1a5c8a',
+          yAxisID:'y1',
+          borderDash:[5,5],
+        }
+      ]
     },
     options:{
       responsive:true,
-      plugins:{legend:{display:false}},
-      scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString()}}}
+      plugins:{legend:{position:'right',labels:{font:{size:12}}}},
+      scales:{
+        y:{position:'left',ticks:{callback:v=>'$'+v.toLocaleString()}},
+        y1:{position:'right',grid:{drawOnChartArea:false},ticks:{stepSize:1,callback:v=>v+'次'}}
+      }
     }
   });
 }
 
-function renderCustomerTable(year){
-  const tb=G('analytics-customer-table');if(!tb)return;
-  const custMap={};
-  getShipmentsByYear(year).forEach(s=>{
-    const o=db.orders.find(x=>x.id===s.orderId);
-    const cust=o?db.customers.find(x=>x.id===o.customerId):null;
-    const name=cust?cust.name:'未知客戶';
-    const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
-    if(!custMap[name])custMap[name]={count:0,total:0};
-    custMap[name].count++;
-    custMap[name].total+=total;
-  });
-  const rows=Object.entries(custMap).sort((a,b)=>b[1].total-a[1].total);
-  if(!rows.length){tb.innerHTML=`<tr><td colspan="4" style="text-align:center;color:var(--text3);">無資料</td></tr>`;return;}
-  tb.innerHTML=rows.map(([name,data])=>`<tr>
-    <td><strong>${name}</strong></td>
-    <td style="text-align:center;">${data.count} 次</td>
-    <td style="text-align:right;color:var(--accent);font-weight:700;">$${data.total.toLocaleString()}</td>
-    <td style="text-align:right;">$${Math.round(data.total/data.count).toLocaleString()}</td>
-  </tr>`).join('');
-}
-
-function renderTopProductsChart(year){
+function renderTopProductsChart(){
   const priceMap={};
-  getShipmentsByYear(year).forEach(s=>{
+  db.shipments.forEach(s=>{
     (s.items||[]).forEach(item=>{
-      const key='$'+item.price+'元';
+      const p=db.products.find(x=>x.id===item.productId);
+      const key=p?p.name:('$'+item.price+'元');
       priceMap[key]=(priceMap[key]||0)+item.qty;
     });
   });
@@ -2747,7 +2797,7 @@ function renderTopProductsChart(year){
       datasets:[{
         label:'銷售數量',
         data:sorted.map(x=>x[1]),
-        backgroundColor:'rgba(200,64,26,0.7)',
+        backgroundColor:CHART_COLORS.slice(0,sorted.length),
         borderRadius:4,
       }]
     },
@@ -2759,46 +2809,52 @@ function renderTopProductsChart(year){
   });
 }
 
-function renderCustPieSelect(){
-  const sel=G('analytics-cust-select');if(!sel)return;
-  const current=sel.value;
-  sel.innerHTML='<option value="">-- 選擇客戶 --</option>'+
-    db.customers.map(c=>`<option value="${c.id}" ${c.id===current?'selected':''}>${c.name}</option>`).join('');
-  if(current) renderCustPie();
-}
+function renderSalesPie(){
+  const year=G('pie-year')?.value||getAnalyticsYears()[0];
+  const month=G('pie-month')?.value||'';
+  const custId=G('pie-cust')?.value||'';
+  const filtered=filterShipments(year,month,custId);
 
-function renderCustPie(){
-  const custId=G('analytics-cust-select')?.value;
-  const ctx=G('chart-cust-pie');if(!ctx)return;
-  if(_chartCustPie){_chartCustPie.destroy();_chartCustPie=null;}
-  if(!custId)return;
   const priceMap={};
-  db.shipments.forEach(s=>{
-    const o=db.orders.find(x=>x.id===s.orderId);
-    if(!o||o.customerId!==custId)return;
+  filtered.forEach(s=>{
     (s.items||[]).forEach(item=>{
-      const key='$'+item.price+'元';
+      const p=db.products.find(x=>x.id===item.productId);
+      const key=p?p.name:('$'+item.price+'元');
       priceMap[key]=(priceMap[key]||0)+item.qty;
     });
   });
   const entries=Object.entries(priceMap).sort((a,b)=>b[1]-a[1]);
-  if(!entries.length){ctx.style.display='none';return;}
-  ctx.style.display='block';
-  const colors=['#c8401a','#1a5c8a','#2a7a4f','#e07020','#9e9890','#e8956d','#4a90d9','#7a4f2a','#50c878','#ff6b6b'];
+  const ctx=G('chart-cust-pie');if(!ctx)return;
+  if(_chartCustPie){_chartCustPie.destroy();_chartCustPie=null;}
+  if(!entries.length){
+    G('pie-legend').innerHTML='<div style="color:var(--text3);font-size:13px;">無資料</div>';
+    return;
+  }
+  const total=entries.reduce((s,x)=>s+x[1],0);
   _chartCustPie=new Chart(ctx,{
     type:'pie',
     data:{
       labels:entries.map(x=>x[0]),
-      datasets:[{data:entries.map(x=>x[1]),backgroundColor:colors.slice(0,entries.length)}]
+      datasets:[{data:entries.map(x=>x[1]),backgroundColor:CHART_COLORS.slice(0,entries.length)}]
     },
     options:{
       responsive:true,
       plugins:{
-        legend:{position:'bottom',labels:{font:{size:11}}},
-        tooltip:{callbacks:{label:ctx=>`${ctx.label}：${ctx.raw} 個（${Math.round(ctx.raw/entries.reduce((s,x)=>s+x[1],0)*100)}%）`}}
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>`${c.label}：${c.raw} 個（${Math.round(c.raw/total*100)}%）`}}
       }
     }
   });
+  // 自訂圖例在右邊
+  const legend=G('pie-legend');
+  if(legend){
+    legend.innerHTML=entries.map((e,i)=>`
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+        <span style="width:12px;height:12px;border-radius:50%;background:${CHART_COLORS[i%CHART_COLORS.length]};flex-shrink:0;display:inline-block;"></span>
+        <span style="font-size:12px;">${e[0]}</span>
+        <span style="font-size:12px;color:var(--text2);margin-left:auto;">${e[1]}個 (${Math.round(e[1]/total*100)}%)</span>
+      </div>`).join('');
+  }
 }
 // ── END 銷售分析 ──────────────────────────────
 
