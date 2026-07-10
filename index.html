@@ -156,6 +156,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
     <div class="side-menu-item" onclick="switchTab('returns',this);closeMenu()">↩️ 退貨</div>
     <div class="side-menu-item" id="nav-restock" onclick="switchTab('restock',this);closeMenu()">🔔 補貨</div>
     <div class="side-menu-item" onclick="switchTab('analytics',this);closeMenu()">📊 銷售分析</div>
+    <div class="side-menu-item" onclick="switchTab('accounting',this);closeMenu()">💰 算帳</div>
     <div class="side-menu-item" onclick="openTrashModal();closeMenu()">🗑️ 最近刪除</div>
     <div class="side-menu-item" onclick="restoreFromLocalBackup();closeMenu()">🔄 從本地備份還原</div>
   </div>
@@ -399,6 +400,80 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
         <canvas id="chart-cust-pie"></canvas>
       </div>
       <div id="pie-legend" style="flex:1;min-width:150px;font-size:13px;"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-accounting" class="page">
+  <div class="page-header">
+    <div><h2>算帳</h2><p>月結帳款管理</p></div>
+  </div>
+
+  <!-- 篩選 -->
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+    <select id="acc-year" onchange="renderAccounting()" style="width:auto;"></select>
+    <select id="acc-month" onchange="renderAccounting()" style="width:auto;">
+      <option value="">全部月份</option>
+      <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
+      <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
+      <option value="07">7月</option><option value="08">8月</option><option value="09">9月</option>
+      <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+    </select>
+    <select id="acc-status" onchange="renderAccounting()" style="width:auto;">
+      <option value="">全部狀態</option>
+      <option value="unpaid">未收款</option>
+      <option value="partial">部分收款</option>
+      <option value="paid">已收款</option>
+    </select>
+    <div style="margin-left:auto;font-size:13px;color:var(--text2);" id="acc-summary"></div>
+  </div>
+
+  <div id="accounting-list"></div>
+</div>
+
+<!-- 收款記錄 Modal -->
+<div class="modal-overlay" id="modal-payment">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <h3 id="payment-title">記錄收款</h3>
+      <button class="modal-close" onclick="closeModal('modal-payment')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="payment-info" style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;"></div>
+      
+      <!-- 收款記錄列表 -->
+      <div id="payment-records" style="margin-bottom:14px;"></div>
+      
+      <!-- 新增收款 -->
+      <div style="border-top:1px solid var(--border);padding-top:12px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">新增收款</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>收款金額</label>
+            <input id="pay-amount" type="number" placeholder="0" min="0">
+          </div>
+          <div class="form-group">
+            <label>收款日期</label>
+            <input id="pay-date" type="date">
+          </div>
+          <div class="form-group">
+            <label>收款方式</label>
+            <select id="pay-method">
+              <option value="現金">現金</option>
+              <option value="匯款">匯款</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>備註</label>
+            <input id="pay-note" placeholder="選填">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-green" onclick="addPayment()">＋ 新增收款</button>
+          <button class="btn btn-secondary" onclick="closeModal('modal-payment')">關閉</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -848,7 +923,7 @@ async function sendLineNotify(message) {
 }
 // ── STATE ─────────────────────────────────────
 let db = { products:[], customers:[], orders:[], shipments:[], returns:[],
-  variantOptions:[] };
+  variantOptions:[], payments:{} };
 let orderItems=[], returnItemsArr=[], shipmentItems=[];
 let orderFilter='all';
 let editProdId=null, editCustId=null, editOrderId=null;
@@ -880,9 +955,9 @@ function switchTab(t,btn,pushState=true){
   document.querySelectorAll('.nav-tab').forEach(n=>n.classList.remove('active'));
   G('tab-'+t).classList.add('active');
   if(btn) btn.classList.add('active');
-  ({dashboard:renderDashboard,products:renderProducts,customers:renderCustomers,orders:renderOrders,shipments:renderShipments,returns:renderReturns,restock:renderRestock,analytics:renderAnalytics})[t]?.();
+  ({dashboard:renderDashboard,products:renderProducts,customers:renderCustomers,orders:renderOrders,shipments:renderShipments,returns:renderReturns,restock:renderRestock,analytics:renderAnalytics,accounting:renderAccounting})[t]?.();
   if(pushState){
-    const hashMap={dashboard:'/',products:'/products',customers:'/customers',orders:'/orders',shipments:'/shipments',returns:'/returns',restock:'/restock',analytics:'/analytics'};
+    const hashMap={dashboard:'/',products:'/products',customers:'/customers',orders:'/orders',shipments:'/shipments',returns:'/returns',restock:'/restock',analytics:'/analytics',accounting:'/accounting'};
     const newHash='#'+(hashMap[t]||'/');
     if(location.hash!==newHash) history.pushState({tab:t},'',' '+newHash);
   }
@@ -929,6 +1004,7 @@ async function loadData(btn=false){
         db.pickingState=m.pickingState||{};
         db.boxingState=m.boxingState||{};
         db.trash=m.trash||[];
+        db.payments=m.payments||{};
       } else {
         db[key]=snap.data().data||[];
       }
@@ -951,7 +1027,8 @@ async function saveMeta(){
     calVisits:db.calVisits||{},
     pickingState:db.pickingState||{},
     boxingState:db.boxingState||{},
-    trash:db.trash||[]
+    trash:db.trash||[],
+    payments:db.payments||{}
   }, updatedAt:Date.now()});
 }
 
@@ -2658,6 +2735,206 @@ async function onRestockCheck(pid, cb){
   renderRestock();renderProducts();renderDashboard();
 }
 
+
+
+// ── 算帳 ──────────────────────────────────────
+let _currentPaymentKey=null;
+
+function getAccountingYears(){
+  const years=new Set();
+  db.shipments.forEach(s=>{ if(s.date) years.add(s.date.slice(0,4)); });
+  if(!years.size) years.add(new Date().getFullYear().toString());
+  return [...years].sort().reverse();
+}
+
+function getPayments(){
+  return db.payments||{};
+}
+
+function getPaymentKey(custId, year, month){
+  return `${custId}_${year}_${month}`;
+}
+
+function calcAccountingData(year, month, custId){
+  // 取出貨單
+  const ships=db.shipments.filter(s=>{
+    if(!s.date)return false;
+    if(year&&!s.date.startsWith(year))return false;
+    if(month&&s.date.slice(5,7)!==month)return false;
+    if(custId){
+      const o=db.orders.find(x=>x.id===s.orderId);
+      if(!o||o.customerId!==custId)return false;
+    }
+    return true;
+  });
+
+  // 依客戶分組
+  const custMap={};
+  ships.forEach(s=>{
+    const o=db.orders.find(x=>x.id===s.orderId);
+    const cust=o?db.customers.find(x=>x.id===o.customerId):null;
+    if(!cust)return;
+    const cid=cust.id;
+    if(!custMap[cid])custMap[cid]={cust,shipments:[],total:0};
+    const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
+    custMap[cid].shipments.push({...s,total});
+    custMap[cid].total+=total;
+  });
+
+  // 扣除退貨
+  db.returns.forEach(r=>{
+    if(!r.date)return;
+    if(year&&!r.date.startsWith(year))return;
+    if(month&&r.date.slice(5,7)!==month)return;
+    const cust=db.customers.find(x=>x.id===r.customerId);
+    if(!cust||!custMap[cust.id])return;
+    const retTotal=(r.items||[]).reduce((sum,i)=>sum+i.qty,0);
+    custMap[cust.id].returnAmount=(custMap[cust.id].returnAmount||0)+retTotal;
+  });
+
+  return Object.values(custMap);
+}
+
+function renderAccounting(){
+  const yearSel=G('acc-year');
+  if(yearSel){
+    const years=getAccountingYears();
+    const cur=yearSel.value||years[0];
+    yearSel.innerHTML=years.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y}</option>`).join('');
+  }
+
+  const year=G('acc-year')?.value||getAccountingYears()[0];
+  const month=G('acc-month')?.value||new Date().toISOString().slice(5,7);
+  const statusFilter=G('acc-status')?.value||'';
+  
+  // 設定當月為預設
+  if(G('acc-month')&&!G('acc-month').value){
+    G('acc-month').value=new Date().toISOString().slice(5,7);
+  }
+
+  const data=calcAccountingData(year, month, '');
+  const payments=getPayments();
+
+  let totalReceivable=0, totalPaid=0, totalUnpaid=0;
+
+  const rows=data.map(d=>{
+    const key=getPaymentKey(d.cust.id, year, month||'all');
+    const payRecs=payments[key]||[];
+    const paidAmount=payRecs.reduce((s,p)=>s+p.amount,0);
+    const receivable=d.total-(d.returnAmount||0);
+    const unpaid=receivable-paidAmount;
+    const status=unpaid<=0?'paid':paidAmount>0?'partial':'unpaid';
+
+    totalReceivable+=receivable;
+    totalPaid+=paidAmount;
+    totalUnpaid+=Math.max(0,unpaid);
+
+    if(statusFilter&&status!==statusFilter)return null;
+
+    const statusLabel={paid:'✅ 已收款',partial:'⚠️ 部分收款',unpaid:'❌ 未收款'}[status];
+    const statusColor={paid:'var(--green)',partial:'var(--orange)',unpaid:'var(--red)'}[status];
+
+    return `<div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-size:15px;font-weight:700;">${d.cust.name}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px;">
+            出貨 ${d.shipments.length} 次
+            ${d.returnAmount?` ・ 退貨扣 ${d.returnAmount} 件`:''}
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:16px;font-weight:700;color:var(--accent);">$${receivable.toLocaleString()}</div>
+          ${paidAmount>0?`<div style="font-size:12px;color:var(--green);">已收 $${paidAmount.toLocaleString()}</div>`:''}
+          ${unpaid>0?`<div style="font-size:13px;font-weight:700;color:var(--red);">未收 $${unpaid.toLocaleString()}</div>`:''}
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+        <span style="font-size:12px;font-weight:700;color:${statusColor};">${statusLabel}</span>
+        <button class="btn btn-sm btn-primary" onclick="openPaymentModal('${d.cust.id}','${year}','${month||'all'}','${d.cust.name}',${receivable})">
+          💰 記錄收款
+        </button>
+      </div>
+    </div>`;
+  }).filter(Boolean);
+
+  const list=G('accounting-list');
+  if(list) list.innerHTML=rows.length?rows.join(''):'<div class="empty-state"><div class="empty-icon">💰</div>沒有符合的資料</div>';
+
+  const summary=G('acc-summary');
+  if(summary) summary.innerHTML=`應收：<strong>$${totalReceivable.toLocaleString()}</strong>　已收：<strong style="color:var(--green);">$${totalPaid.toLocaleString()}</strong>　未收：<strong style="color:var(--red);">$${totalUnpaid.toLocaleString()}</strong>`;
+}
+
+function openPaymentModal(custId, year, month, custName, receivable){
+  _currentPaymentKey=getPaymentKey(custId, year, month);
+  const key=_currentPaymentKey;
+  const payments=getPayments();
+  const payRecs=payments[key]||[];
+  const paidAmount=payRecs.reduce((s,p)=>s+p.amount,0);
+  const unpaid=receivable-paidAmount;
+
+  G('payment-title').textContent=`收款記錄 - ${custName}`;
+  G('pay-amount').value='';
+  G('pay-date').value=today();
+  G('pay-method').value='現金';
+  G('pay-note').value='';
+
+  G('payment-info').innerHTML=`
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+      <span>應收金額：<strong>$${receivable.toLocaleString()}</strong></span>
+      <span>已收：<strong style="color:var(--green);">$${paidAmount.toLocaleString()}</strong></span>
+      <span>未收：<strong style="color:var(--red);">$${unpaid.toLocaleString()}</strong></span>
+    </div>`;
+
+  renderPaymentRecords(payRecs);
+  openModal('modal-payment');
+}
+
+function renderPaymentRecords(payRecs){
+  const el=G('payment-records');if(!el)return;
+  if(!payRecs.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);">尚無收款記錄</div>';return;}
+  el.innerHTML=`<div style="font-size:13px;font-weight:700;margin-bottom:6px;">收款記錄</div>`+
+    payRecs.map((p,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+      <div>
+        <span style="font-weight:700;color:var(--green);">$${p.amount.toLocaleString()}</span>
+        <span style="font-size:12px;color:var(--text2);margin-left:8px;">${p.method}</span>
+        <span style="font-size:12px;color:var(--text3);margin-left:8px;">${p.date}</span>
+        ${p.note?`<span style="font-size:12px;color:var(--text2);margin-left:8px;">${p.note}</span>`:''}
+      </div>
+      <button class="btn btn-xs btn-danger" onclick="deletePayment(${i})">✕</button>
+    </div>`).join('');
+}
+
+async function addPayment(){
+  const amount=parseFloat(G('pay-amount').value);
+  if(!amount||amount<=0){alert('請輸入收款金額');return;}
+  const key=_currentPaymentKey;
+  if(!db.payments)db.payments={};
+  if(!db.payments[key])db.payments[key]=[];
+  db.payments[key].push({
+    amount,
+    date:G('pay-date').value||today(),
+    method:G('pay-method').value,
+    note:G('pay-note').value||''
+  });
+  await saveData('meta');
+  renderPaymentRecords(db.payments[key]);
+  G('pay-amount').value='';
+  G('pay-note').value='';
+  renderAccounting();
+}
+
+async function deletePayment(idx){
+  if(!confirm('確定刪除這筆收款記錄？'))return;
+  const key=_currentPaymentKey;
+  if(!db.payments||!db.payments[key])return;
+  db.payments[key].splice(idx,1);
+  await saveData('meta');
+  renderPaymentRecords(db.payments[key]);
+  renderAccounting();
+}
+// ── END 算帳 ──────────────────────────────────
 
 // ── 銷售分析 ──────────────────────────────────
 let _chartMonthly=null, _chartTopProducts=null, _chartCustPie=null;
