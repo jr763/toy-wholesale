@@ -431,6 +431,24 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   <div id="accounting-list"></div>
 </div>
 
+<!-- 編輯出貨單 Modal -->
+<div class="modal-overlay" id="modal-edit-shipment">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header">
+      <h3 id="edit-ship-title">編輯出貨單</h3>
+      <button class="modal-close" onclick="closeModal('modal-edit-shipment')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="edit-ship-items"></div>
+      <div id="edit-ship-product-summary" style="margin-top:12px;"></div>
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn btn-primary" onclick="saveEditShipment()">✓ 儲存修改</button>
+        <button class="btn btn-secondary" onclick="closeModal('modal-edit-shipment')">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 收款記錄 Modal -->
 <div class="modal-overlay" id="modal-payment">
   <div class="modal" style="max-width:480px;">
@@ -2552,7 +2570,8 @@ function renderShipments(){
           <div style="font-size:15px;font-weight:700;margin:3px 0;">${c?c.name:'未知客戶'}</div>
           <span class="badge badge-blue">已出貨</span>${s.note?`<span style="font-size:12px;color:var(--text3);margin-left:6px;">${s.note}</span>`:''}
         </div>
-        <div style="display:flex;gap:5px;">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+          <button class="btn btn-sm btn-secondary" onclick="openEditShipmentModal('${s.id}')">✏️ 編輯</button>
           <button class="btn btn-sm btn-blue" onclick="printShipment('${s.id}')">🖨️ 列印出貨單</button>
           <button class="btn btn-sm btn-danger" onclick="deleteShipment('${s.id}')">刪除</button>
         </div>
@@ -2765,6 +2784,106 @@ async function onRestockCheck(pid, cb){
 }
 
 
+
+
+// ── 編輯出貨單 ────────────────────────────────
+let _editShipId=null;
+let _editShipItems=[];
+
+function openEditShipmentModal(shipId){
+  const s=db.shipments.find(x=>x.id===shipId);if(!s)return;
+  const o=db.orders.find(x=>x.id===s.orderId);
+  const c=o?db.customers.find(x=>x.id===o.customerId):null;
+  _editShipId=shipId;
+  _editShipItems=(s.items||[]).map(i=>({...i}));
+  G('edit-ship-title').textContent=`編輯出貨單 - ${c?c.name:'未知客戶'} ${s.date}`;
+  renderEditShipItems();
+  openModal('modal-edit-shipment');
+}
+
+function renderEditShipItems(){
+  const el=G('edit-ship-items');if(!el)return;
+  const total=_editShipItems.reduce((s,i)=>s+i.qty*i.price,0);
+  el.innerHTML=`<div class="table-wrap"><table>
+    <thead><tr><th>售價</th><th>數量</th><th>小計</th><th></th></tr></thead>
+    <tbody>${_editShipItems.map((item,idx)=>`<tr>
+      <td><input type="number" value="${item.price}" min="0" style="width:80px;"
+        onchange="_editShipItems[${idx}].price=parseFloat(this.value)||0;renderEditShipItems();renderEditShipSummary()"></td>
+      <td><input type="number" value="${item.qty}" min="0" style="width:70px;"
+        onchange="_editShipItems[${idx}].qty=parseInt(this.value)||0;renderEditShipItems();renderEditShipSummary()"></td>
+      <td>$${fmt(item.qty*item.price)}</td>
+      <td><button class="btn btn-xs btn-danger" onclick="_editShipItems.splice(${idx},1);renderEditShipItems();renderEditShipSummary()">✕</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>
+  <div style="text-align:right;padding:9px 12px;font-weight:700;border-top:2px solid var(--border);">合計：$${fmt(total)}</div>`;
+  renderEditShipSummary();
+}
+
+function renderEditShipSummary(){
+  const el=G('edit-ship-product-summary');if(!el)return;
+  // 依售價分組，找對應商品
+  const priceMap={};
+  _editShipItems.forEach(item=>{
+    const key=item.price;
+    priceMap[key]=(priceMap[key]||0)+item.qty;
+  });
+  const rows=Object.entries(priceMap).sort((a,b)=>Number(a[0])-Number(b[0]));
+  if(!rows.length){el.innerHTML='';return;}
+  el.innerHTML=`<div style="background:var(--blue-bg);border-radius:8px;padding:10px 12px;">
+    <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:6px;">📦 修改後商品明細</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;">
+      <thead><tr>
+        <th style="text-align:left;padding:3px 6px;color:var(--text2);">售價</th>
+        <th style="text-align:left;padding:3px 6px;color:var(--text2);">數量</th>
+      </tr></thead>
+      <tbody>${rows.map(([price,qty])=>`<tr>
+        <td style="padding:3px 6px;font-weight:700;">$${fmt(Number(price))}元</td>
+        <td style="padding:3px 6px;">${qty} 個</td>
+      </tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+async function saveEditShipment(){
+  const s=db.shipments.find(x=>x.id===_editShipId);if(!s)return;
+  const oldItems=s.items||[];
+  const newItems=_editShipItems.filter(i=>i.qty>0);
+
+  // 計算庫存差異：舊數量 - 新數量 = 要加回庫存的數量
+  const oldMap={};
+  oldItems.forEach(i=>{
+    const k=i.productId+'|'+i.price;
+    oldMap[k]=(oldMap[k]||0)+i.qty;
+  });
+  const newMap={};
+  newItems.forEach(i=>{
+    const k=i.productId+'|'+i.price;
+    newMap[k]=(newMap[k]||0)+i.qty;
+  });
+
+  // 把減少的數量加回庫存
+  const allKeys=new Set([...Object.keys(oldMap),...Object.keys(newMap)]);
+  allKeys.forEach(k=>{
+    const oldQty=oldMap[k]||0;
+    const newQty=newMap[k]||0;
+    const diff=oldQty-newQty; // 正數表示減少，要加回庫存
+    if(diff===0)return;
+    const pid=k.split('|')[0];
+    const pi=db.products.findIndex(x=>x.id===pid);
+    if(pi>=0) db.products[pi].currentStock=Math.max(0,(db.products[pi].currentStock||0)+diff);
+  });
+
+  // 更新出貨單
+  const si=db.shipments.findIndex(x=>x.id===_editShipId);
+  if(si>=0) db.shipments[si].items=newItems;
+
+  await Promise.all([saveData('shipments'),saveData('products'),saveData('meta')]);
+  closeModal('modal-edit-shipment');
+  renderShipments();
+  renderProducts();
+  alert('出貨單已更新，庫存已調整');
+}
+// ── END 編輯出貨單 ────────────────────────────
 
 // ── 算帳 ──────────────────────────────────────
 let _currentPaymentKey=null;
