@@ -3043,7 +3043,8 @@ function renderAccounting(){
     const actualReceivable=checkedTotal-cashDiscountAmt;
     const finalAmount=bill?bill.amount:actualReceivable;
     const unpaid=finalAmount-paidAmount;
-    const status=unpaid<=0?'paid':paidAmount>0?'partial':'unpaid';
+    // finalAmount 為 0 且未結帳時，視為未收款（還沒勾選出貨單）
+    const status=!bill&&finalAmount<=0?'unpaid':unpaid<=0?'paid':paidAmount>0?'partial':'unpaid';
 
     totalReceivable+=finalAmount;
     totalPaid+=paidAmount;
@@ -3106,7 +3107,7 @@ function renderAccounting(){
       </div>
 
       <!-- 展開明細 -->
-      <div id="acc-detail-${custKey}" style="display:none;margin-top:10px;">
+      <div id="acc-detail-${custKey}" style="display:${_accDetailOpen[custKey]?'block':'none'};margin-top:10px;">
         <!-- 出貨單明細 -->
         <div style="background:var(--surface2);border-radius:6px;padding:8px 10px;margin-bottom:8px;">
           <div style="font-size:12px;font-weight:700;margin-bottom:4px;color:var(--text2);">📦 出貨明細（勾選要算帳的）</div>
@@ -3136,10 +3137,13 @@ function renderAccounting(){
   if(summary) summary.innerHTML=`應收：<strong>$${totalReceivable.toLocaleString()}</strong>　已收：<strong style="color:var(--green);">$${totalPaid.toLocaleString()}</strong>　未收：<strong style="color:var(--red);">$${totalUnpaid.toLocaleString()}</strong>`;
 }
 
+const _accDetailOpen={};
 function toggleAccDetail(custKey){
   const el=G('acc-detail-'+custKey);
   if(!el)return;
-  el.style.display=el.style.display==='none'?'block':'none';
+  const isOpen=el.style.display!=='none';
+  _accDetailOpen[custKey]=!isOpen;
+  el.style.display=isOpen?'none':'block';
 }
 
 function toggleAccountingShip(shipId, custId, year, month, receivable){
