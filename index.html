@@ -3079,52 +3079,47 @@ function renderAccounting(){
       </div>`).join('');
 
     return `<div class="card" style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <div>
           <div style="font-size:15px;font-weight:700;">${d.cust.name}</div>
           ${cashDiscount?`<div style="font-size:11px;color:var(--blue);margin-top:2px;">💰 現金折扣 ${cashDiscount}%</div>`:''}
-          <div style="font-size:12px;color:var(--text2);margin-top:3px;">出貨 ${d.shipments.length} 次</div>
         </div>
-        <div style="text-align:right;">
-          <div style="font-size:16px;font-weight:700;color:var(--accent);">$${fmt(finalAmount)}</div>
-          ${bill?`<div style="font-size:11px;color:var(--blue);">已結帳 ${new Date(bill.billedAt).toLocaleDateString('zh-TW')}</div>`:''}
-          ${paidAmount>0?`<div style="font-size:12px;color:var(--green);">已收 $${fmt(paidAmount)}</div>`:''}
-          ${unpaid>0?`<div style="font-size:13px;font-weight:700;color:var(--red);">未收 $${fmt(unpaid)}</div>`:''}
-        </div>
-      </div>
-
-      <!-- 結帳/收款按鈕 -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:6px;">
-        <span style="font-size:12px;font-weight:700;color:${statusColor};">${statusLabel}</span>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-sm btn-secondary" onclick="toggleAccDetail('${custKey}')">📋 明細</button>
-          ${!bill
-            ? `<button class="btn btn-sm btn-green" onclick="checkoutAccounting('${d.cust.id}','${year}','${month||'all'}',${actualReceivable})">✓ 結帳</button>`
-            : `<button class="btn btn-sm btn-secondary" onclick="cancelCheckout('${d.cust.id}','${year}','${month||'all'}')">取消結帳</button>
-               <button class="btn btn-sm btn-primary" onclick="openPaymentModal('${d.cust.id}','${year}','${month||'all'}','${d.cust.name}',${bill.amount})">💰 收款</button>`
-          }
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div style="text-align:right;">
+            <div style="font-size:16px;font-weight:700;color:var(--accent);">$${fmt(finalAmount)}</div>
+            ${unpaid>0?`<div style="font-size:12px;font-weight:700;color:var(--red);">未收 $${fmt(unpaid)}</div>`:''}
+          </div>
+          <span style="font-size:12px;font-weight:700;color:${statusColor};">${statusLabel}</span>
+          <div style="display:flex;gap:5px;">
+            <button class="btn btn-sm btn-secondary" onclick="toggleAccDetail('${custKey}')">📋</button>
+            ${!bill
+              ? `<button class="btn btn-sm btn-green" onclick="checkoutAccounting('${d.cust.id}','${year}','${month||'all'}',${actualReceivable})">結帳</button>`
+              : `<button class="btn btn-sm btn-secondary" onclick="cancelCheckout('${d.cust.id}','${year}','${month||'all'}')">取消結帳</button>
+                 <button class="btn btn-sm btn-primary" onclick="openPaymentModal('${d.cust.id}','${year}','${month||'all'}','${d.cust.name}',${bill.amount})">收款</button>`
+            }
+          </div>
         </div>
       </div>
 
       <!-- 展開明細 -->
-      <div id="acc-detail-${custKey}" style="display:${_accDetailOpen[custKey]?'block':'none'};margin-top:10px;">
+      <div id="acc-detail-${custKey}" style="display:${_accDetailOpen[custKey]?'block':'none'};margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
         <!-- 出貨單明細 -->
-        <div style="background:var(--surface2);border-radius:6px;padding:8px 10px;margin-bottom:8px;">
-          <div style="font-size:12px;font-weight:700;margin-bottom:4px;color:var(--text2);">📦 出貨明細（勾選要算帳的）</div>
+        <div style="margin-bottom:8px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text2);">📦 出貨明細</div>
           ${shipRows||'<div style="font-size:12px;color:var(--text3);">無出貨單</div>'}
-          ${cashDiscount&&checkedTotal>0?`<div style="text-align:right;margin-top:6px;font-size:12px;color:var(--text2);">小計 $${fmt(checkedTotal)} × ${100-cashDiscount}% = <strong>$${fmt(actualReceivable)}</strong></div>`:''}
+          ${cashDiscount&&checkedTotal>0?`<div style="text-align:right;margin-top:6px;font-size:12px;color:var(--text2);">小計 $${fmt(checkedTotal)} × ${100-cashDiscount}% = <strong style="color:var(--accent);">$${fmt(actualReceivable)}</strong></div>`:''}
         </div>
         <!-- 結帳收款記錄 -->
-        ${bill||paidAmount>0?`<div style="background:var(--surface2);border-radius:6px;padding:8px 10px;">
-          <div style="font-size:12px;font-weight:700;margin-bottom:4px;color:var(--text2);">💰 結帳收款記錄</div>
-          ${bill?`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
-            <div style="color:var(--blue);font-weight:700;">✓ 結帳 ${new Date(bill.billedAt).toLocaleDateString('zh-TW')}</div>
-            <div style="font-weight:700;">$${fmt(bill.amount)}</div>
+        ${bill||paidAmount>0?`<div style="border-top:1px solid var(--border);padding-top:8px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text2);">💰 收款記錄</div>
+          ${bill?`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">
+            <span style="color:var(--blue);">✓ 結帳 ${new Date(bill.billedAt).toLocaleDateString('zh-TW')}</span>
+            <span style="font-weight:700;">$${fmt(bill.amount)}</span>
           </div>`:''}
           ${payRows}
-          ${unpaid>0?`<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;margin-top:2px;">
-            <div style="color:var(--red);font-weight:700;">未收</div>
-            <div style="font-weight:700;color:var(--red);">$${fmt(unpaid)}</div>
+          ${unpaid>0?`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;margin-top:2px;">
+            <span style="color:var(--red);font-weight:700;">未收</span>
+            <span style="font-weight:700;color:var(--red);">$${fmt(unpaid)}</span>
           </div>`:''}
         </div>`:''}
       </div>
