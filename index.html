@@ -3057,12 +3057,18 @@ function renderAccounting(){
     ].filter(Boolean).join('　');
 
     // 出貨單明細
-    const shipRows=d.shipments.map(s=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
-        <div style="color:var(--text2);">${s.date}</div>
-        <div style="font-weight:600;">$${s.total.toLocaleString()}</div>
-
-      </div>`).join('');
+    const shipRows=d.shipments.map(s=>{
+  const retTotal=(s.returnItems||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
+  const actual=s.total-retTotal;
+  return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
+    <div style="color:var(--text2);">${s.date}</div>
+    <div>
+      <span style="font-weight:600;">$${s.total.toLocaleString()}</span>
+      ${retTotal>0?`<span style="color:var(--red);margin-left:6px;">退貨 -$${retTotal.toLocaleString()}</span>
+      <span style="color:var(--accent);margin-left:6px;font-weight:700;">= $${actual.toLocaleString()}</span>`:''}
+    </div>
+  </div>`;
+}).join('');
 
     return `<div class="card" style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
