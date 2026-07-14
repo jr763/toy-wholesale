@@ -956,7 +956,7 @@ const fsdb = firebase.firestore();
 const DOC_REF = fsdb.collection('data').doc('main');
 
 // ── LINE Messaging API ────────────────────────
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyXmnAoeMmc96m6Wo9O95fDxa1OYuuXCKW8TzDTuozF5FFillG0RYof4P3lF_yuea-RdA/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwI0owkCqK8RoZe9t6nlBJcJceshacfcGR6AiDI1jCr3nGto-4kr41466kgdGpSwG0jcA/exec';
 
 async function sendLineNotify(message) {
   try {
@@ -965,11 +965,33 @@ async function sendLineNotify(message) {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: clean })
+      body: JSON.stringify({ type: 'line', message: clean })
     });
     console.log('LINE通知：已送出');
   } catch(e) {
     console.log('LINE通知失敗：', e);
+  }
+}
+
+// 備份到 Google Drive
+async function backupToDrive(){
+  try{
+    const dateKey=new Date().toISOString().slice(0,10);
+    const lastBackup=localStorage.getItem('oscar_drive_backup_date');
+    if(lastBackup===dateKey){
+      console.log('今天已備份到 Drive：', dateKey);
+      return;
+    }
+    await fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'backup', data: db })
+    });
+    localStorage.setItem('oscar_drive_backup_date', dateKey);
+    console.log('備份到 Drive 完成：', dateKey);
+  }catch(e){
+    console.warn('備份到 Drive 失敗：', e);
   }
 }
 // ── STATE ─────────────────────────────────────
@@ -1065,6 +1087,8 @@ async function loadData(btn=false){
     setSyncStatus('ok','雲端同步・所有人共用');
     G('loading-overlay').style.display='none';
     renderAll();
+    // 每天第一次載入時備份到 Drive
+    setTimeout(backupToDrive, 3000);
   }catch(e){ setSyncStatus('error','連線失敗：'+e.message); G('loading-text').textContent='連線失敗：'+e.message; G('loading-overlay').style.background='rgba(245,242,237,.95)'; console.error('Firebase error:',e); }
   if(btn){ const b=G('btn-refresh');if(b){b.disabled=false;b.textContent='🔄 重新整理';} }
 }
