@@ -3028,7 +3028,8 @@ function renderAccounting(){
     const payRecs=payments[key]||[];
     const paidAmount=payRecs.reduce((s,p)=>s+p.amount,0);
     const receivable=Math.max(0,d.total-(d.returnAmount||0));
-    const unpaid=receivable-paidAmount;
+    const finalAmount=bill?bill.amount:actualReceivable;
+    const unpaid=finalAmount-paidAmount;
     const status=unpaid<=0?'paid':paidAmount>0?'partial':'unpaid';
     totalReceivable+=receivable;
     totalPaid+=paidAmount;
