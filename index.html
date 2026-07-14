@@ -611,21 +611,11 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
         <div class="form-group full"><label>備註</label><textarea id="c-note" placeholder="付款條件、交貨注意事項…"></textarea></div>
         <div class="form-group full" style="background:var(--surface2);border-radius:8px;padding:12px;">
           <label style="font-weight:700;margin-bottom:8px;display:block;">💰 付款條件</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-            <div>
-              <label style="font-size:12px;">結帳天數</label>
-              <input id="c-pay-days" type="number" placeholder="例：30" min="0">
-            </div>
-            <div>
-              <label style="font-size:12px;">折扣（%）</label>
-              <input id="c-pay-discount" type="number" placeholder="例：65" min="0" max="100">
-            </div>
-            <div>
-              <label style="font-size:12px;">現金折扣（%）</label>
-              <input id="c-pay-cash-discount" type="number" placeholder="例：5" min="0" max="100">
-            </div>
+          <div style="max-width:200px;">
+            <label style="font-size:12px;">現金折扣（%）</label>
+            <input id="c-pay-cash-discount" type="number" placeholder="例：5" min="0" max="100">
           </div>
-          <div style="font-size:11px;color:var(--text2);margin-top:6px;">結帳天數：出貨後幾天內需付款。折扣：帳款折扣。現金折扣：現金付款額外折扣。</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:6px;">現金付款時的折扣百分比，算帳時會自動計算實際應收金額。</div>
         </div>
         <div class="form-group full" style="background:var(--surface2);border-radius:8px;padding:12px;">
           <label style="font-weight:700;margin-bottom:8px;display:block;">計價規則（出貨單進價計算）</label>
@@ -984,7 +974,7 @@ async function sendLineNotify(message) {
 }
 // ── STATE ─────────────────────────────────────
 let db = { products:[], customers:[], orders:[], shipments:[], returns:[],
-  variantOptions:[], payments:{} };
+  variantOptions:[], payments:{}, accountingChecked:{} };
 let orderItems=[], returnItemsArr=[], shipmentItems=[];
 let orderFilter='all';
 let editProdId=null, editCustId=null, editOrderId=null;
@@ -1066,6 +1056,7 @@ async function loadData(btn=false){
         db.boxingState=m.boxingState||{};
         db.trash=m.trash||[];
         db.payments=m.payments||{};
+        db.accountingChecked=m.accountingChecked||{};
       } else {
         db[key]=snap.data().data||[];
       }
@@ -1089,7 +1080,8 @@ async function saveMeta(){
     pickingState:db.pickingState||{},
     boxingState:db.boxingState||{},
     trash:db.trash||[],
-    payments:db.payments||{}
+    payments:db.payments||{},
+    accountingChecked:db.accountingChecked||{}
   }, updatedAt:Date.now()});
 }
 
@@ -1650,8 +1642,6 @@ function openCustomerModal(){
   G('c-modal-title').textContent='新增客戶';
   ['c-name','c-phone','c-address','c-note'].forEach(id=>{if(G(id))G(id).value='';});
   G('c-discount').value='0';
-  if(G('c-pay-days'))G('c-pay-days').value='';
-  if(G('c-pay-discount'))G('c-pay-discount').value='';
   if(G('c-pay-cash-discount'))G('c-pay-cash-discount').value='';
   G('c-barcode').value='7990341';
   if(G('c-invoice-format'))G('c-invoice-format').value='A';
@@ -1686,8 +1676,6 @@ function editCustomer(id){
     toggleSpecialRuleUI();
   }
   if(G('c-hide-barcode-name'))G('c-hide-barcode-name').checked=c.hideBarcodeInName||false;
-  if(G('c-pay-days'))G('c-pay-days').value=c.paymentTerms?.days||'';
-  if(G('c-pay-discount'))G('c-pay-discount').value=c.paymentTerms?.discount||'';
   if(G('c-pay-cash-discount'))G('c-pay-cash-discount').value=c.paymentTerms?.cashDiscount||'';
   if(G('c-cost-map-input')){
     const cmap=c.customCostMap;
@@ -1753,8 +1741,6 @@ async function saveCustomer(){
     if(!Object.keys(customCostMap).length) customCostMap=null;
   }
   const paymentTerms={
-    days:parseInt(G('c-pay-days')?.value)||0,
-    discount:parseFloat(G('c-pay-discount')?.value)||0,
     cashDiscount:parseFloat(G('c-pay-cash-discount')?.value)||0,
   };
   const data={name:V('c-name'),phone:V('c-phone')||'',address:V('c-address')||'',note:V('c-note')||'',paymentTerms,
@@ -3050,50 +3036,58 @@ function renderAccounting(){
     const statusLabel={paid:'✅ 已收款',partial:'⚠️ 部分收款',unpaid:'❌ 未收款'}[status];
     const statusColor={paid:'var(--green)',partial:'var(--orange)',unpaid:'var(--red)'}[status];
     const pt=d.cust.paymentTerms||{};
-    const payTermsHtml=[
-      pt.days?`月結 ${pt.days} 天`:'',
-      pt.discount?`折扣 ${pt.discount}%`:'',
-      pt.cashDiscount?`現金扣 ${pt.cashDiscount}%`:'',
-    ].filter(Boolean).join('　');
 
-    // 出貨單明細
+    const cashDiscount=d.cust.paymentTerms?.cashDiscount||0;
+    const custKey=d.cust.id+'_'+year+'_'+(month||'all');
+
+    // 出貨單明細（帶核取方塊）
+    const checkedShips=db.accountingChecked||{};
     const shipRows=d.shipments.map(s=>{
-  const retTotal=(s.returnItems||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
-  const actual=s.total-retTotal;
-  return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
-    <div style="color:var(--text2);">${s.date}</div>
-    <div>
-      <span style="font-weight:600;">$${s.total.toLocaleString()}</span>
-      ${retTotal>0?`<span style="color:var(--red);margin-left:6px;">退貨 -$${retTotal.toLocaleString()}</span>
-      <span style="color:var(--accent);margin-left:6px;font-weight:700;">= $${actual.toLocaleString()}</span>`:''}
-    </div>
-  </div>`;
-}).join('');
+      const retTotal=(s.returnItems||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
+      const shipActual=s.total-retTotal;
+      const isChecked=checkedShips[s.id]!==false; // 預設勾選
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
+        <input type="checkbox" ${isChecked?'checked':''} onchange="toggleAccountingShip('${s.id}','${d.cust.id}','${year}','${month||'all'}',${receivable})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">
+        <div style="color:var(--text2);flex:1;">${s.date}</div>
+        <div style="font-weight:600;">
+          $${fmt(s.total)}
+          ${retTotal>0?`<span style="color:var(--red);margin-left:4px;">-$${fmt(retTotal)}</span><span style="color:var(--accent);margin-left:4px;">=$${fmt(shipActual)}</span>`:''}
+        </div>
+      </div>`;
+    }).join('');
+
+    // 計算勾選的出貨單總額
+    const checkedTotal=d.shipments.filter(s=>checkedShips[s.id]!==false)
+      .reduce((sum,s)=>{
+        const retTotal=(s.returnItems||[]).reduce((r,i)=>r+i.qty*i.price,0);
+        return sum+(s.total-retTotal);
+      },0);
+    const cashDiscountAmt=cashDiscount?Math.round(checkedTotal*cashDiscount/100):0;
+    const actualReceivable=checkedTotal-cashDiscountAmt;
 
     return `<div class="card" style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
         <div>
           <div style="font-size:15px;font-weight:700;">${d.cust.name}</div>
-          ${payTermsHtml?`<div style="font-size:11px;color:var(--blue);margin-top:2px;">📋 ${payTermsHtml}</div>`:''}
-          <div style="font-size:12px;color:var(--text2);margin-top:3px;">
-            出貨 ${d.shipments.length} 次
-            ${d.returnAmount?` ・ 退貨扣 $${fmt(d.returnAmount)}`:''}
-          </div>
+          ${cashDiscount?`<div style="font-size:11px;color:var(--blue);margin-top:2px;">💰 現金折扣 ${cashDiscount}%</div>`:''}
+          <div style="font-size:12px;color:var(--text2);margin-top:3px;">出貨 ${d.shipments.length} 次</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:16px;font-weight:700;color:var(--accent);">$${receivable.toLocaleString()}</div>
-          ${paidAmount>0?`<div style="font-size:12px;color:var(--green);">已收 $${paidAmount.toLocaleString()}</div>`:''}
-          ${unpaid>0?`<div style="font-size:13px;font-weight:700;color:var(--red);">未收 $${unpaid.toLocaleString()}</div>`:''}
+          <div style="font-size:16px;font-weight:700;color:var(--accent);">$${fmt(actualReceivable)}</div>
+          ${cashDiscountAmt?`<div style="font-size:11px;color:var(--green);">現金折扣 -$${fmt(cashDiscountAmt)}</div>`:''}
+          ${paidAmount>0?`<div style="font-size:12px;color:var(--green);">已收 $${fmt(paidAmount)}</div>`:''}
+          ${actualReceivable-paidAmount>0?`<div style="font-size:13px;font-weight:700;color:var(--red);">未收 $${fmt(actualReceivable-paidAmount)}</div>`:''}
         </div>
       </div>
       <!-- 出貨單明細 -->
       <div style="margin-top:10px;background:var(--surface2);border-radius:6px;padding:8px 10px;">
-        <div style="font-size:12px;font-weight:700;margin-bottom:4px;color:var(--text2);">出貨單明細</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px;color:var(--text2);">出貨單明細（勾選要算帳的）</div>
         ${shipRows||'<div style="font-size:12px;color:var(--text3);">無出貨單</div>'}
+        ${cashDiscount&&checkedTotal>0?`<div style="text-align:right;margin-top:6px;font-size:12px;color:var(--text2);">小計 $${fmt(checkedTotal)} × ${100-cashDiscount}% = <strong>$${fmt(actualReceivable)}</strong></div>`:''}
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
         <span style="font-size:12px;font-weight:700;color:${statusColor};">${statusLabel}</span>
-        <button class="btn btn-sm btn-primary" onclick="openPaymentModal('${d.cust.id}','${year}','${month||'all'}','${d.cust.name}',${receivable})">
+        <button class="btn btn-sm btn-primary" onclick="openPaymentModal('${d.cust.id}','${year}','${month||'all'}','${d.cust.name}',${actualReceivable})">
           💰 記錄收款
         </button>
       </div>
@@ -3104,6 +3098,13 @@ function renderAccounting(){
   if(list) list.innerHTML=rows.length?rows.join(''):'<div class="empty-state"><div class="empty-icon">💰</div>沒有符合的資料</div>';
   const summary=G('acc-summary');
   if(summary) summary.innerHTML=`應收：<strong>$${totalReceivable.toLocaleString()}</strong>　已收：<strong style="color:var(--green);">$${totalPaid.toLocaleString()}</strong>　未收：<strong style="color:var(--red);">$${totalUnpaid.toLocaleString()}</strong>`;
+}
+
+function toggleAccountingShip(shipId, custId, year, month, receivable){
+  if(!db.accountingChecked)db.accountingChecked={};
+  const cur=db.accountingChecked[shipId];
+  db.accountingChecked[shipId]=cur===false?true:false;
+  renderAccounting();
 }
 
 function editShipmentFromAccounting(shipId){
