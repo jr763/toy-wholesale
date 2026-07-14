@@ -974,7 +974,7 @@ async function sendLineNotify(message) {
 }
 // ── STATE ─────────────────────────────────────
 let db = { products:[], customers:[], orders:[], shipments:[], returns:[],
-  variantOptions:[], payments:{}, accountingChecked:{} };
+  variantOptions:[], payments:{}, accountingChecked:{}, accountingBills:{} };
 let orderItems=[], returnItemsArr=[], shipmentItems=[];
 let orderFilter='all';
 let editProdId=null, editCustId=null, editOrderId=null;
@@ -1057,6 +1057,7 @@ async function loadData(btn=false){
         db.trash=m.trash||[];
         db.payments=m.payments||{};
         db.accountingChecked=m.accountingChecked||{};
+        db.accountingBills=m.accountingBills||{};
       } else {
         db[key]=snap.data().data||[];
       }
@@ -1081,7 +1082,8 @@ async function saveMeta(){
     boxingState:db.boxingState||{},
     trash:db.trash||[],
     payments:db.payments||{},
-    accountingChecked:db.accountingChecked||{}
+    accountingChecked:db.accountingChecked||{},
+    accountingBills:db.accountingBills||{}
   }, updatedAt:Date.now()});
 }
 
@@ -3039,6 +3041,8 @@ function renderAccounting(){
 
     const cashDiscount=d.cust.paymentTerms?.cashDiscount||0;
     const custKey=d.cust.id+'_'+year+'_'+(month||'all');
+    const bills=db.accountingBills||{};
+    const bill=bills[custKey]||null;
 
     // 出貨單明細（帶核取方塊）
     const checkedShips=db.accountingChecked||{};
@@ -3047,7 +3051,7 @@ function renderAccounting(){
       const shipActual=s.total-retTotal;
       const isChecked=checkedShips[s.id]!==false; // 預設勾選
       return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
-        <input type="checkbox" ${isChecked?'checked':''} onchange="toggleAccountingShip('${s.id}','${d.cust.id}','${year}','${month||'all'}',${receivable})" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">
+        <input type="checkbox" ${isChecked?'checked':''} ${bill?'disabled':''} onchange="toggleAccountingShip('${s.id}','${d.cust.id}','${year}','${month||'all'}',${receivable})" style="width:16px;height:16px;cursor:${bill?'not-allowed':'pointer'};flex-shrink:0;opacity:${bill?0.6:1};">
         <div style="color:var(--text2);flex:1;">${s.date}</div>
         <div style="font-weight:600;">
           $${fmt(s.total)}
@@ -3073,10 +3077,11 @@ function renderAccounting(){
           <div style="font-size:12px;color:var(--text2);margin-top:3px;">出貨 ${d.shipments.length} 次</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:16px;font-weight:700;color:var(--accent);">$${fmt(actualReceivable)}</div>
-          ${cashDiscountAmt?`<div style="font-size:11px;color:var(--green);">現金折扣 -$${fmt(cashDiscountAmt)}</div>`:''}
+          <div style="font-size:16px;font-weight:700;color:var(--accent);">$${fmt(bill?bill.amount:actualReceivable)}</div>
+          ${!bill&&cashDiscountAmt?`<div style="font-size:11px;color:var(--green);">現金折扣 -$${fmt(cashDiscountAmt)}</div>`:''}
+          ${bill?`<div style="font-size:11px;color:var(--blue);">已結帳</div>`:''}
           ${paidAmount>0?`<div style="font-size:12px;color:var(--green);">已收 $${fmt(paidAmount)}</div>`:''}
-          ${actualReceivable-paidAmount>0?`<div style="font-size:13px;font-weight:700;color:var(--red);">未收 $${fmt(actualReceivable-paidAmount)}</div>`:''}
+          ${(bill?bill.amount:actualReceivable)-paidAmount>0?`<div style="font-size:13px;font-weight:700;color:var(--red);">未收 $${fmt((bill?bill.amount:actualReceivable)-paidAmount)}</div>`:''}
         </div>
       </div>
       <!-- 出貨單明細 -->
@@ -3085,11 +3090,16 @@ function renderAccounting(){
         ${shipRows||'<div style="font-size:12px;color:var(--text3);">無出貨單</div>'}
         ${cashDiscount&&checkedTotal>0?`<div style="text-align:right;margin-top:6px;font-size:12px;color:var(--text2);">小計 $${fmt(checkedTotal)} × ${100-cashDiscount}% = <strong>$${fmt(actualReceivable)}</strong></div>`:''}
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+      <!-- 結帳/收款按鈕 -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:6px;">
         <span style="font-size:12px;font-weight:700;color:${statusColor};">${statusLabel}</span>
-        <button class="btn btn-sm btn-primary" onclick="openPaymentModal('${d.cust.id}','${year}','${month||'all'}','${d.cust.name}',${actualReceivable})">
-          💰 記錄收款
-        </button>
+        <div style="display:flex;gap:6px;">
+          ${!bill
+            ? `<button class="btn btn-sm btn-green" onclick="checkoutAccounting('${d.cust.id}','${year}','${month||'all'}',${actualReceivable})">✓ 結帳</button>`
+            : `<button class="btn btn-sm btn-secondary" onclick="cancelCheckout('${d.cust.id}','${year}','${month||'all'}')">取消結帳</button>
+               <button class="btn btn-sm btn-primary" onclick="openPaymentModal('${d.cust.id}','${year}','${month||'all'}','${d.cust.name}',${bill.amount})">💰 收款</button>`
+          }
+        </div>
       </div>
     </div>`;
   }).filter(Boolean);
@@ -3104,6 +3114,25 @@ function toggleAccountingShip(shipId, custId, year, month, receivable){
   if(!db.accountingChecked)db.accountingChecked={};
   const cur=db.accountingChecked[shipId];
   db.accountingChecked[shipId]=cur===false?true:false;
+  renderAccounting();
+}
+
+async function checkoutAccounting(custId, year, month, amount){
+  if(!amount||amount<=0){alert('沒有勾選出貨單');return;}
+  if(!confirm(`確認結帳 $${amount.toLocaleString()} 嗎？
+結帳後金額將鎖定，需要取消結帳才能重新勾選。`))return;
+  if(!db.accountingBills)db.accountingBills={};
+  const key=custId+'_'+year+'_'+month;
+  db.accountingBills[key]={amount, billedAt:Date.now(), year, month};
+  await saveData('meta');
+  renderAccounting();
+}
+
+async function cancelCheckout(custId, year, month){
+  if(!confirm('確認取消結帳？取消後可重新勾選出貨單。'))return;
+  const key=custId+'_'+year+'_'+month;
+  if(db.accountingBills) delete db.accountingBills[key];
+  await saveData('meta');
   renderAccounting();
 }
 
