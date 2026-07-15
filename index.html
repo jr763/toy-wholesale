@@ -407,10 +407,11 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 <div id="tab-accounting" class="page">
   <div class="page-header">
     <div><h2>算帳</h2><p>月結帳款管理</p></div>
+    <div id="acc-summary" style="font-size:13px;text-align:right;color:var(--text2);"></div>
   </div>
 
   <!-- 篩選 -->
-  <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
     <select id="acc-year" onchange="renderAccounting()" style="width:auto;"></select>
     <select id="acc-month" onchange="renderAccounting()" style="width:auto;">
       <option value="">全部月份</option>
@@ -425,10 +426,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
       <option value="partial">部分收款</option>
       <option value="paid">已收款</option>
     </select>
-  </div>
-  <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">
     <input id="acc-search" placeholder="搜尋客戶名稱…" oninput="renderAccounting()" style="flex:1;min-width:150px;">
-    <div style="font-size:13px;color:var(--text2);" id="acc-summary"></div>
   </div>
 
   <div id="accounting-list"></div>
@@ -3036,11 +3034,8 @@ function renderAccounting(){
     const cur=yearSel.value||years[0];
     yearSel.innerHTML=years.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y}</option>`).join('');
   }
-  if(G('acc-month')&&!G('acc-month').value){
-    G('acc-month').value=new Date().toISOString().slice(5,7);
-  }
   const year=G('acc-year')?.value||getAccountingYears()[0];
-  const month=G('acc-month')?.value||new Date().toISOString().slice(5,7);
+  const month=G('acc-month')?.value||'';
   const statusFilter=G('acc-status')?.value||'';
   const searchQ=(G('acc-search')?.value||'').toLowerCase();
   const data=calcAccountingData(year, month, '');
