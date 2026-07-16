@@ -347,7 +347,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 
 <!-- RESTOCK 補貨 -->
 <div id="tab-restock" class="page">
-  <div class="page-header"><div><h2>補貨通知</h2><p>庫存低於安全庫存量的商品</p></div><button class="btn btn-green" onclick="sendRestockNotify()">📢 發送補貨通知到LINE</button></div>
+  <div class="page-header"><div><h2>補貨通知</h2><p>庫存低於安全庫存量的商品</p></div><button class="btn btn-green" onclick="sendRestockNotify()">📢 發送補貨通知到Discord</button></div>
   <div id="restock-list"></div>
 </div>
 
@@ -2779,7 +2779,7 @@ function sendRestockNotify(){
   const list=rows.map(p=>'❌ '+p.name+'，庫存：'+(p.currentStock??0)+'，建議補：'+(p.safetyStock-(p.currentStock??0))).join('\n');
   const msg='📦 補貨通知，共 '+rows.length+' 項商品需補貨\n'+list;
   sendLineNotify(msg);
-  alert('補貨通知已發送到LINE群組！');
+  alert('已發送補貨通知！');
 }
 function renderRestock(){
   const list=G('restock-list');if(!list)return;
