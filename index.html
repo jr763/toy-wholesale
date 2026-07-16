@@ -955,19 +955,19 @@ const DOC_REF = fsdb.collection('data').doc('main');
 
 // ── LINE Messaging API ────────────────────────
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwI0owkCqK8RoZe9t6nlBJcJceshacfcGR6AiDI1jCr3nGto-4kr41466kgdGpSwG0jcA/exec';
+const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1527158493734502551/57EVOF5iINq258gZIqXnjlEN_VzCcIjuX5eyq1tMiw-hcT_H4uwyTVAZaErk3f7P3vZ6';
 
 async function sendLineNotify(message) {
   try {
     const clean = String(message).replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/g, '');
-    await fetch(GAS_URL, {
+    await fetch(DISCORD_WEBHOOK, {
       method: 'POST',
-      mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'line', message: clean })
+      body: JSON.stringify({ content: clean })
     });
-    console.log('LINE通知：已送出');
+    console.log('Discord通知：已送出');
   } catch(e) {
-    console.log('LINE通知失敗：', e);
+    console.log('Discord通知失敗：', e);
   }
 }
 
