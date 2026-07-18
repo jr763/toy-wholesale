@@ -3501,16 +3501,14 @@ function buildShipmentHTML(s){
 }
 function shipHeaderHTML(cust,dateStr,addrRight,dateRight){
   return `
-      <div style="text-align:center;font-size:27px;font-weight:bold;letter-spacing:3px;margin-bottom:1px;">奧斯卡商行</div>
+      <div style="text-align:center;font-size:29px;font-weight:bold;letter-spacing:3px;margin-bottom:1px;">奧斯卡商行</div>
       <div style="text-align:center;margin-bottom:6px;">
-        <span style="font-size:19px;font-weight:bold;letter-spacing:3px;border-bottom:2px double #000;padding-bottom:1px;">銷 貨 單 據 一 覽 表</span>
+        <span style="font-size:20px;font-weight:bold;letter-spacing:3px;border-bottom:2px double #000;padding-bottom:1px;">銷 貨 單 據 一 覽 表</span>
       </div>
-      <div style="font-size:15px;margin-bottom:3px;display:flex;justify-content:space-between;width:12.4cm;">
-        <span>客戶名稱：${cust?cust.name:''}</span>
-        <span>電話：${cust?.phone||''}</span>
-      </div>
-      <div style="font-size:15px;margin-bottom:3px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
-      <div style="font-size:15px;margin-bottom:6px;display:flex;justify-content:space-between;width:12.4cm;">
+      <div style="font-size:16px;margin-bottom:3px;">客戶名稱：${cust?cust.name:''}</div>
+      <div style="font-size:16px;margin-bottom:3px;">電話：${cust?.phone||''}</div>
+      <div style="font-size:16px;margin-bottom:3px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
+      <div style="font-size:16px;margin-bottom:6px;display:flex;justify-content:space-between;width:13cm;">
         <span>銷貨日期：${dateStr}</span>
         <span>${dateRight||''}</span>
       </div>`;
@@ -3572,41 +3570,41 @@ function buildFormatB(s,cust,o){
     const amount=Math.round(discPrice*qty*10)/10;
     total+=amount;
     rowsHtml+=`<tr>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">${idx+1}</td>
-      <td style="border:1px solid #000;padding:3px 4px;font-size:13px;white-space:nowrap;overflow:hidden;">${basePrice}元玩具 ${priceBC}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">個</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:15px;">${discPrice}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:15px;">${basePrice}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">${qty}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:15px;">${amount}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">${idx+1}</td>
+      <td style="border:1px solid #000;padding:3px 4px;font-size:14px;white-space:nowrap;overflow:hidden;">${basePrice}元玩具 ${priceBC}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">個</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:16px;">${discPrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:16px;">${basePrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">${qty}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:16px;">${amount}</td>
     </tr>`;
   });
   for(let i=rows.length;i<TOTAL_ROWS;i++){
     rowsHtml+=`<tr style="height:22px;">
-      <td style="border:1px solid #000;font-size:15px;text-align:center;">${i+1}</td>
+      <td style="border:1px solid #000;font-size:16px;text-align:center;">${i+1}</td>
       <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
       <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
       <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
     </tr>`;
   }
   return `
-    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:12.4cm;font-size:15px;margin:0 auto;">
+    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:16px;margin:0 auto;">
       ${shipHeaderHTML(cust,dateStr,addrRight,dateRight)}
-      <table style="width:12.4cm;border-collapse:collapse;table-layout:fixed;">
+      <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
         <colgroup><col style="width:7%"><col style="width:30%"><col style="width:8%"><col style="width:15%"><col style="width:15%"><col style="width:10%"><col style="width:15%"></colgroup>
         <thead><tr>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">序號</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">品名及條碼</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">單位</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">進價</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">售價</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">數量</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">金額</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">序號</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">品名及條碼</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">單位</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">進價</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">售價</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">數量</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">金額</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
         <tr style="background:#c8c8c8;">
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:17px;font-weight:bold;" colspan="6">總金額：</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:17px;font-weight:bold;">${Math.round(total)}</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:18px;font-weight:bold;" colspan="6">總金額：</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:18px;font-weight:bold;">${Math.round(total)}</td>
         </tr>
       </table>
       ${shipSignatureHTML()}
@@ -3629,13 +3627,13 @@ function buildFormatC(s,cust,o){
     const amount=Math.round(discPrice*qty*10)/10;
     total+=amount;
     rowsHtml+=`<tr>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;"></td>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">${idx===0?poNo:''}</td>
-      <td style="border:1px solid #000;padding:3px 4px;font-size:13px;white-space:nowrap;overflow:hidden;">${basePrice}元玩具 ${priceBC}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">${qty}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:15px;">${discPrice}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:15px;">${basePrice}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:15px;">${amount}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;"></td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">${idx===0?poNo:''}</td>
+      <td style="border:1px solid #000;padding:3px 4px;font-size:14px;white-space:nowrap;overflow:hidden;">${basePrice}元玩具 ${priceBC}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">${qty}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:16px;">${discPrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:16px;">${basePrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:16px;">${amount}</td>
     </tr>`;
   });
   for(let i=rows.length;i<TOTAL_ROWS;i++){
@@ -3646,23 +3644,23 @@ function buildFormatC(s,cust,o){
     </tr>`;
   }
   return `
-    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:12.4cm;font-size:15px;margin:0 auto;">
+    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:16px;margin:0 auto;">
       ${shipHeaderHTML(cust,dateStr,addrRight,dateRight)}
-      <table style="width:12.4cm;border-collapse:collapse;table-layout:fixed;">
+      <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
         <colgroup><col style="width:11%">   <col style="width:15.5%">  <col style="width:33%">  <col style="width:7.5%">   <col style="width:11%">  <col style="width:12%">  <col style="width:13%">  </colgroup>
         <thead><tr>
-          <th style="border:1px solid #000;padding:3px 1px;text-align:center;font-size:13px;white-space:nowrap;">廠商編號</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">進貨單號</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">產品/條碼</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">數量</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">進價</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">零售價</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">金額</th>
+          <th style="border:1px solid #000;padding:3px 1px;text-align:center;font-size:14px;white-space:nowrap;">廠商編號</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">進貨單號</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">產品/條碼</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">數量</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">進價</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">零售價</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">金額</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
         <tr style="background:#c8c8c8;">
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:17px;font-weight:bold;" colspan="6">總金額：</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:17px;font-weight:bold;">${Math.round(total)}</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:18px;font-weight:bold;" colspan="6">總金額：</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:18px;font-weight:bold;">${Math.round(total)}</td>
         </tr>
       </table>
       ${shipSignatureHTML()}
@@ -3683,46 +3681,46 @@ function buildFormatD(s,cust,o){
     const amount=Math.round(discPrice*qty*10)/10;
     total+=amount;
     rowsHtml+=`<tr>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">${idx+1}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">${basePrice}元玩具</td>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">${priceBC}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">個</td>
-      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">${qty}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:15px;">${discPrice}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:15px;">${basePrice}</td>
-      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:15px;">${amount}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">${idx+1}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">${basePrice}元玩具</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">${priceBC}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">個</td>
+      <td style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">${qty}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:16px;">${discPrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:16px;">${basePrice}</td>
+      <td style="border:1px solid #000;padding:3px;text-align:right;font-size:16px;">${amount}</td>
     </tr>`;
   });
   const TOTAL_ROWS_D=20;
   for(let i=rows.length;i<TOTAL_ROWS_D;i++){
     const isFirstBlank=i===rows.length;
     rowsHtml+=`<tr style="height:22px;">
-      <td style="border:1px solid #000;font-size:15px;text-align:center;">${i+1}</td>
-      <td style="border:1px solid #000;text-align:center;font-size:14px;color:#555;">${isFirstBlank?'以下空白':''}</td>
-      <td style="border:1px solid #000;text-align:center;font-size:14px;color:#555;">${isFirstBlank?'以下空白':''}</td>
+      <td style="border:1px solid #000;font-size:16px;text-align:center;">${i+1}</td>
+      <td style="border:1px solid #000;text-align:center;font-size:15px;color:#555;">${isFirstBlank?'以下空白':''}</td>
+      <td style="border:1px solid #000;text-align:center;font-size:15px;color:#555;">${isFirstBlank?'以下空白':''}</td>
       <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
       <td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>
     </tr>`;
   }
   return `
-    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:12.4cm;font-size:15px;margin:0 auto;">
+    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:16px;margin:0 auto;">
       ${shipHeaderHTML(cust,dateStr,addrRight,dateRight)}
-      <table style="width:12.4cm;border-collapse:collapse;table-layout:fixed;">
+      <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
         <colgroup><col style="width:7%"><col style="width:18%"><col style="width:22%"><col style="width:8%"><col style="width:10%"><col style="width:12%"><col style="width:11%"><col style="width:12%"></colgroup>
         <thead><tr>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">序號</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">商品條碼</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">品名</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">單位</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">數量</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">成本</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">售價</th>
-          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:14px;">金額</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">序號</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">商品條碼</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">品名</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">單位</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">數量</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">成本</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">售價</th>
+          <th style="border:1px solid #000;padding:3px;text-align:center;font-size:15px;">金額</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
         <tr style="background:#c8c8c8;">
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:17px;font-weight:bold;" colspan="7">總金額：</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:17px;font-weight:bold;">${Math.round(total)}</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:18px;font-weight:bold;" colspan="7">總金額：</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:18px;font-weight:bold;">${Math.round(total)}</td>
         </tr>
       </table>
       ${shipSignatureHTML()}
@@ -3769,16 +3767,16 @@ function buildFormatA(s,cust,o){
     const amount=Math.round(discPrice*qty*10)/10;
     total+=amount;
     rowsHtml+=`<tr>
-      <td style="border:1px solid #000;padding:4px 4px;text-align:center;font-size:17px;">${idx+1}</td>
-      <td style="border:1px solid #000;padding:4px 5px;font-size:17px;">${name}</td>
-      <td style="border:1px solid #000;padding:4px 4px;text-align:center;font-size:17px;">${qty}</td>
-      <td style="border:1px solid #000;padding:4px 4px;text-align:right;font-size:17px;">${discPrice}</td>
-      <td style="border:1px solid #000;padding:4px 4px;text-align:right;font-size:17px;">${amount}</td>
+      <td style="border:1px solid #000;padding:4px 4px;text-align:center;font-size:18px;">${idx+1}</td>
+      <td style="border:1px solid #000;padding:4px 5px;font-size:18px;">${name}</td>
+      <td style="border:1px solid #000;padding:4px 4px;text-align:center;font-size:18px;">${qty}</td>
+      <td style="border:1px solid #000;padding:4px 4px;text-align:right;font-size:18px;">${discPrice}</td>
+      <td style="border:1px solid #000;padding:4px 4px;text-align:right;font-size:18px;">${amount}</td>
     </tr>`;
   });
   for(let i=rows.length;i<TOTAL_ROWS;i++){
     rowsHtml+=`<tr style="height:25px;">
-      <td style="border:1px solid #000;font-size:17px;padding:4px 4px;text-align:center;">${i+1}</td>
+      <td style="border:1px solid #000;font-size:18px;padding:4px 4px;text-align:center;">${i+1}</td>
       <td style="border:1px solid #000;"></td>
       <td style="border:1px solid #000;"></td>
       <td style="border:1px solid #000;"></td>
@@ -3789,21 +3787,19 @@ function buildFormatA(s,cust,o){
   const dateRight = noteLines.length>=2 ? noteLines[1] : (noteLines[0]||'');
 
   return `
-    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:12.4cm;font-size:15px;margin:0 auto;">
+    <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:13cm;font-size:16px;margin:0 auto;">
       <div style="text-align:center;font-size:29px;font-weight:bold;letter-spacing:3px;margin-bottom:1px;">奧斯卡商行</div>
       <div style="text-align:center;margin-bottom:6px;">
         <span style="font-size:20px;font-weight:bold;letter-spacing:3px;border-bottom:2px double #000;padding-bottom:1px;">銷 貨 單 據 一 覽 表</span>
       </div>
-      <div style="font-size:15px;margin-bottom:3px;display:flex;justify-content:space-between;width:12.4cm;">
-        <span>客戶名稱：${cust?cust.name:''}</span>
-        <span>電話：${cust?.phone||''}</span>
-      </div>
-      <div style="font-size:15px;margin-bottom:3px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
-      <div style="font-size:15px;margin-bottom:6px;display:flex;justify-content:space-between;width:12.4cm;">
+      <div style="font-size:16px;margin-bottom:3px;">客戶名稱：${cust?cust.name:''}</div>
+      <div style="font-size:16px;margin-bottom:3px;">電話：${cust?.phone||''}</div>
+      <div style="font-size:16px;margin-bottom:3px;">客戶地址：${cust?.address||''}${addrRight?'　'+addrRight:''}</div>
+      <div style="font-size:16px;margin-bottom:6px;display:flex;justify-content:space-between;width:13cm;">
   <span>銷貨日期：${dateStr}</span>
   <span>${dateRight||''}</span>
 </div>
-      <table style="width:12.4cm;border-collapse:collapse;table-layout:fixed;">
+      <table style="width:13cm;border-collapse:collapse;table-layout:fixed;">
         <colgroup>
           <col style="width:9%">
           <col style="width:45%">
@@ -3813,22 +3809,22 @@ function buildFormatA(s,cust,o){
         </colgroup>
         <thead>
           <tr>
-            <th style="border:1px solid #000;padding:4px 2px;text-align:center;font-size:15px;white-space:nowrap;">序號</th>
-            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:15px;">商品名稱</th>
-            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:15px;">數量</th>
-            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:15px;">進價</th>
-            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:15px;">金額</th>
+            <th style="border:1px solid #000;padding:4px 2px;text-align:center;font-size:16px;white-space:nowrap;">序號</th>
+            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:16px;">商品名稱</th>
+            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:16px;">數量</th>
+            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:16px;">進價</th>
+            <th style="border:1px solid #000;padding:4px;text-align:center;font-size:16px;">金額</th>
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
         <tr class="total-row" style="background:#c8c8c8;">
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:17px;font-weight:bold;" colspan="4">總計：</td>
-          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:17px;font-weight:bold;">${Math.round(total)}</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:18px;font-weight:bold;" colspan="4">總計：</td>
+          <td style="border:1px solid #000;padding:4px;text-align:right;font-size:18px;font-weight:bold;">${Math.round(total)}</td>
         </tr>
       </table>
       <div style="margin-top:10px;display:flex;align-items:flex-end;">
         <span style="width:54%;"></span>
-        <span style="font-size:15px;font-weight:bold;white-space:nowrap;">客戶簽收：</span>
+        <span style="font-size:16px;font-weight:bold;white-space:nowrap;">客戶簽收：</span>
         <span style="flex:1;border-bottom:1.5px solid #000;margin-left:6px;"></span>
       </div>
     </div>`;
@@ -4799,17 +4795,17 @@ function openLabelPrintWindow(priceQtyList,prefix){
   let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
   html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
   html+=`<style>
-    @page{size:52mm 44mm;margin:0;}
+    @page{size:34mm 28mm;margin:0;}
     *{box-sizing:border-box;}
     body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
-    .sheet{display:flex;flex-direction:column;width:52mm;}
+    .sheet{display:flex;flex-direction:column;width:34mm;}
     .label{
-  width:50mm;
-  height:39mm;
+  width:32mm;
+  height:25mm;
   box-sizing:border-box;
-  padding-top:4mm;
+  padding-top:2.5mm;
   padding-bottom:0mm;
-  padding-left:1.5mm;padding-right:1.5mm;
+  padding-left:1mm;padding-right:1mm;
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -4819,9 +4815,9 @@ function openLabelPrintWindow(priceQtyList,prefix){
   page-break-after:always;
 }
     .label:last-child{margin-bottom:0;page-break-after:avoid;}
-    .label .line{width:40mm;text-align:center;white-space:nowrap;overflow:hidden;}
-    .label .brand{display:flex;justify-content:space-between;font-size:22px;font-weight:700;line-height:1.1;margin-bottom:5px;}
-    .label svg{display:block;width:40mm;height:14mm;}
+    .label .line{width:25.6mm;text-align:center;white-space:nowrap;overflow:hidden;}
+    .label .brand{display:flex;justify-content:space-between;font-size:15px;font-weight:700;line-height:1.1;margin-bottom:5px;}
+    .label svg{display:block;width:25.6mm;height:9mm;}
     .label .code{display:flex;justify-content:space-between;font-size:10px;font-family:monospace;margin-top:2px;line-height:1;}
     .label .price{display:flex;justify-content:space-between;font-size:15px;font-weight:400;margin-top:1px;line-height:1.1;}
   </style></head><body>
@@ -4843,9 +4839,9 @@ function openLabelPrintWindow(priceQtyList,prefix){
       try{
         JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:80,width:2});
         svg.setAttribute('preserveAspectRatio','none');
-        svg.setAttribute('width','40mm');
-        svg.setAttribute('height','14mm');
-        svg.style.width='40mm';svg.style.height='14mm';svg.style.display='block';
+        svg.setAttribute('width','25.6mm');
+        svg.setAttribute('height','9mm');
+        svg.style.width='25.6mm';svg.style.height='9mm';svg.style.display='block';
       }catch(e){console.error(e);}
     });
     window.onload=()=>setTimeout(()=>window.print(),400);
@@ -4944,7 +4940,7 @@ body { margin: 0; font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; }
 }
 .label:last-child { margin-bottom: 0; page-break-after: avoid; }
     .label .name{width:25.6mm;font-size:8px;font-weight:700;line-height:1.1;margin-bottom:1px;text-align:center;max-height:4.5mm;overflow:hidden;}
-    .label svg{display:block;width:40mm;height:14mm;}
+    .label svg{display:block;width:25.6mm;height:9mm;}
     .label .code{width:25.6mm;font-size:7px;font-family:monospace;margin-top:1px;line-height:1;text-align:center;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
