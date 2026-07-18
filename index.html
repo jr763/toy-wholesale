@@ -4800,8 +4800,8 @@ function openLabelPrintWindow(priceQtyList,prefix){
     body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
     .sheet{display:flex;flex-direction:column;width:55.5mm;}
     .label{
-  width:55mm;
-  height:40mm;
+  width:57mm;
+  height:48mm;
   box-sizing:border-box;
   padding-top:3mm;
   padding-bottom:0mm;
@@ -4837,7 +4837,7 @@ function openLabelPrintWindow(priceQtyList,prefix){
       div.appendChild(brand);div.appendChild(svg);div.appendChild(code);div.appendChild(price);
       sheet.appendChild(div);
       try{
-        JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:100,width:4});
+        JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:300,width:4});
         svg.setAttribute('preserveAspectRatio','none');
         svg.setAttribute('width','55mm');
         svg.setAttribute('height','40mm');
@@ -4921,10 +4921,10 @@ function printCustomCodeLabels(){
   let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
   html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
   html+=`<style>
-    @page { size: 34mm 28mm; margin: 0; }
+    @page { size: 57mm 48mm; margin: 0; }
 *{ box-sizing: border-box; }
 body { margin: 0; font-family: 'Noto Sans TC','Microsoft JhengHei',sans-serif; }
-.sheet { display: flex; flex-direction: column; width: 34mm; }
+.sheet { display: flex; flex-direction: column; width: 57mm; }
 .label { 
   width: 32mm;
   height: 25mm;
