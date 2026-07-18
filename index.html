@@ -4815,11 +4815,11 @@ function openLabelPrintWindow(priceQtyList,prefix){
   page-break-after:always;
 }
     .label:last-child{margin-bottom:0;page-break-after:avoid;}
-    .label .line{width:55mm;text-align:center;white-space:nowrap;overflow:visible;}
-    .label .brand{display:flex;justify-content:space-between;font-size:30px;font-weight:550;line-height:1.5;margin-bottom:2px;}
-    .label svg{display:block;width:55mm;height:30mm;}
-    .label .code{display:flex;justify-content:space-between;font-size:25px;font-family:monospace;margin-top:2px;line-height:1;}
-    .label .price{display:flex;justify-content:space-between;font-size:30px;font-weight:400;margin-top:1px;line-height:1.5;}
+    .label .line{width:45mm;text-align:center;white-space:nowrap;overflow:visible;}
+    .label .brand{display:flex;justify-content:space-between;font-size:25px;font-weight:550;line-height:1.5;margin-bottom:2px;}
+    .label svg{display:block;width:45mm;height:30mm;}
+    .label .code{display:flex;justify-content:space-between;font-size:20px;font-family:monospace;margin-top:2px;line-height:1;}
+    .label .price{display:flex;justify-content:space-between;font-size:25px;font-weight:400;margin-top:1px;line-height:1.5;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
   <scr`+`ipt>
@@ -4839,9 +4839,9 @@ function openLabelPrintWindow(priceQtyList,prefix){
       try{
         JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:150,width:4});
         svg.setAttribute('preserveAspectRatio','none');
-        svg.setAttribute('width','55mm');
+        svg.setAttribute('width','45mm');
         svg.setAttribute('height','30mm');
-        svg.style.width='55mm';svg.style.height='30mm';svg.style.display='block';
+        svg.style.width='45mm';svg.style.height='30mm';svg.style.display='block';
       }catch(e){console.error(e);}
     });
     window.onload=()=>setTimeout(()=>window.print(),400);
