@@ -4817,7 +4817,7 @@ function openLabelPrintWindow(priceQtyList,prefix){
     .label:last-child{margin-bottom:0;page-break-after:avoid;}
     .label .line{width:55mm;text-align:center;white-space:nowrap;overflow:hidden;}
     .label .brand{display:flex;justify-content:space-between;font-size:30px;font-weight:550;line-height:1.5;margin-bottom:5px;}
-    .label svg{display:block;width:55mm;height:40mm;}
+    .label svg{display:block;width:55mm;height:30mm;}
     .label .code{display:flex;justify-content:space-between;font-size:25px;font-family:monospace;margin-top:2px;line-height:1;}
     .label .price{display:flex;justify-content:space-between;font-size:30px;font-weight:400;margin-top:1px;line-height:1.5;}
   </style></head><body>
@@ -4837,11 +4837,11 @@ function openLabelPrintWindow(priceQtyList,prefix){
       div.appendChild(brand);div.appendChild(svg);div.appendChild(code);div.appendChild(price);
       sheet.appendChild(div);
       try{
-        JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:300,width:4});
+        JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:150,width:4});
         svg.setAttribute('preserveAspectRatio','none');
         svg.setAttribute('width','55mm');
-        svg.setAttribute('height','40mm');
-        svg.style.width='55mm';svg.style.height='40mm';svg.style.display='block';
+        svg.setAttribute('height','30mm');
+        svg.style.width='55mm';svg.style.height='30mm';svg.style.display='block';
       }catch(e){console.error(e);}
     });
     window.onload=()=>setTimeout(()=>window.print(),400);
