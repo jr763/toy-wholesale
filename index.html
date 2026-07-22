@@ -617,8 +617,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
         </div>
         <div class="form-group full" style="background:var(--surface2);border-radius:8px;padding:12px;">
           <label style="font-weight:700;margin-bottom:8px;display:block;">計價規則（出貨單進價計算）</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
             <div><label style="font-size:12px;">一般折數（%）</label><input id="c-rule-normal" type="number" placeholder="例：75" min="0" max="100"></div>
+            <div><label style="font-size:12px;">特價折數（%）</label><input id="c-rule-special-rate" type="number" placeholder="不填同一般折數" min="0" max="100"></div>
             <div><label style="font-size:12px;">計算方式</label>
               <select id="c-rule-round">
                 <option value="decimal1">四捨五入到小數第1位</option>
@@ -629,18 +630,16 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
               </select>
             </div>
           </div>
-          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-bottom:8px;">
-            <input type="checkbox" id="c-rule-special-enable" onchange="toggleSpecialRuleUI()"> 啟用特價規則（尾數為 9 的售價套用不同算法）
-          </label>
-          <div id="c-rule-special-fields" style="display:none;grid-template-columns:1fr 1fr;gap:10px;">
-            <div><label style="font-size:12px;">特價折數（%）</label><input id="c-rule-special-rate" type="number" placeholder="例：70" min="0" max="100"></div>
-            <div>
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-top:18px;">
-                <input type="checkbox" id="c-rule-special-adjust"> 先加 1 元再乘折數
-              </label>
-            </div>
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:6px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="c-rule-special-enable"> 尾數為 9 的售價套用特價折數
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="c-rule-special-adjust"> 先加 1 元再乘折數
+            </label>
           </div>
-          <div style="font-size:11px;color:var(--text2);margin-top:6px;">不設定的話，維持用上方「折扣(%)」欄位的單純折數計算。</div>
+          <div id="c-rule-special-fields" style="display:none;"></div>
+          <div style="font-size:11px;color:var(--text2);margin-top:6px;">特價折數不填的話，預設跟一般折數相同。不設定任何折數，維持用上方「折扣(%)」欄位計算。</div>
         </div>
         <div class="form-group full">
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
@@ -1674,7 +1673,6 @@ function openCustomerModal(){
   G('c-rule-special-enable').checked=false;
   G('c-rule-special-rate').value='';
   G('c-rule-special-adjust').checked=false;
-  toggleSpecialRuleUI();
   G('c-hide-barcode-name').checked=false;
   G('c-cost-map-input').value='';
   openModal('modal-customer');
@@ -1695,9 +1693,10 @@ function editCustomer(id){
     G('c-rule-normal').value=r?.normalRate||'';
     G('c-rule-round').value=r?.roundMode||'decimal1';
     G('c-rule-special-enable').checked=r?.specialEnabled||false;
-    G('c-rule-special-rate').value=r?.specialRate||'';
+    // 特價折數跟一般折數一樣時顯示空白
+    const sRate=r?.specialRate;
+    G('c-rule-special-rate').value=(sRate&&sRate!==r?.normalRate)?sRate:'';
     G('c-rule-special-adjust').checked=r?.specialAdjust||false;
-    toggleSpecialRuleUI();
   }
   if(G('c-hide-barcode-name'))G('c-hide-barcode-name').checked=c.hideBarcodeInName||false;
   if(G('c-pay-cash-discount'))G('c-pay-cash-discount').value=c.paymentTerms?.cashDiscount||'';
@@ -1743,11 +1742,12 @@ async function saveCustomer(){
   const normalRate=parseFloat(G('c-rule-normal').value);
   let pricingRule=null;
   if(!isNaN(normalRate)&&normalRate>0){
+    const specialRateVal=parseFloat(G('c-rule-special-rate').value);
     pricingRule={
       normalRate,
       roundMode:G('c-rule-round').value,
       specialEnabled:G('c-rule-special-enable').checked,
-      specialRate:parseFloat(G('c-rule-special-rate').value)||normalRate,
+      specialRate:(!isNaN(specialRateVal)&&specialRateVal>0)?specialRateVal:normalRate,
       specialAdjust:G('c-rule-special-adjust').checked
     };
   }
