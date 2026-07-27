@@ -1379,11 +1379,7 @@ async function saveData(section=null){
     if(section==='shipments'||!section) savePendingQueue('shipments',{data:db.shipments, updatedAt:Date.now()});
     if(section==='returns'||!section) savePendingQueue('returns',{data:db.returns, updatedAt:Date.now()});
     if(section==='meta'||!section) savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},pickingState:db.pickingState||{},boxingState:db.boxingState||{},trash:db.trash||[]}, updatedAt:Date.now()});
-    const retry=confirm('⚠️ 儲存失敗（已重試3次）
-
-請確認網路後按「重試」，或按「取消」稍後再操作。
-
-注意：關閉頁面前請勿離開，資料尚未儲存到雲端。');
+    const retry=confirm('⚠️ 儲存失敗（已重試3次）\n\n請確認網路後按「重試」，或按「取消」稍後再操作。\n\n注意：關閉頁面前請勿離開，資料尚未儲存到雲端。');
     if(retry){
       isSaving=false;
       return saveData(section); // 重新嘗試
