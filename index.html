@@ -372,13 +372,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
           <option value="2003751">2003751</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>列印格式</label>
-        <select id="bp-format">
-          <option value="standard">標準（含奧斯卡）</option>
-          <option value="triple">三合一（無奧斯卡）</option>
-        </select>
-      </div>
+
     </div>
   </div>
 
@@ -389,9 +383,16 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
         <label>售價（元）</label>
         <input id="bp-price" type="number" placeholder="0" min="0">
       </div>
-      <div class="form-group" style="flex:0 0 80px;">
+      <div class="form-group" style="flex:0 0 70px;">
         <label>數量</label>
         <input id="bp-qty" type="number" placeholder="1" min="1" value="1">
+      </div>
+      <div class="form-group" style="flex:1;min-width:120px;">
+        <label>格式</label>
+        <select id="bp-format">
+          <option value="standard">標準（含奧斯卡）</option>
+          <option value="triple">三合一（無奧斯卡）</option>
+        </select>
       </div>
       <button class="btn btn-primary" onclick="addBarcodePrintItem()" style="align-self:flex-end;">＋ 加入</button>
     </div>
@@ -3356,10 +3357,12 @@ function renderBarcodePrint(){
 function addBarcodePrintItem(){
   const price = parseFloat(G('bp-price')?.value);
   const qty = parseInt(G('bp-qty')?.value) || 1;
+  const format = G('bp-format')?.value || 'standard';
   if(!price || price <= 0){ alert('請輸入售價'); return; }
-  const existing = _bpItems.find(x => x.price === price);
+  // 同售價同格式才合併
+  const existing = _bpItems.find(x => x.price === price && x.format === format);
   if(existing){ existing.qty += qty; }
-  else{ _bpItems.push({price, qty}); }
+  else{ _bpItems.push({price, qty, format}); }
   if(G('bp-price')) G('bp-price').value = '';
   if(G('bp-qty')) G('bp-qty').value = '1';
   renderBpList();
@@ -3371,9 +3374,11 @@ function renderBpList(){
     el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px;">尚未加入任何售價</div>';
     return;
   }
+  const fmtLabel = f => f==='triple'?'三合一':'標準';
   el.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th>售價</th><th>數量</th><th></th></tr></thead>
+    <thead><tr><th>格式</th><th>售價</th><th>數量</th><th></th></tr></thead>
     <tbody>${_bpItems.map((item,idx) => `<tr>
+      <td><span class="badge ${item.format==='triple'?'badge-blue':'badge-green'}">${fmtLabel(item.format)}</span></td>
       <td style="font-weight:700;">$${fmt(item.price)} 元</td>
       <td><input type="number" value="${item.qty}" min="1" style="width:70px;"
         onchange="_bpItems[${idx}].qty=parseInt(this.value)||1"></td>
@@ -3392,12 +3397,112 @@ function clearBarcodePrintList(){
 function printBarcodePrintList(){
   if(!_bpItems.length){ alert('請先加入售價'); return; }
   const prefix = G('bp-barcode-prefix')?.value || '7990341';
-  const format = G('bp-format')?.value || 'standard';
-  if(format === 'triple'){
-    openTripleLabelPrintWindow(_bpItems, prefix);
-  } else {
-    openLabelPrintWindow(_bpItems, prefix);
-  }
+  // 分組：標準和三合一分開，但合在同一個列印視窗
+  const standardItems = _bpItems.filter(x => x.format !== 'triple');
+  const tripleItems = _bpItems.filter(x => x.format === 'triple');
+  openMixedLabelPrintWindow(standardItems, tripleItems, prefix);
+}
+
+function openMixedLabelPrintWindow(standardItems, tripleItems, prefix){
+  const w = window.open('', '_blank');
+  if(!w){ alert('請允許瀏覽器開啟新視窗'); return; }
+
+  // 標準格式資料
+  const standardJson = JSON.stringify(standardItems.flatMap(({price,qty}) => {
+    const barcode = getPriceBarcode(price, prefix);
+    return Array(Math.max(1,qty||1)).fill(0).map(()=>({price,barcode,type:'standard'}));
+  }));
+
+  // 三合一格式資料
+  const tripleJson = JSON.stringify(tripleItems.flatMap(({price,qty}) => {
+    const barcode = getPriceBarcode(price, prefix);
+    return Array(Math.max(1,qty||1)).fill(0).map(()=>({price,barcode,type:'triple'}));
+  }));
+
+  let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
+  html += '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
+  html += `<style>
+    @page{size:55.5mm 45.7mm;margin:0;}
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
+    .sheet{display:flex;flex-direction:column;width:55.5mm;}
+    .label{
+      width:57mm;height:48mm;
+      box-sizing:border-box;
+      padding-top:4mm;padding-bottom:0mm;padding-left:1mm;padding-right:1mm;
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:center;
+      overflow:hidden;margin:0;page-break-after:always;
+    }
+    .label:last-child{page-break-after:avoid;}
+    .label .line{width:50mm;text-align:center;white-space:nowrap;overflow:visible;}
+    .label .brand{display:flex;justify-content:space-between;font-size:25px;font-weight:600;line-height:1.5;margin-bottom:2.5px;}
+    .label svg{display:block;width:50mm;height:30mm;}
+    .label .code{display:flex;justify-content:space-between;font-size:20px;font-family:monospace;margin-top:1px;line-height:1;}
+    .label .price{display:flex;justify-content:space-between;font-size:25px;font-weight:450;margin-top:1px;line-height:1.5;}
+    .triple-wrap{display:flex;flex-direction:column;width:100%;gap:0;}
+    .bc-item{display:flex;flex-direction:column;align-items:center;flex:1;}
+    .bc-item svg{display:block;width:48mm;height:8mm;}
+    .bc-item .code{font-size:8px;font-family:monospace;letter-spacing:1px;margin-top:1px;}
+    .bc-item .price{font-size:10px;font-weight:600;margin-top:1px;}
+    .divider{border-top:0.5px dashed #ccc;width:90%;margin:1px auto;}
+  </style></head><body>
+  <div class="sheet" id="sheet"></div>
+  <scr` + `ipt>
+    const standardItems=${standardJson};
+    const tripleItems=${tripleJson};
+    const sheet=document.getElementById('sheet');
+
+    // 先印標準格式
+    standardItems.forEach(it=>{
+      const div=document.createElement('div');div.className='label';
+      const brand=document.createElement('div');brand.className='line brand';
+      '奧斯卡'.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;brand.appendChild(s);});
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      const code=document.createElement('div');code.className='line code';
+      it.barcode.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;code.appendChild(s);});
+      const price=document.createElement('div');price.className='line price';
+      ('單價 '+it.price+' 元').split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;price.appendChild(s);});
+      div.appendChild(brand);div.appendChild(svg);div.appendChild(code);div.appendChild(price);
+      sheet.appendChild(div);
+      try{
+        JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:150,width:4});
+        svg.setAttribute('preserveAspectRatio','none');
+        svg.setAttribute('width','50mm');svg.setAttribute('height','30mm');
+        svg.style.width='50mm';svg.style.height='30mm';svg.style.display='block';
+      }catch(e){console.error(e);}
+    });
+
+    // 再印三合一格式
+    tripleItems.forEach(it=>{
+      const label=document.createElement('div');label.className='label';
+      const wrap=document.createElement('div');wrap.className='triple-wrap';
+      for(let i=0;i<3;i++){
+        if(i>0){const div=document.createElement('div');div.className='divider';wrap.appendChild(div);}
+        const bcItem=document.createElement('div');bcItem.className='bc-item';
+        const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+        const code=document.createElement('div');code.className='code';
+        code.textContent=it.barcode;
+        const price=document.createElement('div');price.className='price';
+        price.textContent='單價 '+it.price+' 元';
+        bcItem.appendChild(svg);bcItem.appendChild(code);bcItem.appendChild(price);
+        wrap.appendChild(bcItem);
+        try{
+          JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:60,width:2});
+          svg.setAttribute('preserveAspectRatio','none');
+          svg.setAttribute('width','48mm');svg.setAttribute('height','8mm');
+          svg.style.width='48mm';svg.style.height='8mm';svg.style.display='block';
+        }catch(e){console.error(e);}
+      }
+      label.appendChild(wrap);
+      sheet.appendChild(label);
+    });
+
+    window.onload=()=>setTimeout(()=>window.print(),400);
+  </scr`+`ipt>
+  </body></html>`;
+  w.document.write(html);
+  w.document.close();
 }
 
 function openTripleLabelPrintWindow(priceQtyList, prefix){
