@@ -1114,9 +1114,9 @@ firebase.initializeApp({
   appId: "1:1058358181383:web:47efb231eb3b4a975474a2"
 });
 const fsdb = firebase.firestore();
-// 啟用離線快取（不開synchronizeTabs，避免部分手機瀏覽器卡住）
-// 已加上版本保護（見下方 onSnapshot：比對 updatedAt 時間戳記），較舊的快取資料不會覆蓋較新的資料，可安全啟用
-try{ fsdb.enablePersistence({synchronizeTabs:false}).catch(err=>console.warn('離線快取無法啟用：',err.code)); }catch(e){}
+// 離線快取已停用（會讓每次存檔明顯變慢）
+// 版本保護（比對 updatedAt 時間戳記，見下方 onSnapshot）仍然保留，跟離線快取無關
+// try{ fsdb.enablePersistence({synchronizeTabs:false}).catch(err=>console.warn('離線快取無法啟用：',err.code)); }catch(e){}
 const DOC_REF = fsdb.collection('data').doc('main');
 
 // ── LINE Messaging API ────────────────────────
