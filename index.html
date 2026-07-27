@@ -144,10 +144,12 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 .print-area{display:none}
 
 /* ── Toast 通知 ── */
-.toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.85);opacity:0;background:#1a1714;color:#fff;padding:22px 36px;border-radius:16px;font-size:20px;font-weight:700;z-index:9999;transition:transform .25s ease,opacity .25s ease;box-shadow:0 10px 32px rgba(0,0,0,.35);display:flex;align-items:center;gap:10px;white-space:nowrap;pointer-events:none;}
-.toast.show{transform:translate(-50%,-50%) scale(1);opacity:1;}
+.toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.85);opacity:0;background:#1a1714;color:#fff;padding:22px 36px;border-radius:16px;font-size:20px;font-weight:700;z-index:9999;transition:transform .25s ease,opacity .25s ease;box-shadow:0 10px 32px rgba(0,0,0,.35);display:flex;align-items:center;gap:14px;white-space:nowrap;pointer-events:none;}
+.toast.show{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto;}
 .toast.success{background:#2a7a4f;}
 .toast.error{background:#c0392b;}
+.toast-retry-btn{background:rgba(255,255,255,.2);color:#fff;border:1.5px solid rgba(255,255,255,.5);border-radius:8px;padding:6px 14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:background .15s;}
+.toast-retry-btn:hover{background:rgba(255,255,255,.35);}
 
 /* ── 平板 (641~1023px) ── */
 @media(min-width:641px) and (max-width:1023px){
@@ -1328,12 +1330,24 @@ window.addEventListener('online', ()=>{
 
 // ── Toast 通知 ──────────────────────────────
 let _toastTimer=null;
-function showToast(msg, type='success', duration=2500){
+function showToast(msg, type='success', duration=2500, onRetry=null){
   const el=G('toast');if(!el)return;
-  el.textContent=(type==='success'?'✅ ':type==='error'?'❌ ':'ℹ️ ')+msg;
+  const icon=type==='success'?'✅ ':type==='error'?'❌ ':'ℹ️ ';
+  if(onRetry){
+    el.innerHTML='<span>'+icon+msg+'</span>';
+    const btn=document.createElement('button');
+    btn.className='toast-retry-btn';
+    btn.textContent='重試';
+    btn.onclick=()=>{ el.classList.remove('show'); if(_toastTimer)clearTimeout(_toastTimer); onRetry(); };
+    el.appendChild(btn);
+  } else {
+    el.textContent=icon+msg;
+  }
   el.className='toast '+type+' show';
   if(_toastTimer)clearTimeout(_toastTimer);
-  _toastTimer=setTimeout(()=>{el.classList.remove('show');},duration);
+  if(!onRetry){
+    _toastTimer=setTimeout(()=>{el.classList.remove('show');},duration);
+  }
 }
 
 async function trySave(section, retries=3){
@@ -1351,6 +1365,7 @@ async function trySave(section, retries=3){
       console.warn(`儲存失敗（第${i+1}次）：`,e.message);
       if(i<retries-1){
         setSyncStatus('loading',`儲存失敗，重試中（${i+2}/${retries}）…`);
+        showToast(`儲存失敗，重試中（${i+2}/${retries}）`,'error',1800);
         await new Promise(r=>setTimeout(r,2000)); // 等2秒再試
       }
     }
@@ -1384,7 +1399,7 @@ async function saveData(section=null){
       isSaving=false;
       return saveData(section); // 重新嘗試
     }
-    showToast('儲存失敗，請重試','error',5000);
+    showToast('儲存失敗，請重試','error',5000,()=>{ isSaving=false; saveData(section); });
   }
   setTimeout(()=>{ isSaving=false; }, 2000);
 }
