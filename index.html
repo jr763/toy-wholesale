@@ -34,6 +34,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .nav-tabs{display:flex;overflow-x:auto;flex:1;justify-content:center}
 .side-menu-item{padding:14px 20px;font-size:15px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);transition:background .15s;}
 .side-menu-item:hover{background:var(--surface2);}
+.side-menu-group{padding:6px 20px 4px;font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;background:var(--surface2);border-bottom:1px solid var(--border);text-transform:uppercase;}
 .nav-tab{padding:13px 10px;font-size:12px;font-weight:500;color:#aaa;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;transition:all .2s}
 .nav-tab:hover{color:#fff}.nav-tab.active{color:var(--accent2);border-bottom-color:var(--accent2)}
 .page{display:none;padding:18px 14px;max-width:980px;margin:0 auto}.page.active{display:block}
@@ -123,6 +124,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   .stat-row{grid-template-columns:repeat(2,1fr)}
   .side-menu-item{padding:14px 20px;font-size:15px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);transition:background .15s;}
 .side-menu-item:hover{background:var(--surface2);}
+.side-menu-group{padding:6px 20px 4px;font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;background:var(--surface2);border-bottom:1px solid var(--border);text-transform:uppercase;}
 .nav-tab{padding:11px 8px;font-size:11px}.page{padding:12px 10px}
 }
 </style>
@@ -149,15 +151,23 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
   <button onclick="closeMenu()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">✕</button>
   <div style="padding:8px 0;">
     <div class="side-menu-item" onclick="switchTab('dashboard',document.getElementById('nav-dashboard'));closeMenu()">🏠 總覽</div>
-    <div class="side-menu-item" onclick="switchTab('products',this);closeMenu()">📦 商品</div>
-    <div class="side-menu-item" onclick="switchTab('customers',this);closeMenu()">👥 客戶</div>
+
+    <div class="side-menu-group">日常操作</div>
     <div class="side-menu-item" onclick="switchTab('orders',this);closeMenu()">📋 抄貨單</div>
     <div class="side-menu-item" onclick="switchTab('shipments',this);closeMenu()">🚚 出貨單</div>
-    <div class="side-menu-item" onclick="switchTab('returns',this);closeMenu()">↩️ 退貨</div>
-    <div class="side-menu-item" id="nav-restock" onclick="switchTab('restock',this);closeMenu()">🔔 補貨</div>
-    <div class="side-menu-item" onclick="switchTab('analytics',this);closeMenu()">📊 銷售分析</div>
     <div class="side-menu-item" onclick="switchTab('accounting',this);closeMenu()">💰 算帳</div>
+
+    <div class="side-menu-group">管理</div>
+    <div class="side-menu-item" onclick="switchTab('products',this);closeMenu()">📦 商品</div>
+    <div class="side-menu-item" onclick="switchTab('customers',this);closeMenu()">👥 客戶</div>
+    <div class="side-menu-item" id="nav-restock" onclick="switchTab('restock',this);closeMenu()">🔔 補貨</div>
+    <div class="side-menu-item" onclick="switchTab('returns',this);closeMenu()">↩️ 退貨</div>
+    <div class="side-menu-item" onclick="switchTab('barcode-print',this);closeMenu()">🏷️ 條碼列印</div>
+
+    <div class="side-menu-group">分析與設定</div>
+    <div class="side-menu-item" onclick="switchTab('analytics',this);closeMenu()">📊 銷售分析</div>
     <div class="side-menu-item" onclick="openTrashModal();closeMenu()">🗑️ 最近刪除</div>
+    <div class="side-menu-item" onclick="exportBackup();closeMenu()">📥 匯出備份</div>
     <div class="side-menu-item" onclick="restoreFromLocalBackup();closeMenu()">🔄 從本地備份還原</div>
   </div>
 </div>
@@ -349,6 +359,56 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface2)}
 <div id="tab-restock" class="page">
   <div class="page-header"><div><h2>補貨通知</h2><p>庫存低於安全庫存量的商品</p></div><button class="btn btn-green" onclick="sendRestockNotify()">📢 發送補貨通知到Discord</button></div>
   <div id="restock-list"></div>
+</div>
+
+<div id="tab-barcode-print" class="page">
+  <div class="page-header"><div><h2>條碼列印</h2></div></div>
+
+  <div class="card" style="margin-bottom:12px;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:12px;">設定</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>客戶條碼</label>
+        <select id="bp-barcode-prefix">
+          <option value="7990341">7990341</option>
+          <option value="2003751">2003751</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>列印格式</label>
+        <select id="bp-format">
+          <option value="standard">標準（含奧斯卡）</option>
+          <option value="triple">三合一（無奧斯卡）</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:12px;">新增售價</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="flex:0 0 100px;">
+        <label>售價（元）</label>
+        <input id="bp-price" type="number" placeholder="0" min="0">
+      </div>
+      <div class="form-group" style="flex:0 0 80px;">
+        <label>數量</label>
+        <input id="bp-qty" type="number" placeholder="1" min="1" value="1">
+      </div>
+      <button class="btn btn-primary" onclick="addBarcodePrintItem()" style="align-self:flex-end;">＋ 加入</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:14px;font-weight:700;">列印清單</div>
+      <button class="btn btn-sm btn-danger" onclick="clearBarcodePrintList()">清除全部</button>
+    </div>
+    <div id="bp-list"></div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn btn-primary" onclick="printBarcodePrintList()">🏷️ 列印</button>
+    </div>
+  </div>
 </div>
 
 <div id="tab-analytics" class="page">
@@ -1045,9 +1105,9 @@ function switchTab(t,btn,pushState=true){
   document.querySelectorAll('.nav-tab').forEach(n=>n.classList.remove('active'));
   G('tab-'+t).classList.add('active');
   if(btn) btn.classList.add('active');
-  ({dashboard:renderDashboard,products:renderProducts,customers:renderCustomers,orders:renderOrders,shipments:renderShipments,returns:renderReturns,restock:renderRestock,analytics:renderAnalytics,accounting:renderAccounting})[t]?.();
+  ({dashboard:renderDashboard,products:renderProducts,customers:renderCustomers,orders:renderOrders,shipments:renderShipments,returns:renderReturns,restock:renderRestock,analytics:renderAnalytics,accounting:renderAccounting,'barcode-print':renderBarcodePrint})[t]?.();
   if(pushState){
-    const hashMap={dashboard:'/',products:'/products',customers:'/customers',orders:'/orders',shipments:'/shipments',returns:'/returns',restock:'/restock',analytics:'/analytics',accounting:'/accounting'};
+    const hashMap={dashboard:'/',products:'/products',customers:'/customers',orders:'/orders',shipments:'/shipments',returns:'/returns',restock:'/restock',analytics:'/analytics',accounting:'/accounting','barcode-print':'/barcode-print'};
     const newHash='#'+(hashMap[t]||'/');
     if(location.hash!==newHash) history.pushState({tab:t},'',' '+newHash);
   }
@@ -3286,6 +3346,138 @@ async function deletePayment(idx){
   renderAccounting();
 }
 // ── END 算帳 ──────────────────────────────────
+
+
+// ── 條碼列印頁面 ──────────────────────────────
+let _bpItems = []; // [{price, qty}]
+
+function renderBarcodePrint(){
+  renderBpList();
+}
+
+function addBarcodePrintItem(){
+  const price = parseFloat(G('bp-price')?.value);
+  const qty = parseInt(G('bp-qty')?.value) || 1;
+  if(!price || price <= 0){ alert('請輸入售價'); return; }
+  const existing = _bpItems.find(x => x.price === price);
+  if(existing){ existing.qty += qty; }
+  else{ _bpItems.push({price, qty}); }
+  if(G('bp-price')) G('bp-price').value = '';
+  if(G('bp-qty')) G('bp-qty').value = '1';
+  renderBpList();
+}
+
+function renderBpList(){
+  const el = G('bp-list'); if(!el) return;
+  if(!_bpItems.length){
+    el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px;">尚未加入任何售價</div>';
+    return;
+  }
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>售價</th><th>數量</th><th></th></tr></thead>
+    <tbody>${_bpItems.map((item,idx) => `<tr>
+      <td style="font-weight:700;">$${fmt(item.price)} 元</td>
+      <td><input type="number" value="${item.qty}" min="1" style="width:70px;"
+        onchange="_bpItems[${idx}].qty=parseInt(this.value)||1"></td>
+      <td><button class="btn btn-xs btn-danger" onclick="_bpItems.splice(${idx},1);renderBpList()">✕</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function clearBarcodePrintList(){
+  if(!_bpItems.length) return;
+  if(!confirm('確定清除全部？')) return;
+  _bpItems = [];
+  renderBpList();
+}
+
+function printBarcodePrintList(){
+  if(!_bpItems.length){ alert('請先加入售價'); return; }
+  const prefix = G('bp-barcode-prefix')?.value || '7990341';
+  const format = G('bp-format')?.value || 'standard';
+  if(format === 'triple'){
+    openTripleLabelPrintWindow(_bpItems, prefix);
+  } else {
+    openLabelPrintWindow(_bpItems, prefix);
+  }
+}
+
+function openTripleLabelPrintWindow(priceQtyList, prefix){
+  if(!priceQtyList.length){ alert('沒有售價可列印'); return; }
+  const w = window.open('', '_blank');
+  if(!w){ alert('請允許瀏覽器開啟新視窗'); return; }
+
+  // 三合一：每頁印同一售價3個
+  const itemsJson = JSON.stringify(priceQtyList.flatMap(({price, qty}) => {
+    const barcode = getPriceBarcode(price, prefix);
+    // 每「qty」張標籤紙，每張3個條碼
+    return Array(Math.max(1, qty || 1)).fill(0).map(() => ({price, barcode}));
+  }));
+
+  let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印（三合一）</title>';
+  html += '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
+  html += `<style>
+    @page{size:55.5mm 45.7mm;margin:0;}
+    *{box-sizing:border-box;}
+    body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
+    .sheet{display:flex;flex-direction:column;width:55.5mm;}
+    .label{
+      width:57mm;height:48mm;
+      box-sizing:border-box;
+      padding:2mm 1mm;
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:center;
+      overflow:hidden;margin:0;
+      page-break-after:always;
+    }
+    .label:last-child{page-break-after:avoid;}
+    .triple-wrap{display:flex;flex-direction:column;width:100%;gap:0;}
+    .bc-item{display:flex;flex-direction:column;align-items:center;flex:1;}
+    .bc-item svg{display:block;width:48mm;height:8mm;}
+    .bc-item .code{font-size:8px;font-family:monospace;letter-spacing:1px;margin-top:1px;}
+    .bc-item .price{font-size:10px;font-weight:600;margin-top:1px;}
+    .divider{border-top:0.5px dashed #ccc;width:90%;margin:1px auto;}
+  </style></head><body>
+  <div class="sheet" id="sheet"></div>
+  <scr` + `ipt>
+    const items=${itemsJson};
+    const sheet=document.getElementById('sheet');
+    items.forEach(it=>{
+      const label=document.createElement('div');label.className='label';
+      const wrap=document.createElement('div');wrap.className='triple-wrap';
+
+      for(let i=0;i<3;i++){
+        if(i>0){
+          const div=document.createElement('div');div.className='divider';
+          wrap.appendChild(div);
+        }
+        const bcItem=document.createElement('div');bcItem.className='bc-item';
+        const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+        const code=document.createElement('div');code.className='code';
+        code.textContent=it.barcode;
+        const price=document.createElement('div');price.className='price';
+        price.textContent='單價 '+it.price+' 元';
+        bcItem.appendChild(svg);
+        bcItem.appendChild(code);
+        bcItem.appendChild(price);
+        wrap.appendChild(bcItem);
+        try{
+          JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:60,width:2});
+          svg.setAttribute('preserveAspectRatio','none');
+          svg.setAttribute('width','48mm');svg.setAttribute('height','8mm');
+          svg.style.width='48mm';svg.style.height='8mm';svg.style.display='block';
+        }catch(e){console.error(e);}
+      }
+      label.appendChild(wrap);
+      sheet.appendChild(label);
+    });
+    window.onload=()=>setTimeout(()=>window.print(),400);
+  </scr`+`ipt>
+  </body></html>`;
+  w.document.write(html);
+  w.document.close();
+}
+// ── END 條碼列印頁面 ──────────────────────────
 
 // ── 銷售分析 ──────────────────────────────────
 let _chartMonthly=null, _chartTopProducts=null, _chartCustPie=null;
