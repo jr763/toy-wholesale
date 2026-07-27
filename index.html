@@ -1350,16 +1350,23 @@ function showToast(msg, type='success', duration=2500, onRetry=null){
   }
 }
 
+function withTimeout(promise, ms=8000){
+  return Promise.race([
+    promise,
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('儲存逾時（可能是網路問題）')),ms))
+  ]);
+}
+
 async function trySave(section, retries=3){
   for(let i=0;i<retries;i++){
     try{
-      if(section==='products') await saveProducts();
-      else if(section==='customers') await saveCustomers();
-      else if(section==='orders') await saveOrders();
-      else if(section==='shipments') await saveShipments();
-      else if(section==='returns') await saveReturns();
-      else if(section==='meta') await saveMeta();
-      else await Promise.all([saveProducts(),saveCustomers(),saveOrders(),saveShipments(),saveReturns(),saveMeta()]);
+      if(section==='products') await withTimeout(saveProducts());
+      else if(section==='customers') await withTimeout(saveCustomers());
+      else if(section==='orders') await withTimeout(saveOrders());
+      else if(section==='shipments') await withTimeout(saveShipments());
+      else if(section==='returns') await withTimeout(saveReturns());
+      else if(section==='meta') await withTimeout(saveMeta());
+      else await withTimeout(Promise.all([saveProducts(),saveCustomers(),saveOrders(),saveShipments(),saveReturns(),saveMeta()]));
       return true; // 成功
     }catch(e){
       console.warn(`儲存失敗（第${i+1}次）：`,e.message);
