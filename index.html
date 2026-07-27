@@ -4459,38 +4459,44 @@ function renderCustStatus(){
   });
   const entries=Object.entries(custStatusMap);
   sec.innerHTML=`<div class="card" style="margin-bottom:12px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <div style="font-size:14px;font-weight:700;">📊 客戶進度</div>
       <input type="date" id="cust-status-date" value="${selDate}" onchange="renderCustStatus()" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;width:auto;">
     </div>
-    ${entries.length?`<div class="table-wrap"><table>
-      <thead><tr><th style="text-align:left;">客戶</th><th style="text-align:left;">狀態</th><th></th></tr></thead>
-      <tbody>${entries.map(([name,info])=>{
+    ${entries.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+      ${entries.map(([name,info])=>{
         const st=info.status;
-        const steps=statusFlow.map(s=>`<span style="font-size:10px;padding:1px 4px;border-radius:3px;background:${s===st?statusColor[st]:'var(--surface2)'};color:${s===st?'#fff':'var(--text3)'};">${s}</span>`).join('›');
+        const color=statusColor[st]||'var(--text3)';
         const cust=db.customers.find(x=>x.name===name);
         const order=cust?db.orders.find(o=>o.customerId===cust.id&&o.date===selDate):null;
         let mainBtn='';
         if(st==='未抄貨'||st==='抄貨中'){
-          mainBtn=`<button class="btn btn-sm btn-primary" onclick="openOrderWithCust('${name}')">+ 抄貨單</button>`;
+          mainBtn=`<button class="btn btn-sm btn-primary" style="width:100%;justify-content:center;" onclick="openOrderWithCust('${name}')">＋ 抄貨單</button>`;
         } else if(['已抄貨','撿貨中','待修改','撿貨(修改)'].includes(st)){
-          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨</button>`:'`';
+          mainBtn=order?`<button class="btn btn-sm btn-primary" style="width:100%;justify-content:center;" onclick="viewOrder('${order.id}')">撿貨</button>`:'';
         } else if(['已撿貨','裝箱中','裝箱(修改)'].includes(st)){
-          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${order.id}')">裝箱確認</button>`:'';
+          mainBtn=order?`<button class="btn btn-sm btn-primary" style="width:100%;justify-content:center;" onclick="openBoxingModal('${order.id}')">裝箱確認</button>`:'';
         } else if(st==='已裝箱'){
-          mainBtn=order?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">撿貨(補)</button>`:'';
+          mainBtn=order?`<button class="btn btn-sm btn-primary" style="width:100%;justify-content:center;" onclick="viewOrder('${order.id}')">撿貨(補)</button>`:'';
         } else if(st==='已完成'){
-          mainBtn=order?`<button class="btn btn-sm btn-green" onclick="openShipModal('${order.id}')">建立出貨單</button>`:'';
+          mainBtn=order?`<button class="btn btn-sm btn-green" style="width:100%;justify-content:center;" onclick="openShipModal('${order.id}')">建立出貨單</button>`:'';
         } else if(st==='已出貨'){
           const ship=order?db.shipments.find(s=>s.orderId===order.id):null;
-          mainBtn=ship?`<button class="btn btn-sm btn-blue" onclick="printShipment('${ship.id}')">列印出貨單</button>`
-            :(order?`<button class="btn btn-sm btn-green" onclick="openShipModal('${order.id}')">建立出貨單</button>`:'');
+          mainBtn=ship?`<button class="btn btn-sm btn-blue" style="width:100%;justify-content:center;" onclick="printShipment('${ship.id}')">列印出貨單</button>`
+            :(order?`<button class="btn btn-sm btn-green" style="width:100%;justify-content:center;" onclick="openShipModal('${order.id}')">建立出貨單</button>`:'');
         }
-        const viewBtn=order?`<button class="btn btn-sm btn-secondary" onclick="viewOrderReadonly('${order.id}')">查看撿貨</button>`:'';
-        const editBtn=order?`<button class="btn btn-sm btn-secondary" onclick="editOrder('${order.id}')">編輯</button>`:'';
-        return `<tr><td style="vertical-align:middle;text-align:center;"><strong>${name}</strong></td><td style="vertical-align:middle;text-align:center;"><span style="padding:2px 8px;border-radius:4px;background:${statusColor[st]||'var(--text3)'};color:#fff;font-size:12px;font-weight:600;">${st}</span></td><td style="vertical-align:top;"><div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">${viewBtn}${editBtn}${mainBtn}</div></td></tr>`;
-      }).join('')}</tbody>
-    </table></div>`:'<div style="font-size:13px;color:var(--text3);">該日無記錄</div>'}
+        const extraBtns=order?`<div style="display:flex;gap:4px;margin-top:4px;">
+          <button class="btn btn-xs btn-secondary" style="flex:1;justify-content:center;" onclick="viewOrderReadonly('${order.id}')">查看</button>
+          <button class="btn btn-xs btn-secondary" style="flex:1;justify-content:center;" onclick="editOrder('${order.id}')">編輯</button>
+        </div>`:'';
+        return `<div style="background:var(--surface);border:1.5px solid ${color}20;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 6px rgba(0,0,0,.05);">
+          <div style="font-size:14px;font-weight:700;color:var(--text);">${name}</div>
+          <div><span style="display:inline-block;padding:3px 10px;border-radius:20px;background:${color};color:#fff;font-size:11px;font-weight:700;">${st}</span></div>
+          ${mainBtn}
+          ${extraBtns}
+        </div>`;
+      }).join('')}
+    </div>`:'<div style="font-size:13px;color:var(--text3);text-align:center;padding:20px;">該日無記錄</div>'}
   </div>`;
 }
 
