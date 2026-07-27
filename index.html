@@ -1261,13 +1261,19 @@ async function loadData(btn=false){
   if(btn){ const b=G('btn-refresh');if(b){b.disabled=false;b.textContent='🔄 重新整理';} }
 }
 // 分區儲存函數
-async function saveProducts(){ await fsdb.collection('sections').doc('products').set({data:db.products, updatedAt:Date.now()}); }
-async function saveCustomers(){ await fsdb.collection('sections').doc('customers').set({data:db.customers, updatedAt:Date.now()}); }
-async function saveOrders(){ await fsdb.collection('sections').doc('orders').set({data:db.orders, updatedAt:Date.now()}); }
-async function saveShipments(){ await fsdb.collection('sections').doc('shipments').set({data:db.shipments, updatedAt:Date.now()}); }
-async function saveReturns(){ await fsdb.collection('sections').doc('returns').set({data:db.returns, updatedAt:Date.now()}); }
+function _logPayloadSize(section,obj){
+  try{
+    const bytes=new Blob([JSON.stringify(obj)]).size;
+    console.log(`📦 saveData size → '${section}'：${(bytes/1024).toFixed(1)} KB`);
+  }catch(e){}
+}
+async function saveProducts(){ _logPayloadSize('products',db.products); await fsdb.collection('sections').doc('products').set({data:db.products, updatedAt:Date.now()}); }
+async function saveCustomers(){ _logPayloadSize('customers',db.customers); await fsdb.collection('sections').doc('customers').set({data:db.customers, updatedAt:Date.now()}); }
+async function saveOrders(){ _logPayloadSize('orders',db.orders); await fsdb.collection('sections').doc('orders').set({data:db.orders, updatedAt:Date.now()}); }
+async function saveShipments(){ _logPayloadSize('shipments',db.shipments); await fsdb.collection('sections').doc('shipments').set({data:db.shipments, updatedAt:Date.now()}); }
+async function saveReturns(){ _logPayloadSize('returns',db.returns); await fsdb.collection('sections').doc('returns').set({data:db.returns, updatedAt:Date.now()}); }
 async function saveMeta(){
-  await fsdb.collection('sections').doc('meta').set({data:{
+  const metaData={
     variantOptions:db.variantOptions||[],
     calVisits:db.calVisits||{},
     pickingState:db.pickingState||{},
@@ -1276,7 +1282,9 @@ async function saveMeta(){
     payments:db.payments||{},
     accountingChecked:db.accountingChecked||{},
     accountingBills:db.accountingBills||{}
-  }, updatedAt:Date.now()});
+  };
+  _logPayloadSize('meta',metaData);
+  await fsdb.collection('sections').doc('meta').set({data:metaData, updatedAt:Date.now()});
 }
 
 // 本機自動備份（每5分鐘一筆，只保留最近2小時內的）
