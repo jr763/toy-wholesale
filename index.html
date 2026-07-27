@@ -1232,8 +1232,10 @@ async function loadData(btn=false){
   setSyncStatus('loading','載入中…');
   try{
     const collSections=['products','customers','orders','shipments','returns'];
-    const [collSnaps,metaSnap]=await Promise.all([
+    const keyedSections=['pickingState','boxingState'];
+    const [collSnaps,keyedSnaps,metaSnap]=await Promise.all([
       Promise.all(collSections.map(s=>fsdb.collection(s).get({source:'server'}))),
+      Promise.all(keyedSections.map(s=>fsdb.collection(s).get({source:'server'}))),
       fsdb.collection('sections').doc('meta').get({source:'server'})
     ]);
     collSnaps.forEach((snap,i)=>{
@@ -1248,14 +1250,24 @@ async function loadData(btn=false){
       db[key]=arr;
       _lastSyncedSnapshot[key]=JSON.parse(JSON.stringify(arr));
     });
+    keyedSnaps.forEach((snap,i)=>{
+      const key=keyedSections[i];
+      const obj={};
+      _lastItemUpdatedAt[key]={};
+      snap.forEach(doc=>{
+        const data=doc.data();
+        obj[doc.id]=data.state;
+        _lastItemUpdatedAt[key][doc.id]=data.updatedAt||0;
+      });
+      db[key]=obj;
+      _lastSyncedSnapshot[key]=JSON.parse(JSON.stringify(obj));
+    });
     if(metaSnap.exists){
       const data=metaSnap.data();
       _lastUpdatedAt['meta']=data.updatedAt||0;
       const m=data.data||{};
       db.variantOptions=m.variantOptions||[];
       db.calVisits=m.calVisits||{};
-      db.pickingState=m.pickingState||{};
-      db.boxingState=m.boxingState||{};
       db.trash=m.trash||[];
       db.payments=m.payments||{};
       db.accountingChecked=m.accountingChecked||{};
@@ -1323,12 +1335,51 @@ async function saveCustomers(){ await _saveCollectionDiff('customers'); }
 async function saveOrders(){ await _saveCollectionDiff('orders'); }
 async function saveShipments(){ await _saveCollectionDiff('shipments'); }
 async function saveReturns(){ await _saveCollectionDiff('returns'); }
+// pickingState/boxingState：用「訂單ID」當key的物件，一樣要逐筆比對存檔，不能整包覆蓋——
+// 這兩個是全系統寫入最頻繁的資料（每次勾選都會存），整包覆蓋很容易被離線裝置的舊資料蓋掉別人剛勾選的記錄
+if(!_lastSyncedSnapshot.pickingState)_lastSyncedSnapshot.pickingState={};
+if(!_lastSyncedSnapshot.boxingState)_lastSyncedSnapshot.boxingState={};
+if(!_lastItemUpdatedAt.pickingState)_lastItemUpdatedAt.pickingState={};
+if(!_lastItemUpdatedAt.boxingState)_lastItemUpdatedAt.boxingState={};
+async function _saveKeyedDiff(collectionName){
+  const current=db[collectionName]||{};
+  const prevObj=_lastSyncedSnapshot[collectionName]||{};
+  const now=Date.now();
+  const changes=[];
+  Object.keys(current).forEach(id=>{
+    const cur=current[id];
+    const prev=prevObj[id];
+    if(prev===undefined||JSON.stringify(prev)!==JSON.stringify(cur)){
+      changes.push({type:'set',id,data:{state:cur,updatedAt:now}});
+    }
+  });
+  Object.keys(prevObj).forEach(id=>{
+    if(!(id in current)) changes.push({type:'delete',id});
+  });
+  _logPayloadSize(collectionName, changes.length?changes:'（無變動，跳過）');
+  if(!changes.length) return true;
+  for(let i=0;i<changes.length;i+=450){
+    const batch=fsdb.batch();
+    changes.slice(i,i+450).forEach(c=>{
+      const ref=fsdb.collection(collectionName).doc(c.id);
+      if(c.type==='set') batch.set(ref,c.data);
+      else batch.delete(ref);
+    });
+    await batch.commit();
+  }
+  _lastSyncedSnapshot[collectionName]=JSON.parse(JSON.stringify(current));
+  changes.forEach(c=>{
+    if(c.type==='delete') delete _lastItemUpdatedAt[collectionName][c.id];
+    else _lastItemUpdatedAt[collectionName][c.id]=now;
+  });
+  return true;
+}
+async function savePickingState(){ await _saveKeyedDiff('pickingState'); }
+async function saveBoxingState(){ await _saveKeyedDiff('boxingState'); }
 async function saveMeta(){
   const metaData={
     variantOptions:db.variantOptions||[],
     calVisits:db.calVisits||{},
-    pickingState:db.pickingState||{},
-    boxingState:db.boxingState||{},
     trash:db.trash||[],
     payments:db.payments||{},
     accountingChecked:db.accountingChecked||{},
@@ -1391,6 +1442,37 @@ async function migrateToSubcollections(){
   console.log('搬移報告：\n'+report.join('\n'));
   toastAlert('搬移完成：\n'+report.join('\n'),'success');
 }
+// 第二次搬家：把還留在 meta 裡的 pickingState/boxingState 搬到各自獨立的集合
+// （這兩個是後來才發現需要拆開的，跟上面 migrateToSubcollections 分開執行）
+async function migratePickingBoxingState(){
+  if(!await toastConfirm('即將把撿貨/裝箱記錄，從 meta 裡搬到獨立的集合。\n\n舊資料不會被刪除。\n\n確定要開始嗎？'))return;
+  const keys=['pickingState','boxingState'];
+  const report=[];
+  try{
+    const metaSnap=await fsdb.collection('sections').doc('meta').get({source:'server'});
+    if(!metaSnap.exists){ toastAlert('找不到 meta 資料','error'); return; }
+    const m=metaSnap.data().data||{};
+    for(const key of keys){
+      const obj=m[key]||{};
+      const ids=Object.keys(obj);
+      if(!ids.length){ report.push(`${key}：目前是空的，跳過`); continue; }
+      let count=0;
+      for(let i=0;i<ids.length;i+=450){
+        const batch=fsdb.batch();
+        ids.slice(i,i+450).forEach(id=>{
+          batch.set(fsdb.collection(key).doc(id),{state:obj[id],updatedAt:Date.now()});
+          count++;
+        });
+        await batch.commit();
+      }
+      report.push(`${key}：搬移 ${count} 筆完成`);
+    }
+  }catch(e){
+    report.push(`失敗 - ${e.message}`);
+  }
+  console.log('搬移報告（撿貨/裝箱）：\n'+report.join('\n'));
+  toastAlert('搬移完成：\n'+report.join('\n'),'success');
+}
 
 // 從本地備份還原（列出最近2小時內的備份清單，點選即可）
 async function restoreFromLocalBackup(){
@@ -1432,6 +1514,18 @@ function savePendingQueue(section, snapshot){
 async function _writeSectionSnapshot(section, snapshot){
   if(section==='meta'){
     await fsdb.collection('sections').doc('meta').set(snapshot);
+    return;
+  }
+  if(section==='pickingState'||section==='boxingState'){
+    const obj=snapshot.data||{};
+    const ids=Object.keys(obj);
+    for(let i=0;i<ids.length;i+=450){
+      const batch=fsdb.batch();
+      ids.slice(i,i+450).forEach(id=>{
+        batch.set(fsdb.collection(section).doc(id),{state:obj[id],updatedAt:snapshot.updatedAt||Date.now()});
+      });
+      await batch.commit();
+    }
     return;
   }
   const arr=snapshot.data||[];
@@ -1598,7 +1692,9 @@ async function trySave(section, retries=3, silent=false){
       else if(section==='shipments') await withTimeout(saveShipments());
       else if(section==='returns') await withTimeout(saveReturns());
       else if(section==='meta') await withTimeout(saveMeta());
-      else await withTimeout(Promise.all([saveProducts(),saveCustomers(),saveOrders(),saveShipments(),saveReturns(),saveMeta()]));
+      else if(section==='pickingState') await withTimeout(savePickingState());
+      else if(section==='boxingState') await withTimeout(saveBoxingState());
+      else await withTimeout(Promise.all([saveProducts(),saveCustomers(),saveOrders(),saveShipments(),saveReturns(),saveMeta(),savePickingState(),saveBoxingState()]));
       return true; // 成功
     }catch(e){
       console.warn(`儲存失敗（第${i+1}次）：`,e.message);
@@ -1648,9 +1744,11 @@ function queuePendingBackup(section){
   else if(section==='customers') savePendingQueue('customers',{data:db.customers, updatedAt:Date.now()});
   else if(section==='shipments') savePendingQueue('shipments',{data:db.shipments, updatedAt:Date.now()});
   else if(section==='returns') savePendingQueue('returns',{data:db.returns, updatedAt:Date.now()});
-  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},pickingState:db.pickingState||{},boxingState:db.boxingState||{},trash:db.trash||[]}, updatedAt:Date.now()});
+  else if(section==='pickingState') savePendingQueue('pickingState',{data:db.pickingState||{}, updatedAt:Date.now()});
+  else if(section==='boxingState') savePendingQueue('boxingState',{data:db.boxingState||{}, updatedAt:Date.now()});
+  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},trash:db.trash||[],payments:db.payments||{},accountingChecked:db.accountingChecked||{},accountingBills:db.accountingBills||{}}, updatedAt:Date.now()});
 }
-const _sectionLabels={orders:'抄貨單',products:'商品/庫存',customers:'客戶',shipments:'出貨單',returns:'退貨單',meta:'其他設定'};
+const _sectionLabels={orders:'抄貨單',products:'商品/庫存',customers:'客戶',shipments:'出貨單',returns:'退貨單',meta:'其他設定',pickingState:'撿貨記錄',boxingState:'裝箱記錄'};
 // 一次存多個區塊（例如確認抄貨單同時要存 orders/products/meta）
 // 全部都真的存成功才會顯示「儲存成功」；只要有任何一個失敗，就明確告知是哪個部分失敗，不會被其他成功的部分蓋過去
 // silentSuccess：成功時不跳綠色 toast（給勾選清單這種頻繁自動存檔的情境用，避免一直跳通知），但失敗一律還是會提示
@@ -1687,14 +1785,14 @@ function scheduleChecklistSave(afterSaved){
   if(_checklistSaveTimer)clearTimeout(_checklistSaveTimer);
   _checklistSaveTimer=setTimeout(async()=>{
     _checklistSaveTimer=null;
-    await saveMultiple(['orders','meta'],{silentSuccess:true});
+    await saveMultiple(['orders','pickingState','boxingState'],{silentSuccess:true});
     if(afterSaved)afterSaved();
   },600);
 }
 // 立即強制送出目前排隊中的勾選存檔（例如使用者按下確認鍵時，要確保前面的勾選都已存檔）
 async function flushChecklistSave(){
   if(_checklistSaveTimer){ clearTimeout(_checklistSaveTimer); _checklistSaveTimer=null; }
-  return await saveMultiple(['orders','meta'],{silentSuccess:true});
+  return await saveMultiple(['orders','pickingState','boxingState'],{silentSuccess:true});
 }
 // 即時監聽（其他人存檔會自動更新）
 let _loadingTimedOut=false;
@@ -1709,8 +1807,10 @@ const _loadingTimeoutId=setTimeout(()=>{
 },10000);
 // 分區監聽：現在改成監聽「整個子集合」，只處理真的有變動的那幾筆（新增/修改/刪除），不是整包重收
 const _sectionKeys=['products','customers','orders','shipments','returns'];
+const _keyedSectionKeys=['pickingState','boxingState'];
 let _initialLoadDone=false;
 let _firstSnapshotDone=0;
+const _totalListeners=_sectionKeys.length+_keyedSectionKeys.length+1; // +1 是 meta
 _sectionKeys.forEach(key=>{
   fsdb.collection(key).onSnapshot({includeMetadataChanges:true},snap=>{
     clearTimeout(_loadingTimeoutId);
@@ -1741,7 +1841,43 @@ _sectionKeys.forEach(key=>{
     }
     if(!_initialLoadDone){
       _firstSnapshotDone++;
-      if(_firstSnapshotDone>=6){_initialLoadDone=true;renderAll();}
+      if(_firstSnapshotDone>=_totalListeners){_initialLoadDone=true;renderAll();}
+    } else if(!isSaving){
+      renderAll();
+    }
+  },err=>{ console.error('onSnapshot error ('+key+'):',err); });
+});
+// pickingState/boxingState：key是訂單ID的集合，逐筆比對套用，不整包覆蓋
+_keyedSectionKeys.forEach(key=>{
+  fsdb.collection(key).onSnapshot({includeMetadataChanges:true},snap=>{
+    clearTimeout(_loadingTimeoutId);
+    G('loading-overlay').style.display='none';
+    if(snap.metadata.fromCache){setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');}
+    else{setSyncStatus('ok','雲端同步・所有人共用');}
+    if(!isSaving){
+      if(!_lastItemUpdatedAt[key])_lastItemUpdatedAt[key]={};
+      if(!db[key])db[key]={};
+      snap.docChanges().forEach(change=>{
+        const id=change.doc.id;
+        if(change.type==='removed'){
+          delete db[key][id];
+          delete _lastItemUpdatedAt[key][id];
+          return;
+        }
+        const data=change.doc.data();
+        const ts=data.updatedAt||0;
+        if(ts>=(_lastItemUpdatedAt[key][id]||0)){
+          db[key][id]=data.state;
+          _lastItemUpdatedAt[key][id]=ts;
+        } else {
+          console.warn('略過較舊的快取資料（'+key+'/'+id+'），保留目前較新的資料');
+        }
+      });
+      _lastSyncedSnapshot[key]=JSON.parse(JSON.stringify(db[key]));
+    }
+    if(!_initialLoadDone){
+      _firstSnapshotDone++;
+      if(_firstSnapshotDone>=_totalListeners){_initialLoadDone=true;renderAll();}
     } else if(!isSaving){
       renderAll();
     }
@@ -1755,8 +1891,6 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
       const m=data.data||{};
       db.variantOptions=m.variantOptions||[];
       db.calVisits=m.calVisits||{};
-      db.pickingState=m.pickingState||{};
-      db.boxingState=m.boxingState||{};
       db.trash=m.trash||[];
       db.payments=m.payments||{};
       db.accountingChecked=m.accountingChecked||{};
@@ -1768,7 +1902,7 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
   }
   if(!_initialLoadDone){
     _firstSnapshotDone++;
-    if(_firstSnapshotDone>=6){_initialLoadDone=true;renderAll();}
+    if(_firstSnapshotDone>=_totalListeners){_initialLoadDone=true;renderAll();}
   } else if(!isSaving){
     renderAll();
   }
@@ -2621,7 +2755,7 @@ async function saveOrder(status){
   } else {
     db.orders.push({id:uid(),...data});
   }
-  await saveMultiple(['orders','products','meta']);
+  await saveMultiple(['orders','products','meta','pickingState']);
   // LINE 通知
   if(status==='confirmed'){
     const custName=cust?cust.name:'—';
@@ -2991,8 +3125,7 @@ async function markPacked(orderId){
     if(db.orders[idx].status==='mod_picking')db.orders[idx].status='mod_picked';
     else db.orders[idx].status='picked';
   }
-  if(_checklistSaveTimer){clearTimeout(_checklistSaveTimer);_checklistSaveTimer=null;}
-  await saveData('orders');
+  await flushChecklistSave(); // 確保前面的撿貨勾選都已存檔，同時存入這次的狀態變更
   closeModal('modal-order-detail');
   renderDashboard();renderOrders();
 }
@@ -4668,8 +4801,7 @@ async function confirmBoxing(){
   const wasRe=['re_boxing','re_picking'].includes(db.orders[idx]?.status);
   const isMod=['mod_boxing','mod_picked'].includes(db.orders[idx]?.status);
   if(idx>=0)db.orders[idx].status=missing.length?(isMod?'packed':'packed'):'completed';
-  if(_checklistSaveTimer){clearTimeout(_checklistSaveTimer);_checklistSaveTimer=null;}
-  await saveData('orders');
+  await flushChecklistSave(); // 確保前面的裝箱勾選都已存檔，同時存入這次的狀態變更
   closeModal('modal-boxing');
   renderDashboard();renderOrders();
 }
