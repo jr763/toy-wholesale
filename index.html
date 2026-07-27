@@ -143,6 +143,12 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 #scanner-video{width:100%;border-radius:8px;background:#000;max-height:280px;object-fit:cover}
 .print-area{display:none}
 
+/* ── Toast 通知 ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:#1a1714;color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;z-index:9999;transition:transform .3s ease;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;gap:8px;white-space:nowrap;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.success{background:#2a7a4f;}
+.toast.error{background:#c0392b;}
+
 /* ── 平板 (641~1023px) ── */
 @media(min-width:641px) and (max-width:1023px){
   .page{padding:18px 20px;}
@@ -186,6 +192,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 </style>
 </head>
 <body>
+
+<div id="toast" class="toast"></div>
 
 <div class="loading-overlay" id="loading-overlay">
   <div class="spinner"></div>
@@ -1318,6 +1326,38 @@ window.addEventListener('online', ()=>{
   setTimeout(processPendingQueue, 1000);
 });
 
+// ── Toast 通知 ──────────────────────────────
+let _toastTimer=null;
+function showToast(msg, type='success', duration=2500){
+  const el=G('toast');if(!el)return;
+  el.textContent=(type==='success'?'✅ ':type==='error'?'❌ ':'ℹ️ ')+msg;
+  el.className='toast '+type+' show';
+  if(_toastTimer)clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>{el.classList.remove('show');},duration);
+}
+
+async function trySave(section, retries=3){
+  for(let i=0;i<retries;i++){
+    try{
+      if(section==='products') await saveProducts();
+      else if(section==='customers') await saveCustomers();
+      else if(section==='orders') await saveOrders();
+      else if(section==='shipments') await saveShipments();
+      else if(section==='returns') await saveReturns();
+      else if(section==='meta') await saveMeta();
+      else await Promise.all([saveProducts(),saveCustomers(),saveOrders(),saveShipments(),saveReturns(),saveMeta()]);
+      return true; // 成功
+    }catch(e){
+      console.warn(`儲存失敗（第${i+1}次）：`,e.message);
+      if(i<retries-1){
+        setSyncStatus('loading',`儲存失敗，重試中（${i+2}/${retries}）…`);
+        await new Promise(r=>setTimeout(r,2000)); // 等2秒再試
+      }
+    }
+  }
+  return false; // 全部失敗
+}
+
 async function saveData(section=null){
   // 空資料保護
   if(!section&&!db.products.length&&!db.customers.length&&!db.orders.length){
@@ -1325,30 +1365,31 @@ async function saveData(section=null){
     return;
   }
   isSaving=true; setSyncStatus('loading','儲存中…');
-  try{
-    if(section==='products') await saveProducts();
-    else if(section==='customers') await saveCustomers();
-    else if(section==='orders') await saveOrders();
-    else if(section==='shipments') await saveShipments();
-    else if(section==='returns') await saveReturns();
-    else if(section==='meta') await saveMeta();
-    else {
-      await Promise.all([saveProducts(),saveCustomers(),saveOrders(),saveShipments(),saveReturns(),saveMeta()]);
-    }
-    autoBackup();
-    setSyncStatus('ok','已儲存・雲端同步'); updateRestockBadge();
-  }catch(e){
-    setSyncStatus('error','網路不穩，資料已暫存，恢復網路後自動送出');
-    // 把當下資料暫存到 localStorage
+  const ok=await trySave(section);
+  if(ok){
+    setSyncStatus('ok','已儲存・雲端同步');
+    updateRestockBadge();
+    showToast('儲存成功','success');
+  } else {
+    setSyncStatus('error','儲存失敗，請檢查網路');
+    // 暫存到佇列等網路恢復
     if(section==='orders'||!section) savePendingQueue('orders',{data:db.orders, updatedAt:Date.now()});
     if(section==='products'||!section) savePendingQueue('products',{data:db.products, updatedAt:Date.now()});
     if(section==='customers'||!section) savePendingQueue('customers',{data:db.customers, updatedAt:Date.now()});
     if(section==='shipments'||!section) savePendingQueue('shipments',{data:db.shipments, updatedAt:Date.now()});
     if(section==='returns'||!section) savePendingQueue('returns',{data:db.returns, updatedAt:Date.now()});
     if(section==='meta'||!section) savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},pickingState:db.pickingState||{},boxingState:db.boxingState||{},trash:db.trash||[]}, updatedAt:Date.now()});
-    console.warn('儲存失敗，已暫存：',e.message);
+    const retry=confirm('⚠️ 儲存失敗（已重試3次）
+
+請確認網路後按「重試」，或按「取消」稍後再操作。
+
+注意：關閉頁面前請勿離開，資料尚未儲存到雲端。');
+    if(retry){
+      isSaving=false;
+      return saveData(section); // 重新嘗試
+    }
+    showToast('儲存失敗，請重試','error',5000);
   }
-  // 存完後延遲 2 秒才讓 onSnapshot 覆蓋，避免剛存的資料被舊快取蓋掉
   setTimeout(()=>{ isSaving=false; }, 2000);
 }
 // 即時監聽（其他人存檔會自動更新）
