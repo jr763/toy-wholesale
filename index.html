@@ -1231,32 +1231,42 @@ async function loadData(btn=false){
   if(btn){ const b=G('btn-refresh');if(b){b.disabled=true;b.textContent='載入中…';} }
   setSyncStatus('loading','載入中…');
   try{
-    const sections=['products','customers','orders','shipments','returns','meta'];
-    const snaps=await Promise.all(sections.map(s=>fsdb.collection('sections').doc(s).get({source:'server'})));
-    snaps.forEach((snap,i)=>{
-      if(!snap.exists)return;
-      const key=sections[i];
-      const data=snap.data();
-      _lastUpdatedAt[key]=data.updatedAt||0;
-      if(key==='meta'){
-        const m=data.data||{};
-        db.variantOptions=m.variantOptions||[];
-        db.calVisits=m.calVisits||{};
-        db.pickingState=m.pickingState||{};
-        db.boxingState=m.boxingState||{};
-        db.trash=m.trash||[];
-        db.payments=m.payments||{};
-        db.accountingChecked=m.accountingChecked||{};
-        db.accountingBills=m.accountingBills||{};
-      } else {
-        db[key]=data.data||[];
-      }
+    const collSections=['products','customers','orders','shipments','returns'];
+    const [collSnaps,metaSnap]=await Promise.all([
+      Promise.all(collSections.map(s=>fsdb.collection(s).get({source:'server'}))),
+      fsdb.collection('sections').doc('meta').get({source:'server'})
+    ]);
+    collSnaps.forEach((snap,i)=>{
+      const key=collSections[i];
+      const arr=[];
+      _lastItemUpdatedAt[key]={};
+      snap.forEach(doc=>{
+        const data=doc.data();
+        arr.push({...data,id:doc.id});
+        _lastItemUpdatedAt[key][doc.id]=data.updatedAt||0;
+      });
+      db[key]=arr;
+      _lastSyncedSnapshot[key]=JSON.parse(JSON.stringify(arr));
     });
+    if(metaSnap.exists){
+      const data=metaSnap.data();
+      _lastUpdatedAt['meta']=data.updatedAt||0;
+      const m=data.data||{};
+      db.variantOptions=m.variantOptions||[];
+      db.calVisits=m.calVisits||{};
+      db.pickingState=m.pickingState||{};
+      db.boxingState=m.boxingState||{};
+      db.trash=m.trash||[];
+      db.payments=m.payments||{};
+      db.accountingChecked=m.accountingChecked||{};
+      db.accountingBills=m.accountingBills||{};
+    }
     setSyncStatus('ok','雲端同步・所有人共用');
     G('loading-overlay').style.display='none';
     renderAll();
     // 載入完成 3 秒後先備份一次到 Drive（之後每小時自動再備份，見 setInterval(backupToDrive,...)）
     setTimeout(backupToDrive, 3000);
+    processPendingQueue(); // 檢查有沒有上次網路沒恢復就留下的暫存資料
   }catch(e){ setSyncStatus('error','連線失敗：'+e.message); G('loading-text').textContent='連線失敗：'+e.message; G('loading-overlay').style.background='rgba(245,242,237,.95)'; console.error('Firebase error:',e); }
   if(btn){ const b=G('btn-refresh');if(b){b.disabled=false;b.textContent='🔄 重新整理';} }
 }
@@ -1267,11 +1277,52 @@ function _logPayloadSize(section,obj){
     console.log(`📦 saveData size → '${section}'：${(bytes/1024).toFixed(1)} KB`);
   }catch(e){}
 }
-async function saveProducts(){ _logPayloadSize('products',db.products); await fsdb.collection('sections').doc('products').set({data:db.products, updatedAt:Date.now()}); }
-async function saveCustomers(){ _logPayloadSize('customers',db.customers); await fsdb.collection('sections').doc('customers').set({data:db.customers, updatedAt:Date.now()}); }
-async function saveOrders(){ _logPayloadSize('orders',db.orders); await fsdb.collection('sections').doc('orders').set({data:db.orders, updatedAt:Date.now()}); }
-async function saveShipments(){ _logPayloadSize('shipments',db.shipments); await fsdb.collection('sections').doc('shipments').set({data:db.shipments, updatedAt:Date.now()}); }
-async function saveReturns(){ _logPayloadSize('returns',db.returns); await fsdb.collection('sections').doc('returns').set({data:db.returns, updatedAt:Date.now()}); }
+// v2 架構：products/customers/orders/shipments/returns 這 5 類，改成「每一筆各自存成一份文件」（子集合），
+// 存檔時只比對、只送出「真的有變動」的那幾筆，不用每次整包全部重傳。
+// _lastSyncedSnapshot：記錄上一次成功同步到雲端的完整內容，用來跟目前記憶體內容比對出差異
+let _lastSyncedSnapshot={products:[],customers:[],orders:[],shipments:[],returns:[]};
+let _lastItemUpdatedAt={products:{},customers:{},orders:{},shipments:{},returns:{}};
+async function _saveCollectionDiff(section){
+  const current=db[section]||[];
+  const prevArr=_lastSyncedSnapshot[section]||[];
+  const prevMap=new Map(prevArr.map(x=>[x.id,x]));
+  const currMap=new Map(current.map(x=>[x.id,x]));
+  const now=Date.now();
+  const changes=[];
+  currMap.forEach((item,id)=>{
+    const prevItem=prevMap.get(id);
+    if(!prevItem||JSON.stringify(prevItem)!==JSON.stringify(item)){
+      changes.push({type:'set',id,data:{...item,updatedAt:now}});
+    }
+  });
+  prevMap.forEach((_,id)=>{
+    if(!currMap.has(id)) changes.push({type:'delete',id});
+  });
+  _logPayloadSize(section, changes.length?changes.map(c=>c.data||{id:c.id,_deleted:true}):'（無變動，跳過）');
+  if(!changes.length) return true; // 完全沒變動，連網路都不用打
+  // Firestore 單一 batch 上限 500 筆操作，超過就切批
+  for(let i=0;i<changes.length;i+=450){
+    const batch=fsdb.batch();
+    changes.slice(i,i+450).forEach(c=>{
+      const ref=fsdb.collection(section).doc(c.id);
+      if(c.type==='set') batch.set(ref,c.data);
+      else batch.delete(ref);
+    });
+    await batch.commit();
+  }
+  _lastSyncedSnapshot[section]=JSON.parse(JSON.stringify(current));
+  if(!_lastItemUpdatedAt[section])_lastItemUpdatedAt[section]={};
+  changes.forEach(c=>{
+    if(c.type==='delete') delete _lastItemUpdatedAt[section][c.id];
+    else _lastItemUpdatedAt[section][c.id]=now;
+  });
+  return true;
+}
+async function saveProducts(){ await _saveCollectionDiff('products'); }
+async function saveCustomers(){ await _saveCollectionDiff('customers'); }
+async function saveOrders(){ await _saveCollectionDiff('orders'); }
+async function saveShipments(){ await _saveCollectionDiff('shipments'); }
+async function saveReturns(){ await _saveCollectionDiff('returns'); }
 async function saveMeta(){
   const metaData={
     variantOptions:db.variantOptions||[],
@@ -1305,6 +1356,41 @@ function autoBackup(){
 
 // 每 5 分鐘自動備份
 setInterval(autoBackup, 5 * 60 * 1000);
+
+// ══════════════════════════════════════════════════════
+// 一次性搬家程式：把 products/customers/orders/shipments/returns
+// 從舊格式（sections/{key} 文件裡塞一個大陣列）搬到新格式（每筆各自一份文件的子集合）
+// 不會刪除舊資料（當備份留著），可以直接在 Console 手動打 migrateToSubcollections() 執行
+// 重要：一定要在「部署這個新版程式碼之前」先執行過一次，否則新版程式碼會讀到空的新集合
+// ══════════════════════════════════════════════════════
+async function migrateToSubcollections(){
+  if(!await toastConfirm('即將把商品/客戶/抄貨單/出貨單/退貨單，從舊格式搬到新格式（子集合）。\n\n舊資料不會被刪除，會留著當備份。\n\n這動作只需要執行一次，確定要開始嗎？'))return;
+  const sections=['products','customers','orders','shipments','returns'];
+  const report=[];
+  for(const key of sections){
+    try{
+      const oldSnap=await fsdb.collection('sections').doc(key).get({source:'server'});
+      if(!oldSnap.exists){ report.push(`${key}：找不到舊資料，跳過`); continue; }
+      const arr=oldSnap.data().data||[];
+      if(!arr.length){ report.push(`${key}：舊資料是空的，跳過`); continue; }
+      let count=0, skipped=0;
+      for(let i=0;i<arr.length;i+=450){
+        const batch=fsdb.batch();
+        arr.slice(i,i+450).forEach(item=>{
+          if(!item||!item.id){ skipped++; return; }
+          batch.set(fsdb.collection(key).doc(item.id),{...item,updatedAt:Date.now()});
+          count++;
+        });
+        await batch.commit();
+      }
+      report.push(`${key}：搬移 ${count} 筆完成${skipped?`（跳過 ${skipped} 筆沒有id的）`:''}`);
+    }catch(e){
+      report.push(`${key}：失敗 - ${e.message}`);
+    }
+  }
+  console.log('搬移報告：\n'+report.join('\n'));
+  toastAlert('搬移完成：\n'+report.join('\n'),'success');
+}
 
 // 從本地備份還原（列出最近2小時內的備份清單，點選即可）
 async function restoreFromLocalBackup(){
@@ -1342,7 +1428,22 @@ function savePendingQueue(section, snapshot){
     console.log('暫存到佇列：', section);
   }catch(e){ console.warn('暫存失敗：',e); }
 }
-
+// 把一份 section 快照真的寫進雲端：products/customers/orders/shipments/returns 寫到子集合，meta 維持單一文件
+async function _writeSectionSnapshot(section, snapshot){
+  if(section==='meta'){
+    await fsdb.collection('sections').doc('meta').set(snapshot);
+    return;
+  }
+  const arr=snapshot.data||[];
+  for(let i=0;i<arr.length;i+=450){
+    const batch=fsdb.batch();
+    arr.slice(i,i+450).forEach(item=>{
+      if(!item||!item.id) return;
+      batch.set(fsdb.collection(section).doc(item.id),{...item,updatedAt:snapshot.updatedAt||Date.now()});
+    });
+    await batch.commit();
+  }
+}
 async function processPendingQueue(){
   try{
     const queue=JSON.parse(localStorage.getItem('oscar_pending_queue')||'[]');
@@ -1350,7 +1451,7 @@ async function processPendingQueue(){
     console.log('處理暫存佇列，共', queue.length, '筆');
     for(const item of queue){
       try{
-        await fsdb.collection('sections').doc(item.section).set(item.snapshot);
+        await _writeSectionSnapshot(item.section, item.snapshot);
         console.log('暫存送出成功：', item.section);
       }catch(e){
         console.warn('暫存送出失敗：', item.section, e);
@@ -1363,6 +1464,8 @@ async function processPendingQueue(){
     console.log('暫存佇列處理完成');
   }catch(e){ console.warn('處理佇列失敗：',e); }
 }
+// 實際接上「自動送出」：網路恢復時、以及頁面剛載入時，都檢查一次有沒有暫存待補送的資料
+window.addEventListener('online', ()=>{ console.log('偵測到網路恢復，檢查暫存佇列…'); processPendingQueue(); });
 
 // 網路恢復時自動送出暫存資料
 window.addEventListener('online', ()=>{
@@ -1604,25 +1707,37 @@ const _loadingTimeoutId=setTimeout(()=>{
     overlay.innerHTML='<div style="text-align:center;padding:20px;"><div style="font-size:32px;margin-bottom:10px;">⚠️</div><div style="margin-bottom:14px;">連線逾時，請檢查網路後重新整理</div><button onclick="location.reload()" style="padding:10px 24px;background:#8b5e3c;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;">重新整理</button></div>';
   }
 },10000);
-// 分區監聽：每個 section 各自獨立，不會互相覆蓋
+// 分區監聽：現在改成監聽「整個子集合」，只處理真的有變動的那幾筆（新增/修改/刪除），不是整包重收
 const _sectionKeys=['products','customers','orders','shipments','returns'];
 let _initialLoadDone=false;
 let _firstSnapshotDone=0;
 _sectionKeys.forEach(key=>{
-  fsdb.collection('sections').doc(key).onSnapshot({includeMetadataChanges:true},snap=>{
+  fsdb.collection(key).onSnapshot({includeMetadataChanges:true},snap=>{
     clearTimeout(_loadingTimeoutId);
     G('loading-overlay').style.display='none';
     if(snap.metadata.fromCache){setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');}
     else{setSyncStatus('ok','雲端同步・所有人共用');}
-    if(snap.exists&&!isSaving){
-      const data=snap.data();
-      const ts=data.updatedAt||0;
-      if(ts>=(_lastUpdatedAt[key]||0)){
-        db[key]=data.data||[];
-        _lastUpdatedAt[key]=ts;
-      } else {
-        console.warn('略過較舊的快取資料（'+key+'），保留目前較新的資料');
-      }
+    if(!isSaving){
+      if(!_lastItemUpdatedAt[key])_lastItemUpdatedAt[key]={};
+      snap.docChanges().forEach(change=>{
+        const id=change.doc.id;
+        if(change.type==='removed'){
+          db[key]=db[key].filter(x=>x.id!==id);
+          delete _lastItemUpdatedAt[key][id];
+          return;
+        }
+        const data=change.doc.data();
+        const ts=data.updatedAt||0;
+        if(ts>=(_lastItemUpdatedAt[key][id]||0)){
+          const item={...data,id};
+          const idx=db[key].findIndex(x=>x.id===id);
+          if(idx>=0) db[key][idx]=item; else db[key].push(item);
+          _lastItemUpdatedAt[key][id]=ts;
+        } else {
+          console.warn('略過較舊的快取資料（'+key+'/'+id+'），保留目前較新的資料');
+        }
+      });
+      _lastSyncedSnapshot[key]=JSON.parse(JSON.stringify(db[key]));
     }
     if(!_initialLoadDone){
       _firstSnapshotDone++;
@@ -1643,6 +1758,9 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
       db.pickingState=m.pickingState||{};
       db.boxingState=m.boxingState||{};
       db.trash=m.trash||[];
+      db.payments=m.payments||{};
+      db.accountingChecked=m.accountingChecked||{};
+      db.accountingBills=m.accountingBills||{};
       _lastUpdatedAt['meta']=ts;
     } else {
       console.warn('略過較舊的快取資料（meta），保留目前較新的資料');
