@@ -144,11 +144,16 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 .print-area{display:none}
 
 /* ── Toast 通知 ── */
-.toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.85);opacity:0;background:#1a1714;color:#fff;padding:22px 36px;border-radius:16px;font-size:20px;font-weight:700;z-index:9999;transition:transform .25s ease,opacity .25s ease;box-shadow:0 10px 32px rgba(0,0,0,.35);display:flex;align-items:center;gap:14px;white-space:nowrap;pointer-events:none;}
+.toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.85);opacity:0;background:#1a1714;color:#fff;padding:22px 36px;border-radius:16px;font-size:20px;font-weight:700;z-index:9999;transition:transform .25s ease,opacity .25s ease;box-shadow:0 10px 32px rgba(0,0,0,.35);display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;max-width:min(92vw,520px);white-space:pre-line;text-align:center;pointer-events:none;}
 .toast.show{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto;}
 .toast.success{background:#2a7a4f;}
 .toast.error{background:#c0392b;}
+.toast.warn{background:#b5750c;}
+.toast.info{background:#1a5c8a;}
 .toast-retry-btn{background:rgba(255,255,255,.2);color:#fff;border:1.5px solid rgba(255,255,255,.5);border-radius:8px;padding:6px 14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:background .15s;}
+.toast-input{width:100%;border:1.5px solid rgba(255,255,255,.5);border-radius:8px;padding:8px 12px;font-size:16px;font-family:inherit;background:rgba(255,255,255,.12);color:#fff;}
+.toast-input::placeholder{color:rgba(255,255,255,.6);}
+.toast-input:focus{outline:none;border-color:#fff;background:rgba(255,255,255,.2);}
 .toast-retry-btn:hover{background:rgba(255,255,255,.35);}
 
 /* ── 平板 (641~1023px) ── */
@@ -196,6 +201,22 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 <body>
 
 <div id="toast" class="toast"></div>
+
+<div class="modal-overlay" id="modal-confirm" style="z-index:600;">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <h3 id="modal-confirm-title">確認</h3>
+    </div>
+    <div class="modal-body">
+      <p id="modal-confirm-msg" style="white-space:pre-line;font-size:14px;line-height:1.6;color:var(--text);"></p>
+      <input type="text" id="modal-confirm-input" style="display:none;margin-top:12px;">
+      <div class="btn-row" style="justify-content:flex-end;">
+        <button class="btn btn-secondary" id="modal-confirm-cancel">取消</button>
+        <button class="btn btn-primary" id="modal-confirm-ok">確定</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="loading-overlay" id="loading-overlay">
   <div class="spinner"></div>
@@ -1093,8 +1114,8 @@ firebase.initializeApp({
 });
 const fsdb = firebase.firestore();
 // 啟用離線快取（不開synchronizeTabs，避免部分手機瀏覽器卡住）
-// 離線快取已停用（避免快取舊資料覆蓋最新資料）
-// try{ fsdb.enablePersistence({synchronizeTabs:false}).catch(err=>console.warn('離線快取無法啟用：',err.code)); }catch(e){}
+// 已加上版本保護（見下方 onSnapshot：比對 updatedAt 時間戳記），較舊的快取資料不會覆蓋較新的資料，可安全啟用
+try{ fsdb.enablePersistence({synchronizeTabs:false}).catch(err=>console.warn('離線快取無法啟用：',err.code)); }catch(e){}
 const DOC_REF = fsdb.collection('data').doc('main');
 
 // ── LINE Messaging API ────────────────────────
@@ -1212,8 +1233,10 @@ async function loadData(btn=false){
     snaps.forEach((snap,i)=>{
       if(!snap.exists)return;
       const key=sections[i];
+      const data=snap.data();
+      _lastUpdatedAt[key]=data.updatedAt||0;
       if(key==='meta'){
-        const m=snap.data().data||{};
+        const m=data.data||{};
         db.variantOptions=m.variantOptions||[];
         db.calVisits=m.calVisits||{};
         db.pickingState=m.pickingState||{};
@@ -1223,7 +1246,7 @@ async function loadData(btn=false){
         db.accountingChecked=m.accountingChecked||{};
         db.accountingBills=m.accountingBills||{};
       } else {
-        db[key]=snap.data().data||[];
+        db[key]=data.data||[];
       }
     });
     setSyncStatus('ok','雲端同步・所有人共用');
@@ -1268,27 +1291,27 @@ function autoBackup(){
   }catch(e){console.warn('自動備份失敗：',e);}
 }
 
-// 每小時自動備份
-setInterval(autoBackup, 60 * 60 * 1000);
+// 每 5 分鐘自動備份
+setInterval(autoBackup, 5 * 60 * 1000);
 
 // 從本地備份還原
-function restoreFromLocalBackup(){
+async function restoreFromLocalBackup(){
   try{
     const backups=JSON.parse(localStorage.getItem('oscar_daily_backups')||'{}');
     const keys=Object.keys(backups).sort().reverse();
-    if(!keys.length){alert('找不到本地備份');return;}
-    const dateStr=keys.length===1?keys[0]:prompt('選擇要還原的日期（輸入數字）：\n'+keys.map((k,i)=>(i+1)+'. '+k).join('\n'));
+    if(!keys.length){toastAlert('找不到本地備份','error');return;}
+    const dateStr=keys.length===1?keys[0]:await toastPrompt('選擇要還原的日期（輸入數字）：\n'+keys.map((k,i)=>(i+1)+'. '+k).join('\n'));
     const selected=keys.length===1?keys[0]:keys[parseInt(dateStr)-1];
-    if(!selected){alert('取消');return;}
+    if(!selected){toastAlert('取消','warn');return;}
     const backup=JSON.parse(backups[selected]);
     const time=new Date(backup.backupTime).toLocaleString();
-    if(!confirm(`還原 ${selected} 的備份？\n備份時間：${time}\n\n注意：這會覆蓋目前雲端資料`))return;
+    if(!await toastConfirm(`還原 ${selected} 的備份？\n備份時間：${time}\n\n注意：這會覆蓋目前雲端資料`))return;
     delete backup.backupTime;
     db={...db,...backup};
     saveData();
     renderAll();
-    alert('還原成功！');
-  }catch(e){alert('還原失敗：'+e.message);}
+    toastAlert('還原成功！','success');
+  }catch(e){toastAlert('還原失敗：'+e.message,'error');}
 }
 
 // 暫存失敗的資料，等網路恢復後自動送出
@@ -1330,34 +1353,97 @@ window.addEventListener('online', ()=>{
 
 // ── Toast 通知 ──────────────────────────────
 let _toastTimer=null;
-function showToast(msg, type='success', duration=2500, onRetry=null){
+// actions: [{label, onClick}] — if provided, toast shows buttons and stays until clicked (duration ignored)
+function showToast(msg, type='success', duration=2500, actions=null){
   const el=G('toast');if(!el)return;
-  const icon=type==='success'?'✅ ':type==='error'?'❌ ':'ℹ️ ';
-  if(onRetry){
+  el.style.flexDirection='';
+  const icon=type==='success'?'✅ ':type==='error'?'❌ ':type==='warn'?'⚠️ ':'ℹ️ ';
+  if(actions&&actions.length){
     el.innerHTML='<span>'+icon+msg+'</span>';
-    const btn=document.createElement('button');
-    btn.className='toast-retry-btn';
-    btn.textContent='重試';
-    btn.onclick=()=>{ el.classList.remove('show'); if(_toastTimer)clearTimeout(_toastTimer); onRetry(); };
-    el.appendChild(btn);
+    actions.forEach(a=>{
+      const btn=document.createElement('button');
+      btn.className='toast-retry-btn';
+      btn.textContent=a.label;
+      btn.onclick=()=>{ el.classList.remove('show'); if(_toastTimer)clearTimeout(_toastTimer); a.onClick&&a.onClick(); };
+      el.appendChild(btn);
+    });
   } else {
     el.textContent=icon+msg;
   }
   el.className='toast '+type+' show';
   if(_toastTimer)clearTimeout(_toastTimer);
-  if(!onRetry){
+  if(!actions||!actions.length){
     _toastTimer=setTimeout(()=>{el.classList.remove('show');},duration);
   }
 }
+// 取代 alert()：純顯示訊息，不阻塞程式
+function toastAlert(msg, type='info', duration=3200){
+  showToast(msg, type, duration);
+}
+// 取代 confirm()／prompt()：共用一個 Modal 對話框，回傳 Promise
+// 加上排隊機制：如果同時觸發多個，會依序顯示，不會互相搶走/蓋掉
+let _confirmQueue=[];
+let _confirmBusy=false;
+function _openConfirmModal(opts){
+  return new Promise(resolve=>{
+    _confirmQueue.push({opts, resolve});
+    _processConfirmQueue();
+  });
+}
+function _processConfirmQueue(){
+  if(_confirmBusy||!_confirmQueue.length)return;
+  _confirmBusy=true;
+  const {opts, resolve}=_confirmQueue.shift();
+  _showConfirmModalNow(opts, (val)=>{
+    _confirmBusy=false;
+    resolve(val);
+    _processConfirmQueue();
+  });
+}
+function _showConfirmModalNow({msg, isPrompt=false, defaultValue='', confirmLabel='確定', cancelLabel='取消'}, done){
+  const overlay=G('modal-confirm');
+  const msgEl=G('modal-confirm-msg');
+  const inputEl=G('modal-confirm-input');
+  const okBtn=G('modal-confirm-ok');
+  const cancelBtn=G('modal-confirm-cancel');
+  if(!overlay||!msgEl||!inputEl||!okBtn||!cancelBtn){ done(isPrompt?null:false); return; }
+  msgEl.textContent=msg;
+  if(isPrompt){
+    inputEl.style.display='block';
+    inputEl.value=defaultValue||'';
+  } else {
+    inputEl.style.display='none';
+    inputEl.value='';
+  }
+  okBtn.textContent=confirmLabel;
+  cancelBtn.textContent=cancelLabel;
+  const cleanup=()=>{
+    overlay.classList.remove('open');
+    okBtn.onclick=null; cancelBtn.onclick=null;
+  };
+  const doOk=()=>{ const val=isPrompt?inputEl.value:true; cleanup(); done(val); };
+  const doCancel=()=>{ cleanup(); done(isPrompt?null:false); };
+  okBtn.onclick=doOk;
+  cancelBtn.onclick=doCancel;
+  // 只能按按鈕：不支援 Enter/Esc 快捷鍵、不支援點背景取消
+  overlay.classList.add('open');
+  if(isPrompt) setTimeout(()=>inputEl.focus(),50);
+}
+function toastConfirm(msg, confirmLabel='確定', cancelLabel='取消'){
+  return _openConfirmModal({msg, isPrompt:false, confirmLabel, cancelLabel});
+}
+function toastPrompt(msg, defaultValue=''){
+  return _openConfirmModal({msg, isPrompt:true, defaultValue});
+}
 
-function withTimeout(promise, ms=8000){
+function withTimeout(promise, ms=15000){
   return Promise.race([
     promise,
     new Promise((_,reject)=>setTimeout(()=>reject(new Error('儲存逾時（可能是網路問題）')),ms))
   ]);
 }
 
-async function trySave(section, retries=3){
+async function trySave(section, retries=3, silent=false){
   for(let i=0;i<retries;i++){
     try{
       if(section==='products') await withTimeout(saveProducts());
@@ -1371,8 +1457,10 @@ async function trySave(section, retries=3){
     }catch(e){
       console.warn(`儲存失敗（第${i+1}次）：`,e.message);
       if(i<retries-1){
-        setSyncStatus('loading',`儲存失敗，重試中（${i+2}/${retries}）…`);
-        showToast(`儲存失敗，重試中（${i+2}/${retries}）`,'error',1800);
+        if(!silent){
+          setSyncStatus('loading',`儲存失敗，重試中（${i+2}/${retries}）…`);
+          showToast(`儲存失敗，重試中（${i+2}/${retries}）`,'error',1800);
+        }
         await new Promise(r=>setTimeout(r,2000)); // 等2秒再試
       }
     }
@@ -1394,24 +1482,53 @@ async function saveData(section=null){
     showToast('儲存成功','success');
   } else {
     setSyncStatus('error','儲存失敗，請檢查網路');
-    // 暫存到佇列等網路恢復
-    if(section==='orders'||!section) savePendingQueue('orders',{data:db.orders, updatedAt:Date.now()});
-    if(section==='products'||!section) savePendingQueue('products',{data:db.products, updatedAt:Date.now()});
-    if(section==='customers'||!section) savePendingQueue('customers',{data:db.customers, updatedAt:Date.now()});
-    if(section==='shipments'||!section) savePendingQueue('shipments',{data:db.shipments, updatedAt:Date.now()});
-    if(section==='returns'||!section) savePendingQueue('returns',{data:db.returns, updatedAt:Date.now()});
-    if(section==='meta'||!section) savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},pickingState:db.pickingState||{},boxingState:db.boxingState||{},trash:db.trash||[]}, updatedAt:Date.now()});
-    const retry=confirm('⚠️ 儲存失敗（已重試3次）\n\n請確認網路後按「重試」，或按「取消」稍後再操作。\n\n注意：關閉頁面前請勿離開，資料尚未儲存到雲端。');
-    if(retry){
+    if(section){ queuePendingBackup(section); }
+    else { ['orders','products','customers','shipments','returns','meta'].forEach(queuePendingBackup); }
+    if(await toastConfirm('儲存失敗（已重試3次），請確認網路','重試','取消')){
+      isSaving=false; saveData(section);
+    } else {
       isSaving=false;
-      return saveData(section); // 重新嘗試
     }
-    showToast('儲存失敗，請重試','error',5000,()=>{ isSaving=false; saveData(section); });
   }
   setTimeout(()=>{ isSaving=false; }, 2000);
+  return ok;
+}
+// 暫存單一區塊的資料到本機佇列，等網路恢復後自動送出
+function queuePendingBackup(section){
+  if(section==='orders') savePendingQueue('orders',{data:db.orders, updatedAt:Date.now()});
+  else if(section==='products') savePendingQueue('products',{data:db.products, updatedAt:Date.now()});
+  else if(section==='customers') savePendingQueue('customers',{data:db.customers, updatedAt:Date.now()});
+  else if(section==='shipments') savePendingQueue('shipments',{data:db.shipments, updatedAt:Date.now()});
+  else if(section==='returns') savePendingQueue('returns',{data:db.returns, updatedAt:Date.now()});
+  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},pickingState:db.pickingState||{},boxingState:db.boxingState||{},trash:db.trash||[]}, updatedAt:Date.now()});
+}
+const _sectionLabels={orders:'抄貨單',products:'商品/庫存',customers:'客戶',shipments:'出貨單',returns:'退貨單',meta:'其他設定'};
+// 一次存多個區塊（例如確認抄貨單同時要存 orders/products/meta）
+// 全部都真的存成功才會顯示「儲存成功」；只要有任何一個失敗，就明確告知是哪個部分失敗，不會被其他成功的部分蓋過去
+async function saveMultiple(sections){
+  isSaving=true; setSyncStatus('loading','儲存中…');
+  const results=await Promise.all(sections.map(s=>trySave(s,3,true)));
+  const allOk=results.every(r=>r===true);
+  updateRestockBadge();
+  isSaving=false;
+  if(allOk){
+    setSyncStatus('ok','已儲存・雲端同步');
+    showToast('儲存成功','success');
+    return true;
+  }
+  const failed=sections.filter((s,i)=>!results[i]);
+  failed.forEach(queuePendingBackup);
+  setSyncStatus('error','儲存失敗，請確認網路');
+  const failedNames=failed.map(s=>_sectionLabels[s]||s).join('、');
+  if(await toastConfirm(`儲存失敗：${failedNames}\n（已重試3次，其餘部分已成功）\n請確認網路後重試`,'重試','取消')){
+    return await saveMultiple(sections);
+  }
+  return false;
 }
 // 即時監聽（其他人存檔會自動更新）
 let _loadingTimedOut=false;
+// 版本保護：記錄每個區塊目前套用的資料時間戳記，避免較舊的（例如離線快取）資料覆蓋較新的資料
+let _lastUpdatedAt={};
 const _loadingTimeoutId=setTimeout(()=>{
   _loadingTimedOut=true;
   const overlay=G('loading-overlay');
@@ -1429,7 +1546,16 @@ _sectionKeys.forEach(key=>{
     G('loading-overlay').style.display='none';
     if(snap.metadata.fromCache){setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');}
     else{setSyncStatus('ok','雲端同步・所有人共用');}
-    if(snap.exists&&!isSaving){ db[key]=snap.data().data||[]; }
+    if(snap.exists&&!isSaving){
+      const data=snap.data();
+      const ts=data.updatedAt||0;
+      if(ts>=(_lastUpdatedAt[key]||0)){
+        db[key]=data.data||[];
+        _lastUpdatedAt[key]=ts;
+      } else {
+        console.warn('略過較舊的快取資料（'+key+'），保留目前較新的資料');
+      }
+    }
     if(!_initialLoadDone){
       _firstSnapshotDone++;
       if(_firstSnapshotDone>=6){_initialLoadDone=true;renderAll();}
@@ -1440,12 +1566,19 @@ _sectionKeys.forEach(key=>{
 });
 fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true},snap=>{
   if(snap.exists&&!isSaving){
-    const m=snap.data().data||{};
-    db.variantOptions=m.variantOptions||[];
-    db.calVisits=m.calVisits||{};
-    db.pickingState=m.pickingState||{};
-    db.boxingState=m.boxingState||{};
-    db.trash=m.trash||[];
+    const data=snap.data();
+    const ts=data.updatedAt||0;
+    if(ts>=(_lastUpdatedAt['meta']||0)){
+      const m=data.data||{};
+      db.variantOptions=m.variantOptions||[];
+      db.calVisits=m.calVisits||{};
+      db.pickingState=m.pickingState||{};
+      db.boxingState=m.boxingState||{};
+      db.trash=m.trash||[];
+      _lastUpdatedAt['meta']=ts;
+    } else {
+      console.warn('略過較舊的快取資料（meta），保留目前較新的資料');
+    }
   }
   if(!_initialLoadDone){
     _firstSnapshotDone++;
@@ -1459,7 +1592,7 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
 async function startScan(targetId, callback){
   scanTargetId=targetId; scanCb=callback;
   if(!('BarcodeDetector' in window)){
-    const c=prompt('請手動輸入條碼：');
+    const c=await toastPrompt('請手動輸入條碼：');
     if(c){G(targetId).value=c; if(callback)callback();}
     return;
   }
@@ -1468,7 +1601,7 @@ async function startScan(targetId, callback){
     G('scanner-video').srcObject=scanStream;
     G('scan-status').textContent='對準條碼後按下掃描';
     openModal('modal-scanner');
-  }catch(e){alert('無法開啟相機：'+e.message);}
+  }catch(e){toastAlert('無法開啟相機：'+e.message,'error');}
 }
 async function doScanOnce(){
   if(!scanStream)return;
@@ -1726,16 +1859,16 @@ function renderVariantList(){
 async function addVariant(){
   const v=V('new-variant');
   if(!v)return;
-  if(db.variantOptions.includes(v)){alert('已有此種類');return;}
+  if(db.variantOptions.includes(v)){toastAlert('已有此種類','warn');return;}
   db.variantOptions.push(v);
   G('new-variant').value='';
   await saveData('meta'); renderVariantList(); renderProductVariantList();
 }
 async function delVariant(v){
-  if(!confirm(`確定刪除「${v}」？`))return;
+  if(!await toastConfirm(`確定刪除「${v}」？`))return;
   db.variantOptions=db.variantOptions.filter(x=>x!==v);
   db.products.forEach(p=>{if(p.variants)p.variants=p.variants.filter(x=>x!==v);});
-  await Promise.all([saveData('meta'),saveData('products')]); renderVariantList(); renderProductVariantList();
+  await saveMultiple(['meta','products']); renderVariantList(); renderProductVariantList();
 }
 
 // ── PRODUCTS ──────────────────────────────────
@@ -1787,12 +1920,12 @@ function generateInternalCode(){
 async function saveProduct(){
   const name=V('p-name');
   let barcode=V('p-barcode');
-  if(!name){alert('請輸入商品名稱');return;}
+  if(!name){toastAlert('請輸入商品名稱','warn');return;}
   if(!barcode){barcode=generateInternalCode();}
-  if(G('p-stock').value===''){alert('請輸入現有庫存');return;}
-  if(G('p-safety').value===''){alert('請輸入安全庫存量');return;}
+  if(G('p-stock').value===''){toastAlert('請輸入現有庫存','warn');return;}
+  if(G('p-safety').value===''){toastAlert('請輸入安全庫存量','warn');return;}
   const hasM=document.querySelector('input[name="p-insp"]:checked').value==='1';
-  if(!hasM&&!V('p-batch')){alert('請輸入商檢批號');return;}
+  if(!hasM&&!V('p-batch')){toastAlert('請輸入商檢批號','warn');return;}
   isSaving=true;
   const btn=G('btn-save-p');btn.disabled=true;btn.textContent='儲存中…';
   const data={name,barcode,cost:parseFloat(G('p-cost').value)||0,currentStock:parseFloat(G('p-stock').value)||0,
@@ -1819,12 +1952,12 @@ function purgeOldTrash(){
   db.trash=db.trash.filter(t=>t.deletedAt>cutoff);
 }
 async function deleteProduct(id){
-  if(!confirm('確定刪除此商品？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
+  if(!await toastConfirm('確定刪除此商品？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
   isSaving=true;
   const item=db.products.find(x=>x.id===id);
   if(item)moveToTrash('product',item);
   db.products=db.products.filter(x=>x.id!==id);
-  await Promise.all([saveData('products'),saveData('meta')]);renderProducts();
+  await saveMultiple(['products','meta']);renderProducts();
   setTimeout(()=>{ isSaving=false; },2000);
 }
 function renderProducts(){
@@ -1931,7 +2064,7 @@ function renderCPriceList(){
   }).join('');
 }
 async function saveCustomer(){
-  if(!V('c-name')){alert('請輸入客戶名稱');return;}
+  if(!V('c-name')){toastAlert('請輸入客戶名稱','warn');return;}
   isSaving=true;
   const btn=G('btn-save-c');btn.disabled=true;btn.textContent='儲存中…';
   const normalRate=parseFloat(G('c-rule-normal').value);
@@ -1976,12 +2109,12 @@ async function saveCustomer(){
   setTimeout(()=>{ isSaving=false; },2000);
 }
 async function deleteCustomer(id){
-  if(!confirm('確定刪除此客戶？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
+  if(!await toastConfirm('確定刪除此客戶？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
   isSaving=true;
   const item=db.customers.find(x=>x.id===id);
   if(item)moveToTrash('customer',item);
   db.customers=db.customers.filter(x=>x.id!==id);
-  await Promise.all([saveData('customers'),saveData('meta')]);renderCustomers();
+  await saveMultiple(['customers','meta']);renderCustomers();
   setTimeout(()=>{ isSaving=false; },2000);
 }
 function renderCustomers(){
@@ -2143,11 +2276,11 @@ function onOrderBarcode(){
 }
 function addOrderItem(){
   const pid=window._oSelPid;
-  if(!pid){alert('請先選擇商品');return;}
+  if(!pid){toastAlert('請先選擇商品','warn');return;}
   const p=db.products.find(x=>x.id===pid);if(!p)return;
   const qty=parseInt(G('o-qty').value)||1;
   const price=parseFloat(G('o-price').value);
-  if(!price||price<=0){alert('請輸入售價');return;}
+  if(!price||price<=0){toastAlert('請輸入售價','warn');return;}
   const variant=G('o-variant').value;
   const chosenPack=G('o-pack-box')?.checked?'盒裝':G('o-pack-card')?.checked?'吊卡':null;
   const ex=orderItems.find(i=>i.productId===pid&&i.variant===variant);
@@ -2195,8 +2328,8 @@ function adjustStock(oldItems,newItems){
 }
 async function saveOrder(status){
   const custId=G('o-cust').value;
-  if(!custId){alert('請選擇客戶');return;}
-  if(!orderItems.length){alert('請加入至少一項商品');return;}
+  if(!custId){toastAlert('請選擇客戶','warn');return;}
+  if(!orderItems.length){toastAlert('請加入至少一項商品','warn');return;}
   isSaving=true;
   const b1=G('btn-o-draft'),b2=G('btn-o-confirm');
   b1.disabled=b2.disabled=true;
@@ -2248,12 +2381,12 @@ async function saveOrder(status){
         const msg=(isShipped?'此抄貨單已出貨，':'')+'確認減少/刪除以下商品？\n\n'+
           [...decreased.map(x=>'減少：'+x),...deleted.map(x=>'刪除：'+x)].join('\n')+
           (isShipped?'\n\n（僅用於帳務記錄，不影響庫存與撿貨）':'');
-        if(!confirm(msg)){b1.disabled=b2.disabled=false;return;}
+        if(!await toastConfirm(msg)){b1.disabled=b2.disabled=false;return;}
       }
       if(hasAdd){
         if(hasDel){
           const msg='以下商品有減少/刪除：\n\n'+[...decreased.map(x=>'減少：'+x),...deleted.map(x=>'刪除：'+x)].join('\n')+'\n\n確認連同新增/增加的部分一起調整嗎？';
-          if(!confirm(msg)){b1.disabled=b2.disabled=false;return;}
+          if(!await toastConfirm(msg)){b1.disabled=b2.disabled=false;return;}
         }
         // 有新增或增加數量 → 需要重新撿貨，走撿貨(修改)→裝箱(修改)→完成
         status='mod_pending';
@@ -2302,7 +2435,7 @@ async function saveOrder(status){
   } else {
     db.orders.push({id:uid(),...data});
   }
-  await Promise.all([saveData('orders'),saveData('products'),saveData('meta')]);
+  await saveMultiple(['orders','products','meta']);
   // LINE 通知
   if(status==='confirmed'){
     const custName=cust?cust.name:'—';
@@ -2314,7 +2447,7 @@ async function saveOrder(status){
   setTimeout(()=>{ isSaving=false; },2000);
 }
 async function deleteOrder(id){
-  if(!confirm('確定刪除此抄貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
+  if(!await toastConfirm('確定刪除此抄貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。'))return;
   isSaving=true;
   const item=db.orders.find(x=>x.id===id);
   if(item){
@@ -2322,12 +2455,12 @@ async function deleteOrder(id){
     moveToTrash('order',item);
   }
   db.orders=db.orders.filter(x=>x.id!==id);
-  await Promise.all([saveData('orders'),saveData('products'),saveData('meta')]);renderOrders();renderProducts();renderDashboard();
+  await saveMultiple(['orders','products','meta']);renderOrders();renderProducts();renderDashboard();
   setTimeout(()=>{ isSaving=false; },2000);
 }
 
 async function deleteShipment(id){
-  if(!confirm('確定刪除此出貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。\n（庫存已於確認抄貨單時扣除，刪除出貨單不影響庫存，對應抄貨單會改回「已完成」可重新建立出貨單）'))return;
+  if(!await toastConfirm('確定刪除此出貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。\n（庫存已於確認抄貨單時扣除，刪除出貨單不影響庫存，對應抄貨單會改回「已完成」可重新建立出貨單）'))return;
   isSaving=true;
   const item=db.shipments.find(x=>x.id===id);
   if(item)moveToTrash('shipment',item);
@@ -2337,7 +2470,7 @@ async function deleteShipment(id){
     const oi=db.orders.findIndex(x=>x.id===item.orderId);
     if(oi>=0&&db.orders[oi].status==='shipped') db.orders[oi].status='completed';
   }
-  await Promise.all([saveData('shipments'),saveData('orders'),saveData('meta')]);renderShipments();renderOrders();renderDashboard();
+  await saveMultiple(['shipments','orders','meta']);renderShipments();renderOrders();renderDashboard();
   setTimeout(()=>{ isSaving=false; },2000);
 }
 
@@ -2445,7 +2578,7 @@ async function restoreFromTrash(idx){
   db.trash.splice(idx,1);
   await saveData(); // 全部存，因為可能恢復任何類型
   renderTrash();renderProducts();renderCustomers();renderOrders();renderShipments();renderDashboard();
-  alert('已恢復');
+  toastAlert('已恢復','success');
 }
 function filterOrders(f,btn){
   orderFilter=f;
@@ -2657,7 +2790,7 @@ function scrollToPickRow(idx){
 async function markPacked(orderId){
   const o=db.orders.find(x=>x.id===orderId);if(!o)return;
   if(o.editAlert&&!o.editAlert.confirmed){
-    alert('⚠️ 抄貨單有未確認的修改！\n\n修改項目：\n'+o.editAlert.changes.map(c=>'• '+c).join('\n')+'\n\n請先開啟撿貨頁面確認修改後才能完成。');
+    toastAlert('⚠️ 抄貨單有未確認的修改！\n\n修改項目：\n'+o.editAlert.changes.map(c=>'• '+c).join('\n')+'\n\n請先開啟撿貨頁面確認修改後才能完成。','warn');
     return;
   }
   const savedState=(db.pickingState||{})[orderId]||{};
@@ -2665,7 +2798,7 @@ async function markPacked(orderId){
   const missing=items.filter((_,i)=>!savedState[i]);
   const allDone=missing.length===0;
   const msg=allDone?'所有商品已撿齊，確認撿貨完成？':`有 ${missing.length} 項商品未撿（${missing.map(i=>i.name).join('、')}），確認撿貨完成？`;
-  if(!confirm(msg))return;
+  if(!await toastConfirm(msg))return;
   const idx=db.orders.findIndex(x=>x.id===orderId);
   if(idx>=0){
     db.orders[idx].picked=true;
@@ -2724,7 +2857,7 @@ async function togglePicked(idx,cb){
     if(db.orders[oidx].status==='confirmed')db.orders[oidx].status='picking';
     else if(db.orders[oidx].status==='pending_edit')db.orders[oidx].status='re_picking';
   }
-  await Promise.all([saveData('orders'),saveData('meta')]);
+  await saveMultiple(['orders','meta']);
   // Auto-refresh barcode summary if open
   const bcEl=G('bc-summary-inline');
   if(bcEl&&bcEl.style.display!=='none') showBCSummary();
@@ -2772,7 +2905,7 @@ async function saveShipment(orderId){
   db.shipments.push(s);
   const oi=db.orders.findIndex(x=>x.id===orderId);if(oi>=0)db.orders[oi].status='shipped';
   // 庫存已於確認抄貨單時扣除，此處不再重複扣庫存
-  await Promise.all([saveData('shipments'),saveData('orders'),saveData('meta')]);
+  await saveMultiple(['shipments','orders','meta']);
   closeModal('modal-shipment');renderOrders();renderShipments();renderProducts();renderRestock();renderDashboard();
 }
 function renderShipments(){
@@ -2870,7 +3003,7 @@ function selectReturnProduct(pid){
 }
 function addReturnItem(){
   const pid=_rSelPid;const qty=parseInt(G('r-qty').value)||1;
-  if(!pid){alert('請先選擇商品');return;}
+  if(!pid){toastAlert('請先選擇商品','warn');return;}
   const p=db.products.find(x=>x.id===pid);
   retItems.push({productId:pid,name:p.name,barcode:p.barcode||'',qty});
   _rSelPid=null;
@@ -2887,9 +3020,9 @@ function renderRetItems(){
     </div>`).join('');
 }
 async function saveReturn(){
-  if(!G('r-cust').value){alert('請選擇客戶');return;}
-  if(!G('r-reason').value){alert('請選擇退貨原因');return;}
-  if(!retItems.length){alert('請加入至少一項商品');return;}
+  if(!G('r-cust').value){toastAlert('請選擇客戶','warn');return;}
+  if(!G('r-reason').value){toastAlert('請選擇退貨原因','warn');return;}
+  if(!retItems.length){toastAlert('請加入至少一項商品','warn');return;}
   isSaving=true;
   const btn=G('btn-save-r');btn.disabled=true;btn.textContent='儲存中…';
   const disp=document.querySelector('input[name="r-disp"]:checked').value;
@@ -2917,7 +3050,7 @@ async function saveReturn(){
       });
     }
   }
-  await Promise.all([saveData('returns'),saveData('products'),saveData('meta')]);
+  await saveMultiple(['returns','products','meta']);
   closeModal('modal-return');renderReturns();renderProducts();renderDashboard();
   btn.disabled=false;btn.textContent='儲存退貨';
   setTimeout(()=>{ isSaving=false; },2000);
@@ -2972,11 +3105,11 @@ function renderReturns(){
 function sendRestockNotify(){
   const rows=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock)
     .sort((a,b)=>(a.currentStock??0)-(b.currentStock??0));
-  if(!rows.length){alert('目前沒有需要補貨的商品');return;}
+  if(!rows.length){toastAlert('目前沒有需要補貨的商品','warn');return;}
   const list=rows.map(p=>'❌ '+p.name+'，庫存：'+(p.currentStock??0)+'，建議補：'+(p.safetyStock-(p.currentStock??0))).join('\n');
   const msg='📦 補貨通知，共 '+rows.length+' 項商品需補貨\n'+list;
   sendLineNotify(msg);
-  alert('已發送補貨通知！');
+  toastAlert('已發送補貨通知！','success');
 }
 function renderRestock(){
   const list=G('restock-list');if(!list)return;
@@ -3005,7 +3138,7 @@ function renderRestock(){
 async function onRestockCheck(pid, cb){
   if(!cb.checked)return;
   const p=db.products.find(x=>x.id===pid);if(!p)return;
-  const qtyStr=prompt(`「${p.name}」補了多少件？（目前庫存：${p.currentStock??0}）`);
+  const qtyStr=await toastPrompt(`「${p.name}」補了多少件？（目前庫存：${p.currentStock??0}）`);
   cb.checked=false;
   if(!qtyStr||isNaN(parseInt(qtyStr)))return;
   const qty=parseInt(qtyStr);if(qty<=0)return;
@@ -3077,7 +3210,7 @@ function renderEditShipReturns(){
 function addReturnToShipment(){
   const price=parseFloat(G('ret-price')?.value);
   const qty=parseInt(G('ret-qty')?.value)||1;
-  if(!price||price<=0){alert('請輸入退貨售價');return;}
+  if(!price||price<=0){toastAlert('請輸入退貨售價','warn');return;}
   _editShipReturnItems.push({price,qty});
   if(G('ret-price'))G('ret-price').value='';
   if(G('ret-qty'))G('ret-qty').value='1';
@@ -3161,11 +3294,11 @@ async function saveEditShipment(){
     db.shipments[si].returnItems=_editShipReturnItems.map(i=>({...i}));
   }
 
-  await Promise.all([saveData('shipments'),saveData('products'),saveData('meta')]);
+  await saveMultiple(['shipments','products','meta']);
   closeModal('modal-edit-shipment');
   renderShipments();
   renderProducts();
-  alert('已儲存，庫存已調整');
+  toastAlert('已儲存，庫存已調整','success');
 }
 // ── END 編輯出貨單 ────────────────────────────
 
@@ -3365,8 +3498,8 @@ function toggleAccountingShip(shipId, custId, year, month, receivable){
 }
 
 async function checkoutAccounting(custId, year, month, amount){
-  if(!amount||amount<=0){alert('沒有勾選出貨單');return;}
-  if(!confirm(`確認結帳 $${amount.toLocaleString()} 嗎？
+  if(!amount||amount<=0){toastAlert('沒有勾選出貨單','warn');return;}
+  if(!await toastConfirm(`確認結帳 $${amount.toLocaleString()} 嗎？
 結帳後金額將鎖定，需要取消結帳才能重新勾選。`))return;
   if(!db.accountingBills)db.accountingBills={};
   const key=custId+'_'+year+'_'+month;
@@ -3376,7 +3509,7 @@ async function checkoutAccounting(custId, year, month, amount){
 }
 
 async function cancelCheckout(custId, year, month){
-  if(!confirm('確認取消結帳？取消後可重新勾選出貨單。'))return;
+  if(!await toastConfirm('確認取消結帳？取消後可重新勾選出貨單。'))return;
   const key=custId+'_'+year+'_'+month;
   if(db.accountingBills) delete db.accountingBills[key];
   await saveData('meta');
@@ -3433,7 +3566,7 @@ function renderPaymentRecords(payRecs){
 
 async function addPayment(){
   const amount=parseFloat(G('pay-amount').value);
-  if(!amount||amount<=0){alert('請輸入收款金額');return;}
+  if(!amount||amount<=0){toastAlert('請輸入收款金額','warn');return;}
   const key=_currentPaymentKey;
   if(!db.payments)db.payments={};
   if(!db.payments[key])db.payments[key]=[];
@@ -3451,7 +3584,7 @@ async function addPayment(){
 }
 
 async function deletePayment(idx){
-  if(!confirm('確定刪除這筆收款記錄？'))return;
+  if(!await toastConfirm('確定刪除這筆收款記錄？'))return;
   const key=_currentPaymentKey;
   if(!db.payments||!db.payments[key])return;
   db.payments[key].splice(idx,1);
@@ -3473,7 +3606,7 @@ function addBarcodePrintItem(){
   const price = parseFloat(G('bp-price')?.value);
   const qty = parseInt(G('bp-qty')?.value) || 1;
   const format = G('bp-format')?.value || 'standard';
-  if(!price || price <= 0){ alert('請輸入售價'); return; }
+  if(!price || price <= 0){ toastAlert('請輸入售價','warn'); return; }
   // 同售價同格式才合併
   const existing = _bpItems.find(x => x.price === price && x.format === format);
   if(existing){ existing.qty += qty; }
@@ -3502,15 +3635,15 @@ function renderBpList(){
   </table></div>`;
 }
 
-function clearBarcodePrintList(){
+async function clearBarcodePrintList(){
   if(!_bpItems.length) return;
-  if(!confirm('確定清除全部？')) return;
+  if(!await toastConfirm('確定清除全部？')) return;
   _bpItems = [];
   renderBpList();
 }
 
 function printBarcodePrintList(){
-  if(!_bpItems.length){ alert('請先加入售價'); return; }
+  if(!_bpItems.length){ toastAlert('請先加入售價','warn'); return; }
   const prefix = G('bp-barcode-prefix')?.value || '7990341';
   // 分組：標準和三合一分開，但合在同一個列印視窗
   const standardItems = _bpItems.filter(x => x.format !== 'triple');
@@ -3520,7 +3653,7 @@ function printBarcodePrintList(){
 
 function openMixedLabelPrintWindow(standardItems, tripleItems, prefix){
   const w = window.open('', '_blank');
-  if(!w){ alert('請允許瀏覽器開啟新視窗'); return; }
+  if(!w){ toastAlert('請允許瀏覽器開啟新視窗','warn'); return; }
 
   // 標準格式資料
   const standardJson = JSON.stringify(standardItems.flatMap(({price,qty}) => {
@@ -3621,9 +3754,9 @@ function openMixedLabelPrintWindow(standardItems, tripleItems, prefix){
 }
 
 function openTripleLabelPrintWindow(priceQtyList, prefix){
-  if(!priceQtyList.length){ alert('沒有售價可列印'); return; }
+  if(!priceQtyList.length){ toastAlert('沒有售價可列印','warn'); return; }
   const w = window.open('', '_blank');
-  if(!w){ alert('請允許瀏覽器開啟新視窗'); return; }
+  if(!w){ toastAlert('請允許瀏覽器開啟新視窗','warn'); return; }
 
   // 三合一：每頁印同一售價3個
   const itemsJson = JSON.stringify(priceQtyList.flatMap(({price, qty}) => {
@@ -4271,7 +4404,7 @@ function printShipment(id){
 }
 function printVisibleShipments(){
   const ids=window._visibleShipmentIds||[];
-  if(!ids.length){alert('目前沒有可列印的出貨單（請確認篩選結果）');return;}
+  if(!ids.length){toastAlert('目前沒有可列印的出貨單（請確認篩選結果）','warn');return;}
   const pages=ids.map(id=>db.shipments.find(x=>x.id===id)).filter(Boolean)
     .map(s=>`<div style="page-break-after:always;">${buildShipmentHTML(s)}</div>`).join('');
   G('print-area').innerHTML=`<style>@page{size:14cm 24.1cm;margin:0.3cm;}</style>`+pages;
@@ -4331,7 +4464,7 @@ async function toggleBoxing(idx,cb){
       else if(db.orders[oidx].status==='re_picking')db.orders[oidx].status='re_boxing';
     }
   }
-  await Promise.all([saveData('orders'),saveData('meta')]);
+  await saveMultiple(['orders','meta']);
   renderOrders();
   const total=document.querySelectorAll('[id^="box-cb-"]').length;
   updateBoxingBtn(total);
@@ -4340,7 +4473,7 @@ async function confirmBoxing(){
   if(!_boxingOrderId)return;
   const o=db.orders.find(x=>x.id===_boxingOrderId);if(!o)return;
   if(o.editAlert&&!o.editAlert.confirmed){
-    alert('⚠️ 抄貨單有未確認的修改，請先確認修改後才能裝箱。');
+    toastAlert('⚠️ 抄貨單有未確認的修改，請先確認修改後才能裝箱。','warn');
     return;
   }
   const savedState=(db.pickingState||{})[_boxingOrderId]||{};
@@ -4380,7 +4513,7 @@ function exportShipmentCSV(){
     const cust=o?db.customers.find(x=>x.id===o.customerId):null;
     return {idx:i,id:s.id,label:(cust?cust.name:'未知')+' '+s.date};
   });
-  if(!rows.length){alert('尚無出貨單');return;}
+  if(!rows.length){toastAlert('尚無出貨單','warn');return;}
   // Build select options
   const sel=rows.map(r=>`<option value="${r.id}">${r.label}</option>`).join('');
   const div=document.createElement('div');
@@ -4785,7 +4918,7 @@ function openScanAdd(){
 
 async function openScanCamera(){
   if(!('BarcodeDetector' in window)){
-    const code=prompt('請手動輸入條碼：');
+    const code=await toastPrompt('請手動輸入條碼：');
     if(code) processScanAddBarcode(code);
     return;
   }
@@ -4796,7 +4929,7 @@ async function openScanCamera(){
     G('sa-scan-btns').style.display='none';
     G('sa-scan-active').style.display='block';
     G('sa-scan-status').textContent='對準條碼後按掃描';
-  }catch(e){alert('無法開啟相機：'+e.message);}
+  }catch(e){toastAlert('無法開啟相機：'+e.message,'error');}
 }
 
 async function doScanAddOnce(){
@@ -4824,7 +4957,7 @@ function stopScanAdd(){
 function processScanAddBarcode(code){
   const p=db.products.find(x=>x.barcode===code);
   if(!p){
-    alert('找不到條碼對應的商品：'+code);
+    toastAlert('找不到條碼對應的商品：'+code,'error');
     return;
   }
   loadScanAddProduct(p.id);
@@ -5062,9 +5195,9 @@ function onSaQtyInput(val){
 }
 
 function confirmScanAdd(){
-  if(!_saPid){alert('請先掃描商品');return;}
+  if(!_saPid){toastAlert('請先掃描商品','warn');return;}
   const price=parseFloat(G('sa-price').value);
-  if(!price||price<=0){alert('請輸入售價');return;}
+  if(!price||price<=0){toastAlert('請輸入售價','warn');return;}
   const p=db.products.find(x=>x.id===_saPid);if(!p)return;
   const chosenPack=_saPack==='box'?'盒裝':_saPack==='card'?'吊卡':null;
   const hasVariants=(p.variants||[]).length>0;
@@ -5103,7 +5236,7 @@ function confirmScanAdd(){
   if(hasVariants&&variantEntries.length>0){
     const sum=variantEntries.reduce((s,[,n])=>s+n,0);
     if(sum!==_saQty){
-      alert('種類數量加總（'+sum+'）必須等於商品總數量（'+_saQty+'）');
+      toastAlert('種類數量加總（'+sum+'）必須等於商品總數量（'+_saQty+'）','warn');
       return;
     }
     variantEntries.forEach(([v,n])=>{
@@ -5156,7 +5289,7 @@ function onSaBarcodeEnter(val){
   const hits=db.products.filter(x=>x.name.toLowerCase().includes(val.toLowerCase()));
   if(hits.length===1){selectSaProduct(hits[0].id);return;}
   if(hits.length>1){onSaInput(val);return;}
-  alert('找不到商品：'+val);
+  toastAlert('找不到商品：'+val,'error');
 }
 function selectSaProduct(pid){
   const input=G('sa-barcode-input');
@@ -5226,9 +5359,9 @@ document.addEventListener('click',function(e){
 });
 
 function openLabelPrintWindow(priceQtyList,prefix){
-  if(!priceQtyList.length){alert('沒有售價可列印');return;}
+  if(!priceQtyList.length){toastAlert('沒有售價可列印','warn');return;}
   const w=window.open('','_blank');
-  if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
+  if(!w){toastAlert('請允許瀏覽器開啟新視窗（彈出視窗）','warn');return;}
   const normalized=priceQtyList.map(it=>typeof it==='object'?it:{price:it,qty:2});
   const itemsJson=JSON.stringify(normalized.flatMap(({price,qty})=>{
     const barcode=getPriceBarcode(price,prefix);
@@ -5295,9 +5428,9 @@ function openLabelPrintWindow(priceQtyList,prefix){
 
 function showCustomCodeList(){
   const list=db.products.filter(p=>/^ASK\d{4}$/.test(p.barcode||'')).sort((a,b)=>a.barcode.localeCompare(b.barcode));
-  if(!list.length){alert('目前沒有自編條碼的商品');return;}
+  if(!list.length){toastAlert('目前沒有自編條碼的商品','warn');return;}
   const w=window.open('','_blank');
-  if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
+  if(!w){toastAlert('請允許瀏覽器開啟新視窗（彈出視窗）','warn');return;}
   const itemsJson=JSON.stringify(list.map(p=>({name:p.name,barcode:p.barcode,image:p.image||''})));
   let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>自編商品條碼清單 - 奧斯卡商行</title>';
   html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
@@ -5356,9 +5489,9 @@ function showCustomCodeList(){
 }
 function printCustomCodeLabels(){
   const list=window._customCodeProducts||[];
-  if(!list.length){alert('沒有自編條碼可列印');return;}
+  if(!list.length){toastAlert('沒有自編條碼可列印','warn');return;}
   const w=window.open('','_blank');
-  if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
+  if(!w){toastAlert('請允許瀏覽器開啟新視窗（彈出視窗）','warn');return;}
   const itemsJson=JSON.stringify(list.map(p=>({name:p.name,barcode:p.barcode})));
   let html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
   html+='<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
@@ -5428,7 +5561,9 @@ function exportBackup(){
   const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  const ts=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  const d=new Date();
+  const p=n=>String(n).padStart(2,'0');
+  const ts=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
   a.href=url;a.download='奧斯卡商行備份_'+ts+'.json';
   a.click();
   URL.revokeObjectURL(url);
@@ -5488,13 +5623,13 @@ function previewInvoiceFormat(){
   try{
     html=buildShipmentHTML(fakeShipment);
   }catch(e){
-    alert('預覽失敗：'+e.message);
+    toastAlert('預覽失敗：'+e.message,'error');
     db.customers=origCust;db.orders=origOrder;
     return;
   }
   db.customers=origCust;db.orders=origOrder;
   const w=window.open('','_blank');
-  if(!w){alert('請允許瀏覽器開啟新視窗（彈出視窗）');return;}
+  if(!w){toastAlert('請允許瀏覽器開啟新視窗（彈出視窗）','warn');return;}
   w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>格式預覽</title></head><body>'+html+'</body></html>');
   w.document.close();
 }
