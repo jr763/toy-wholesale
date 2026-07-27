@@ -1510,7 +1510,9 @@ async function saveData(section=null){
     return;
   }
   isSaving=true; setSyncStatus('loading','儲存中…');
+  const _t0=performance.now();
   const ok=await trySave(section);
+  console.log(`⏱️ saveData('${section||'全部'}') 花了 ${(performance.now()-_t0).toFixed(0)}ms，結果：${ok?'成功':'失敗'}`);
   if(ok){
     setSyncStatus('ok','已儲存・雲端同步');
     updateRestockBadge();
@@ -1543,7 +1545,14 @@ const _sectionLabels={orders:'抄貨單',products:'商品/庫存',customers:'客
 // silentSuccess：成功時不跳綠色 toast（給勾選清單這種頻繁自動存檔的情境用，避免一直跳通知），但失敗一律還是會提示
 async function saveMultiple(sections, {silentSuccess=false}={}){
   isSaving=true; setSyncStatus('loading','儲存中…');
-  const results=await Promise.all(sections.map(s=>trySave(s,3,true)));
+  const _t0=performance.now();
+  const results=await Promise.all(sections.map(async s=>{
+    const _ts=performance.now();
+    const r=await trySave(s,3,true);
+    console.log(`⏱️ saveMultiple → '${s}' 花了 ${(performance.now()-_ts).toFixed(0)}ms，結果：${r?'成功':'失敗'}`);
+    return r;
+  }));
+  console.log(`⏱️ saveMultiple([${sections.join(',')}]) 整體花了 ${(performance.now()-_t0).toFixed(0)}ms`);
   const allOk=results.every(r=>r===true);
   updateRestockBadge();
   isSaving=false;
