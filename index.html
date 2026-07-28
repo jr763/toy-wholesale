@@ -1397,9 +1397,12 @@ function autoBackup(){
     const now=Date.now();
     const backups=JSON.parse(localStorage.getItem('oscar_daily_backups')||'{}');
     backups[String(now)]=JSON.stringify({...db,backupTime:now});
-    // 只保留最近 2 小時內的備份
+    // 清掉：① 超過2小時的、② 舊格式殘留（key不是有效時間戳記，例如舊版用日期字串當key）
     const cutoff=now-LOCAL_BACKUP_KEEP_MS;
-    Object.keys(backups).forEach(k=>{ if(Number(k)<cutoff) delete backups[k]; });
+    Object.keys(backups).forEach(k=>{
+      const n=Number(k);
+      if(!Number.isFinite(n)||n<cutoff) delete backups[k];
+    });
     localStorage.setItem('oscar_daily_backups',JSON.stringify(backups));
     console.log('自動備份完成：'+new Date(now).toLocaleString());
   }catch(e){console.warn('自動備份失敗：',e);}
@@ -1478,10 +1481,13 @@ async function migratePickingBoxingState(){
 async function restoreFromLocalBackup(){
   try{
     const backups=JSON.parse(localStorage.getItem('oscar_daily_backups')||'{}');
-    // 順便清掉過期的（例如久沒開頁面，setInterval沒機會跑到）
+    // 順便清掉：過期的、跟舊格式殘留的（例如久沒開頁面，setInterval沒機會跑到）
     const cutoff=Date.now()-LOCAL_BACKUP_KEEP_MS;
     let changed=false;
-    Object.keys(backups).forEach(k=>{ if(Number(k)<cutoff){delete backups[k];changed=true;} });
+    Object.keys(backups).forEach(k=>{
+      const n=Number(k);
+      if(!Number.isFinite(n)||n<cutoff){delete backups[k];changed=true;}
+    });
     if(changed) localStorage.setItem('oscar_daily_backups',JSON.stringify(backups));
     const keys=Object.keys(backups).sort().reverse();
     if(!keys.length){toastAlert('找不到本地備份（只保留最近2小時內的）','error');return;}
