@@ -2548,8 +2548,12 @@ function getLastPrice(productId, customerId){
   }
   return null;
 }
-function selectOrderProduct(pid){
+async function selectOrderProduct(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
+  if(p.discontinued){toastAlert(`「${p.name}」已標記停售，無法加入抄貨單（目前庫存：${p.currentStock??0}）`,'error');return;}
+  if(p.outOfStock){
+    if(!await toastConfirm(`「${p.name}」目前缺貨中（供應商還沒有貨，目前庫存：${p.currentStock??0}）。\n\n確定還是要加入這張抄貨單嗎？`))return;
+  }
   window._oSelPid=pid;
   G('o-selected-name').textContent=`${p.name}${p.location?' ['+p.location+']':''}`;
   const custId=G('o-cust').value;
@@ -2573,7 +2577,7 @@ function onOrderSearch(){
   const hits=db.products.filter(p=>p.name.toLowerCase().includes(q)).slice(0,8);
   res.innerHTML=hits.map(p=>`
     <div onclick="selectOrderProduct('${p.id}')" style="padding:7px 10px;cursor:pointer;border-radius:6px;background:var(--surface);margin-bottom:3px;border:1px solid var(--border);font-size:13px;display:flex;justify-content:space-between;align-items:center;">
-      <span><strong>${p.name}</strong> <span style="color:var(--text3);font-size:11px;">${p.location||''}</span></span>
+      <span><strong>${p.name}</strong> <span style="color:var(--text3);font-size:11px;">${p.location||''}</span>${p.discontinued?' <span class="badge badge-red">停售</span>':p.outOfStock?' <span class="badge badge-red">缺貨</span>':''}</span>
       <span class="mono" style="color:var(--text3);">${p.barcode||''}</span>
     </div>`).join('')||'<div style="padding:8px;color:var(--text3);font-size:13px;">找不到商品</div>';
 }
@@ -5320,8 +5324,12 @@ function processScanAddBarcode(code){
 
 let _saVariantQtys={}; // {variantName: qty}
 
-function loadScanAddProduct(pid){
+async function loadScanAddProduct(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
+  if(p.discontinued){toastAlert(`「${p.name}」已標記停售，無法加入抄貨單（目前庫存：${p.currentStock??0}）`,'error');return;}
+  if(p.outOfStock){
+    if(!await toastConfirm(`「${p.name}」目前缺貨中（供應商還沒有貨，目前庫存：${p.currentStock??0}）。\n\n確定還是要加入這張抄貨單嗎？`))return;
+  }
   _saPid=pid;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};_saVariantSelected={};
   G('sa-prod-name').textContent=p.name;
   if(G('sa-prod-cost'))G('sa-prod-cost').textContent='成本：$'+fmt(p.cost||0);
