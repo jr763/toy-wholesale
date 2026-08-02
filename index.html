@@ -670,7 +670,13 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
         <div class="form-group"><label>成本（元）</label><input id="p-cost" type="number" placeholder="0" min="0"></div>
         <div class="form-group"><label>現有庫存 <span class="req">*</span></label><input id="p-stock" type="number" placeholder="0" min="0"></div>
         <div class="form-group"><label>安全庫存量 <span class="req">*</span></label><input id="p-safety" type="number" placeholder="0" min="0"></div>
-        <div class="form-group"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="p-oos" type="checkbox" style="width:16px;height:16px;"> 缺貨（倉庫沒貨，暫停補貨提醒）</label></div>
+        <div class="form-group"><label>商品狀態</label>
+          <select id="p-status">
+            <option value="">正常</option>
+            <option value="oos">缺貨中（供應商會再進，暫停補貨提醒）</option>
+            <option value="disc">已停售（不會再進，從補貨清單移除）</option>
+          </select>
+        </div>
 
         <div class="form-group"><label>存放地點 <span class="req">*</span></label>
           <select id="p-loc"><option value="地下室">地下室</option><option value="一樓">一樓</option><option value="樓梯間">樓梯間</option><option value="二樓">二樓</option><option value="其他">其他</option></select>
@@ -2132,7 +2138,7 @@ async function deleteCalVisit(){
 }
 
 function renderDashboard(){
-  const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock&&!p.outOfStock).length;
+  const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock&&!p.outOfStock&&!p.discontinued).length;
 
   G('dash-alert').innerHTML=low?`<div style="background:var(--red-bg);border:1.5px solid #f5c6c2;border-radius:8px;padding:11px 15px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <span>⚠️ 有 <strong>${low}</strong> 項商品庫存不足</span>
@@ -2146,7 +2152,7 @@ function renderDashboard(){
 
 }
 function updateRestockBadge(){
-  const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock&&!p.outOfStock).length;
+  const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock&&!p.outOfStock&&!p.discontinued).length;
   const rt=G('nav-restock');if(rt){rt.textContent='補貨';rt.innerHTML=low?'補貨 <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--orange);vertical-align:middle;"></span>':'補貨';}
 }
 
@@ -2177,7 +2183,7 @@ function openProductModal(){
   editProdId=null; editingVariants=[];
   G('p-modal-title').textContent='新增商品';
   ['p-name','p-barcode','p-cost','p-stock','p-safety','p-batch'].forEach(id=>{if(G(id))G(id).value='';});
-  if(G('p-oos'))G('p-oos').checked=false;
+  if(G('p-status'))G('p-status').value='';
   if(G('p-loc')) G('p-loc').value='一樓';
   document.querySelectorAll('input[name="p-insp"]')[0].checked=true;
   G('p-batch-wrap').style.display='none';
@@ -2189,7 +2195,7 @@ function editProduct(id){
   G('p-modal-title').textContent='編輯商品';
   G('p-name').value=p.name; G('p-barcode').value=p.barcode||''; G('p-cost').value=p.cost||'';
   G('p-stock').value=p.currentStock??''; G('p-safety').value=p.safetyStock||''; 
-  if(G('p-oos'))G('p-oos').checked=!!p.outOfStock;
+  if(G('p-status'))G('p-status').value=p.discontinued?'disc':(p.outOfStock?'oos':'');
   if(G('p-loc')) G('p-loc').value=p.location||'一樓';
 
   const hasM=p.hasInspectionMark!==false;
@@ -2231,9 +2237,11 @@ async function saveProduct(){
   if(!hasM&&!V('p-batch')){toastAlert('請輸入商檢批號','warn');return;}
   isSaving=true;
   const btn=G('btn-save-p');btn.disabled=true;btn.textContent='儲存中…';
+  const pStatus=G('p-status')?.value||'';
   const data={name,barcode,cost:parseFloat(G('p-cost').value)||0,currentStock:parseFloat(G('p-stock').value)||0,
     safetyStock:parseFloat(G('p-safety').value)||0,
-    outOfStock:!!(G('p-oos')&&G('p-oos').checked),
+    outOfStock:pStatus==='oos',
+    discontinued:pStatus==='disc',
     location:G('p-loc')?.value||'一樓',
     hasInspectionMark:hasM,inspectionBatchNo:hasM?'':V('p-batch'),
     variants:[...(window._productVariants||[])],
@@ -3010,11 +3018,13 @@ function viewOrder(id){
       <tbody>${displayItems.map((i,di)=>{const idx=displayOffset[di];
         const prod=db.products.find(x=>x.id===i.productId);
         const isOOS=!!(prod&&prod.outOfStock);
-        return `<tr id="pick-row-${idx}" style="transition:opacity .2s;${isOOS?'background:var(--bg2);':''}">
-        <td><input type="checkbox" id="pick-cb-${idx}" onchange="togglePicked(${idx},this)" ${isOOS?'disabled title="此商品已標記缺貨，無法撿貨"':''}></td>
+        const isDisc=!!(prod&&prod.discontinued);
+        const isBlocked=isOOS||isDisc;
+        return `<tr id="pick-row-${idx}" style="transition:opacity .2s;${isBlocked?'background:var(--bg2);':''}">
+        <td><input type="checkbox" id="pick-cb-${idx}" onchange="togglePicked(${idx},this)" ${isBlocked?`disabled title="此商品已標記${isDisc?'停售':'缺貨'}，無法撿貨"`:''}></td>
         <td><span class="badge badge-blue">${i.location||'—'}</span></td>
         <td>${i.hasInspMark?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'無批號')+'</span>'}</td>
-        <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}${isOOS?` <span class="badge badge-red">缺貨</span>`:''}</td>
+        <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}${isDisc?` <span class="badge badge-red">停售</span>`:isOOS?` <span class="badge badge-red">缺貨</span>`:''}</td>
         <td>${i.variant?i.variant:(i.excludeVariants&&i.excludeVariants.length?`<span style="color:var(--orange);">任選（不含：${i.excludeVariants.join('、')}）</span>`:'—')}</td>
         <td>${i.qty}</td>
         <td>$${fmt(i.price)}</td>
@@ -3410,8 +3420,11 @@ function renderReturns(){
 
 // ── RESTOCK 補貨 ──────────────────────────────
 function sendRestockNotify(){
-  const rows=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock)
-    .sort((a,b)=>(a.currentStock??0)-(b.currentStock??0));
+  const rows=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock&&!p.discontinued)
+    .sort((a,b)=>{
+      if(!!a.outOfStock!==!!b.outOfStock) return a.outOfStock?1:-1;
+      return (a.currentStock??0)-(b.currentStock??0);
+    });
   if(!rows.length){toastAlert('目前沒有需要補貨的商品','warn');return;}
   const list=rows.map(p=>(p.outOfStock?'⛔ ':'❌ ')+p.name+(p.outOfStock?'（缺貨中）':'')+'，庫存：'+(p.currentStock??0)+'，建議補：'+(p.safetyStock-(p.currentStock??0))).join('\n');
   const msg='📦 補貨通知，共 '+rows.length+' 項商品需補貨\n'+list;
@@ -3420,8 +3433,11 @@ function sendRestockNotify(){
 }
 function renderRestock(){
   const list=G('restock-list');if(!list)return;
-  const rows=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock)
-    .sort((a,b)=>(a.currentStock??0)-(b.currentStock??0));
+  const rows=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock&&!p.discontinued)
+    .sort((a,b)=>{
+      if(!!a.outOfStock!==!!b.outOfStock) return a.outOfStock?1:-1;
+      return (a.currentStock??0)-(b.currentStock??0);
+    });
   if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✅</div>所有商品庫存正常，無需補貨</div>';return;}
   list.innerHTML=rows.map(p=>{
     const urgent=(p.currentStock??0)<=0;
@@ -3439,7 +3455,12 @@ function renderRestock(){
         <div style="font-size:20px;font-weight:700;${urgent?'color:var(--red)':'color:var(--orange)'};">${p.currentStock??0} 件</div>
         <div style="font-size:12px;color:var(--text3);">安全量：${p.safetyStock}</div>
         <div style="font-size:12px;font-weight:600;${urgent?'color:var(--red)':'color:var(--orange)'};">建議補：${p.safetyStock-(p.currentStock??0)} 件</div>
-        <button class="btn btn-sm btn-secondary" style="margin-top:6px;" onclick="${oos?'unmarkOutOfStock':'markOutOfStock'}('${p.id}')" title="${oos?'倉庫已經有貨了':'倉庫沒貨、暫時補不了，標記後不列入庫存不足的統計數字'}">${oos?'取消缺貨':'缺貨'}</button>
+        <div class="btn-row" style="margin-top:6px;justify-content:flex-end;gap:6px;">
+          ${oos
+            ?`<button class="btn btn-sm btn-secondary" onclick="unmarkOutOfStock('${p.id}')" title="倉庫已經有貨了">取消缺貨</button>`
+            :`<button class="btn btn-sm btn-secondary" onclick="markOutOfStock('${p.id}')" title="倉庫沒貨、暫時補不了，標記後不列入庫存不足的統計數字">缺貨</button>
+              <button class="btn btn-sm btn-danger" onclick="markDiscontinued('${p.id}')" title="供應商不會再進了，從補貨清單移除">停售</button>`}
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -3448,15 +3469,24 @@ function renderRestock(){
 // 但不會列入「庫存不足」的統計數字（首頁紅字、導覽列角標）裡
 async function markOutOfStock(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
-  if(!await toastConfirm(`「${p.name}」標記為缺貨？\n\n標記後這項商品還是會顯示在補貨清單上，但不會列入「庫存不足」的統計數字。`))return;
   const pi=db.products.findIndex(x=>x.id===pid);
   db.products[pi].outOfStock=true;
+  db.products[pi].discontinued=false;
   await saveData('products');
   renderRestock();renderProducts();renderDashboard();
 }
 async function unmarkOutOfStock(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
   const pi=db.products.findIndex(x=>x.id===pid);
+  db.products[pi].outOfStock=false;
+  await saveData('products');
+  renderRestock();renderProducts();renderDashboard();
+}
+// 停售：供應商不會再進了，直接從補貨清單移除，不用再看到（跟商品編輯裡「商品狀態」同一個欄位，之後想恢復要去那裡改）
+async function markDiscontinued(pid){
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  const pi=db.products.findIndex(x=>x.id===pid);
+  db.products[pi].discontinued=true;
   db.products[pi].outOfStock=false;
   await saveData('products');
   renderRestock();renderProducts();renderDashboard();
