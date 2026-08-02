@@ -4015,10 +4015,10 @@ function openMixedLabelPrintWindow(standardItems, tripleItems, prefix){
     .label .code{display:flex;justify-content:space-between;font-size:20px;font-family:monospace;margin-top:1px;line-height:1;}
     .label .price{display:flex;justify-content:space-between;font-size:25px;font-weight:450;margin-top:1px;line-height:1.5;}
     .triple-wrap{display:flex;flex-direction:column;width:100%;gap:0;}
-    .bc-item{display:flex;flex-direction:column;align-items:center;flex:1;}
+    .bc-item{display:flex;flex-direction:column;align-items:center;flex:1;width:100%;}
     .bc-item svg{display:block;width:48mm;height:8mm;}
-    .bc-item .code{font-size:8px;font-family:monospace;letter-spacing:1px;margin-top:1px;}
-    .bc-item .price{font-size:10px;font-weight:600;margin-top:1px;}
+    .bc-item .code{display:flex;justify-content:space-between;width:46mm;font-size:11px;font-weight:700;font-family:monospace;margin-top:1px;line-height:1;}
+    .bc-item .price{display:flex;justify-content:space-between;width:30mm;font-size:13px;font-weight:700;margin-top:1.5px;line-height:1.3;}
     .divider{border-top:0.5px dashed #ccc;width:90%;margin:1px auto;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
@@ -4056,9 +4056,9 @@ function openMixedLabelPrintWindow(standardItems, tripleItems, prefix){
         const bcItem=document.createElement('div');bcItem.className='bc-item';
         const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
         const code=document.createElement('div');code.className='code';
-        code.textContent=it.barcode;
+        it.barcode.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;code.appendChild(s);});
         const price=document.createElement('div');price.className='price';
-        price.textContent='單價 '+it.price+' 元';
+        ('單價 '+it.price+' 元').split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;price.appendChild(s);});
         bcItem.appendChild(svg);bcItem.appendChild(code);bcItem.appendChild(price);
         wrap.appendChild(bcItem);
         try{
@@ -4109,10 +4109,10 @@ function openTripleLabelPrintWindow(priceQtyList, prefix){
     }
     .label:last-child{page-break-after:avoid;}
     .triple-wrap{display:flex;flex-direction:column;width:100%;gap:0;}
-    .bc-item{display:flex;flex-direction:column;align-items:center;flex:1;}
+    .bc-item{display:flex;flex-direction:column;align-items:center;flex:1;width:100%;}
     .bc-item svg{display:block;width:48mm;height:8mm;}
-    .bc-item .code{font-size:8px;font-family:monospace;letter-spacing:1px;margin-top:1px;}
-    .bc-item .price{font-size:10px;font-weight:600;margin-top:1px;}
+    .bc-item .code{display:flex;justify-content:space-between;width:46mm;font-size:11px;font-weight:700;font-family:monospace;margin-top:1px;line-height:1;}
+    .bc-item .price{display:flex;justify-content:space-between;width:30mm;font-size:13px;font-weight:700;margin-top:1.5px;line-height:1.3;}
     .divider{border-top:0.5px dashed #ccc;width:90%;margin:1px auto;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
@@ -4131,9 +4131,9 @@ function openTripleLabelPrintWindow(priceQtyList, prefix){
         const bcItem=document.createElement('div');bcItem.className='bc-item';
         const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
         const code=document.createElement('div');code.className='code';
-        code.textContent=it.barcode;
+        it.barcode.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;code.appendChild(s);});
         const price=document.createElement('div');price.className='price';
-        price.textContent='單價 '+it.price+' 元';
+        ('單價 '+it.price+' 元').split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;price.appendChild(s);});
         bcItem.appendChild(svg);
         bcItem.appendChild(code);
         bcItem.appendChild(price);
