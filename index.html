@@ -286,32 +286,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     <div><h2>總覽</h2></div>
   </div>
   <div id="dash-alert"></div>
-  <!-- Calendar -->
-  <div class="card" style="margin-bottom:12px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <div style="font-size:14px;font-weight:700;">📅 行程日曆</div>
-      <span id="cal-toggle-icon" onclick="toggleCal()" style="font-size:13px;color:var(--text2);padding:2px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;user-select:none;">展開</span>
-    </div>
-    <div id="cal-body" style="display:none;margin-top:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();calPrev()">‹</button>
-        <div style="font-size:15px;font-weight:700;" id="cal-title"></div>
-        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();calNext()">›</button>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:12px;margin-bottom:4px;">
-        <div style="color:var(--red);font-weight:600;">日</div><div style="font-weight:600;">一</div><div style="font-weight:600;">二</div>
-        <div style="font-weight:600;">三</div><div style="font-weight:600;">四</div><div style="font-weight:600;">五</div>
-        <div style="font-weight:600;">六</div>
-      </div>
-      <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;"></div>
-      <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text2);">
-        <span><span style="display:inline-block;width:10px;height:10px;background:var(--orange);border-radius:50%;margin-right:3px;"></span>抄貨</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:50%;margin-right:3px;"></span>出貨</span>
-        <span style="font-size:11px;color:var(--red);">● 放假日</span>
-      <span style="font-size:11px;color:var(--blue);">● 已安排</span>
-      </div>
-    </div>
-  </div>
   <!-- 待處理修改 -->
   <div id="edit-alert-section"></div>
   <!-- 客戶進度 -->
@@ -696,6 +670,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
         <div class="form-group"><label>成本（元）</label><input id="p-cost" type="number" placeholder="0" min="0"></div>
         <div class="form-group"><label>現有庫存 <span class="req">*</span></label><input id="p-stock" type="number" placeholder="0" min="0"></div>
         <div class="form-group"><label>安全庫存量 <span class="req">*</span></label><input id="p-safety" type="number" placeholder="0" min="0"></div>
+        <div class="form-group"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="p-oos" type="checkbox" style="width:16px;height:16px;"> 缺貨（倉庫沒貨，暫停補貨提醒）</label></div>
 
         <div class="form-group"><label>存放地點 <span class="req">*</span></label>
           <select id="p-loc"><option value="地下室">地下室</option><option value="一樓">一樓</option><option value="樓梯間">樓梯間</option><option value="二樓">二樓</option><option value="其他">其他</option></select>
@@ -2157,7 +2132,7 @@ async function deleteCalVisit(){
 }
 
 function renderDashboard(){
-  const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock).length;
+  const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock&&!p.outOfStock).length;
 
   G('dash-alert').innerHTML=low?`<div style="background:var(--red-bg);border:1.5px solid #f5c6c2;border-radius:8px;padding:11px 15px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <span>⚠️ 有 <strong>${low}</strong> 項商品庫存不足</span>
@@ -2171,7 +2146,7 @@ function renderDashboard(){
 
 }
 function updateRestockBadge(){
-  const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock).length;
+  const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock&&!p.outOfStock).length;
   const rt=G('nav-restock');if(rt){rt.textContent='補貨';rt.innerHTML=low?'補貨 <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--orange);vertical-align:middle;"></span>':'補貨';}
 }
 
@@ -2202,6 +2177,7 @@ function openProductModal(){
   editProdId=null; editingVariants=[];
   G('p-modal-title').textContent='新增商品';
   ['p-name','p-barcode','p-cost','p-stock','p-safety','p-batch'].forEach(id=>{if(G(id))G(id).value='';});
+  if(G('p-oos'))G('p-oos').checked=false;
   if(G('p-loc')) G('p-loc').value='一樓';
   document.querySelectorAll('input[name="p-insp"]')[0].checked=true;
   G('p-batch-wrap').style.display='none';
@@ -2213,6 +2189,7 @@ function editProduct(id){
   G('p-modal-title').textContent='編輯商品';
   G('p-name').value=p.name; G('p-barcode').value=p.barcode||''; G('p-cost').value=p.cost||'';
   G('p-stock').value=p.currentStock??''; G('p-safety').value=p.safetyStock||''; 
+  if(G('p-oos'))G('p-oos').checked=!!p.outOfStock;
   if(G('p-loc')) G('p-loc').value=p.location||'一樓';
 
   const hasM=p.hasInspectionMark!==false;
@@ -2256,6 +2233,7 @@ async function saveProduct(){
   const btn=G('btn-save-p');btn.disabled=true;btn.textContent='儲存中…';
   const data={name,barcode,cost:parseFloat(G('p-cost').value)||0,currentStock:parseFloat(G('p-stock').value)||0,
     safetyStock:parseFloat(G('p-safety').value)||0,
+    outOfStock:!!(G('p-oos')&&G('p-oos').checked),
     location:G('p-loc')?.value||'一樓',
     hasInspectionMark:hasM,inspectionBatchNo:hasM?'':V('p-batch'),
     variants:[...(window._productVariants||[])],
@@ -3029,11 +3007,14 @@ function viewOrder(id){
     ${isPacked2?'<div style="font-size:12px;color:var(--orange);padding:6px 0;margin-bottom:6px;">⚠️ 以下為尚未補齊的商品</div>':''}
     <div class="table-wrap"><table>
       <thead><tr><th>✓</th><th>存放地點</th><th>商檢標</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
-      <tbody>${displayItems.map((i,di)=>{const idx=displayOffset[di];return `<tr id="pick-row-${idx}" style="transition:opacity .2s;">
-        <td><input type="checkbox" id="pick-cb-${idx}" onchange="togglePicked(${idx},this)"></td>
+      <tbody>${displayItems.map((i,di)=>{const idx=displayOffset[di];
+        const prod=db.products.find(x=>x.id===i.productId);
+        const isOOS=!!(prod&&prod.outOfStock);
+        return `<tr id="pick-row-${idx}" style="transition:opacity .2s;${isOOS?'background:var(--bg2);':''}">
+        <td><input type="checkbox" id="pick-cb-${idx}" onchange="togglePicked(${idx},this)" ${isOOS?'disabled title="此商品已標記缺貨，無法撿貨"':''}></td>
         <td><span class="badge badge-blue">${i.location||'—'}</span></td>
         <td>${i.hasInspMark?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'無批號')+'</span>'}</td>
-        <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}</td>
+        <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}${isOOS?` <span class="badge badge-red">缺貨</span>`:''}</td>
         <td>${i.variant?i.variant:(i.excludeVariants&&i.excludeVariants.length?`<span style="color:var(--orange);">任選（不含：${i.excludeVariants.join('、')}）</span>`:'—')}</td>
         <td>${i.qty}</td>
         <td>$${fmt(i.price)}</td>
@@ -3432,7 +3413,7 @@ function sendRestockNotify(){
   const rows=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock)
     .sort((a,b)=>(a.currentStock??0)-(b.currentStock??0));
   if(!rows.length){toastAlert('目前沒有需要補貨的商品','warn');return;}
-  const list=rows.map(p=>'❌ '+p.name+'，庫存：'+(p.currentStock??0)+'，建議補：'+(p.safetyStock-(p.currentStock??0))).join('\n');
+  const list=rows.map(p=>(p.outOfStock?'⛔ ':'❌ ')+p.name+(p.outOfStock?'（缺貨中）':'')+'，庫存：'+(p.currentStock??0)+'，建議補：'+(p.safetyStock-(p.currentStock??0))).join('\n');
   const msg='📦 補貨通知，共 '+rows.length+' 項商品需補貨\n'+list;
   sendLineNotify(msg);
   toastAlert('已發送補貨通知！','success');
@@ -3444,11 +3425,12 @@ function renderRestock(){
   if(!rows.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">✅</div>所有商品庫存正常，無需補貨</div>';return;}
   list.innerHTML=rows.map(p=>{
     const urgent=(p.currentStock??0)<=0;
-    return `<div class="restock-card ${urgent?'':'warn'}" style="gap:12px;">
+    const oos=!!p.outOfStock;
+    return `<div class="restock-card ${urgent?'':'warn'}" style="gap:12px;${oos?'opacity:0.7;':''}">
       <div style="display:flex;align-items:center;gap:12px;flex:1;">
-        <input type="checkbox" style="width:20px;height:20px;flex-shrink:0;cursor:pointer;" onchange="onRestockCheck('${p.id}',this)" title="打勾後輸入補貨數量">
+        <input type="checkbox" style="width:20px;height:20px;flex-shrink:0;cursor:pointer;" onchange="onRestockCheck('${p.id}',this)" title="打勾後輸入補貨數量" ${oos?'disabled':''}>
         <div>
-          <div style="font-weight:700;font-size:14px;">${p.name}</div>
+          <div style="font-weight:700;font-size:14px;">${p.name}${oos?' <span class="badge badge-red">缺貨中</span>':''}</div>
           <div style="font-size:12px;color:var(--text2);">條碼：${p.barcode||'—'} ｜ 存放：${p.location||'—'}</div>
           ${(p.variants||[]).length?`<div style="font-size:12px;color:var(--text3);">種類：${p.variants.join('、')}</div>`:''}
         </div>
@@ -3457,9 +3439,27 @@ function renderRestock(){
         <div style="font-size:20px;font-weight:700;${urgent?'color:var(--red)':'color:var(--orange)'};">${p.currentStock??0} 件</div>
         <div style="font-size:12px;color:var(--text3);">安全量：${p.safetyStock}</div>
         <div style="font-size:12px;font-weight:600;${urgent?'color:var(--red)':'color:var(--orange)'};">建議補：${p.safetyStock-(p.currentStock??0)} 件</div>
+        <button class="btn btn-sm btn-secondary" style="margin-top:6px;" onclick="${oos?'unmarkOutOfStock':'markOutOfStock'}('${p.id}')" title="${oos?'倉庫已經有貨了':'倉庫沒貨、暫時補不了，標記後不列入庫存不足的統計數字'}">${oos?'取消缺貨':'缺貨'}</button>
       </div>
     </div>`;
   }).join('');
+}
+// 標記缺貨：倉庫沒貨、暫時補不了。標記後仍會顯示在這份補貨清單上（提醒你要找貨源），
+// 但不會列入「庫存不足」的統計數字（首頁紅字、導覽列角標）裡
+async function markOutOfStock(pid){
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  if(!await toastConfirm(`「${p.name}」標記為缺貨？\n\n標記後這項商品還是會顯示在補貨清單上，但不會列入「庫存不足」的統計數字。`))return;
+  const pi=db.products.findIndex(x=>x.id===pid);
+  db.products[pi].outOfStock=true;
+  await saveData('products');
+  renderRestock();renderProducts();renderDashboard();
+}
+async function unmarkOutOfStock(pid){
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  const pi=db.products.findIndex(x=>x.id===pid);
+  db.products[pi].outOfStock=false;
+  await saveData('products');
+  renderRestock();renderProducts();renderDashboard();
 }
 async function onRestockCheck(pid, cb){
   if(!cb.checked)return;
@@ -4540,7 +4540,7 @@ function buildFormatC(s,cust,o){
     <div class="ship-print-page" style="font-family:'標楷體','DFKai-SB',serif;width:13.7cm;font-size:16px;margin:0 auto;">
       ${shipHeaderHTML(cust,dateStr,addrRight,dateRight)}
       <table style="width:13.7cm;border-collapse:collapse;table-layout:fixed;">
-        <colgroup><col style="width:7.5%">   <col style="width:21%">  <col style="width:35%">  <col style="width:8.5%">   <col style="width:8%">  <col style="width:10.5%">  <col style="width:10%">  </colgroup>
+        <colgroup><col style="width:7%">   <col style="width:20%">  <col style="width:38%">  <col style="width:8%">   <col style="width:8%">  <col style="width:10.5%">  <col style="width:8.5%">  </colgroup>
         <thead><tr>
           <th style="border:1px solid #000;padding:3px 1px;text-align:center;font-size:15px;white-space:nowrap;">廠編</th>
           <th style="border:1px solid #000;padding:3px;text-align:center;font-size:16px;">進貨單號</th>
