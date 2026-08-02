@@ -347,7 +347,14 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
       <button class="btn btn-primary" onclick="openProductModal()">＋ 新增商品</button>
     </div>
   </div>
-  <div class="search-bar"><input id="product-search" placeholder="搜尋商品名稱或條碼…" oninput="renderProducts()"></div>
+  <div class="search-bar" style="display:flex;gap:8px;align-items:center;">
+    <input id="product-search" placeholder="搜尋商品名稱或條碼…" oninput="renderProducts()" style="flex:1;">
+    <select id="product-status-filter" onchange="renderProducts()" style="flex:0 0 auto;width:auto;">
+      <option value="">全部狀態</option>
+      <option value="oos">缺貨中</option>
+      <option value="disc">已停售</option>
+    </select>
+  </div>
   <div class="table-wrap"><table class="rcard">
     <thead><tr><th>商品圖片</th><th>商品名稱</th><th>EAN條碼</th><th>庫存</th><th>商標</th><th>存放地點</th><th></th></tr></thead>
     <tbody id="product-table"></tbody>
@@ -2274,7 +2281,13 @@ async function deleteProduct(id){
 }
 function renderProducts(){
   const q=(G('product-search')?.value||'').toLowerCase();
-  const rows=db.products.filter(p=>!q||p.name.toLowerCase().includes(q)||(p.barcode||'').includes(q));
+  const statusFilter=G('product-status-filter')?.value||'';
+  const rows=db.products.filter(p=>{
+    if(q&&!p.name.toLowerCase().includes(q)&&!(p.barcode||'').includes(q))return false;
+    if(statusFilter==='oos'&&!p.outOfStock)return false;
+    if(statusFilter==='disc'&&!p.discontinued)return false;
+    return true;
+  });
   const tb=G('product-table');if(!tb)return;
   if(!rows.length){tb.innerHTML=`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📦</div>尚無商品</div></td></tr>`;return;}
   tb.innerHTML=rows.map(p=>{
@@ -2286,7 +2299,7 @@ function renderProducts(){
     const img=p.image?`<img src="${p.image}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:zoom-in;" onclick="openLightbox(this.src)">`:`<div style="width:40px;height:40px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:16px;">📦</div>`;
     return `<tr>
       <td data-label="圖片">${img}</td>
-      <td data-label="商品名稱"><strong>${p.name}</strong></td>
+      <td data-label="商品名稱"><strong>${p.name}</strong>${p.discontinued?' <span class="badge badge-red">停售</span>':p.outOfStock?' <span class="badge badge-red">缺貨中</span>':''}</td>
       <td data-label="EAN條碼" class="mono">${p.barcode||'—'}</td>
       <td data-label="庫存" class="${sc}">${s}</td>
       <td data-label="商標">${insp}</td>
@@ -2550,8 +2563,13 @@ function getLastPrice(productId, customerId){
 }
 async function selectOrderProduct(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
-  if(p.discontinued){toastAlert(`「${p.name}」已標記停售，無法加入抄貨單（目前庫存：${p.currentStock??0}）`,'error');return;}
-  if(p.outOfStock){
+  if(p.discontinued){
+    const stk=p.currentStock??0;
+    const msg=stk>0
+      ?`「${p.name}」已停售（不會再進貨），僅剩庫存 ${stk} 件，賣完就沒了。`
+      :`「${p.name}」已停售（不會再進貨），目前庫存為 0。`;
+    if(!await toastConfirm(`${msg}\n\n確定要加入這張抄貨單嗎？`))return;
+  } else if(p.outOfStock){
     if(!await toastConfirm(`「${p.name}」目前缺貨中（供應商還沒有貨，目前庫存：${p.currentStock??0}）。\n\n確定還是要加入這張抄貨單嗎？`))return;
   }
   window._oSelPid=pid;
@@ -3023,9 +3041,10 @@ function viewOrder(id){
         const prod=db.products.find(x=>x.id===i.productId);
         const isOOS=!!(prod&&prod.outOfStock);
         const isDisc=!!(prod&&prod.discontinued);
-        const isBlocked=isOOS||isDisc;
+        const noStock=(prod?.currentStock??0)<=0;
+        const isBlocked=(isOOS||isDisc)&&noStock; // 有標記但庫存還夠，還是可以正常撿貨；真的沒庫存才鎖住
         return `<tr id="pick-row-${idx}" style="transition:opacity .2s;${isBlocked?'background:var(--bg2);':''}">
-        <td><input type="checkbox" id="pick-cb-${idx}" onchange="togglePicked(${idx},this)" ${isBlocked?`disabled title="此商品已標記${isDisc?'停售':'缺貨'}，無法撿貨"`:''}></td>
+        <td><input type="checkbox" id="pick-cb-${idx}" onchange="togglePicked(${idx},this)" ${isBlocked?`disabled title="此商品已標記${isDisc?'停售':'缺貨'}且庫存為0，無法撿貨"`:''}></td>
         <td><span class="badge badge-blue">${i.location||'—'}</span></td>
         <td>${i.hasInspMark?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'無批號')+'</span>'}</td>
         <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}${isDisc?` <span class="badge badge-red">停售</span>`:isOOS?` <span class="badge badge-red">缺貨</span>`:''}</td>
@@ -5326,8 +5345,13 @@ let _saVariantQtys={}; // {variantName: qty}
 
 async function loadScanAddProduct(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
-  if(p.discontinued){toastAlert(`「${p.name}」已標記停售，無法加入抄貨單（目前庫存：${p.currentStock??0}）`,'error');return;}
-  if(p.outOfStock){
+  if(p.discontinued){
+    const stk=p.currentStock??0;
+    const msg=stk>0
+      ?`「${p.name}」已停售（不會再進貨），僅剩庫存 ${stk} 件，賣完就沒了。`
+      :`「${p.name}」已停售（不會再進貨），目前庫存為 0。`;
+    if(!await toastConfirm(`${msg}\n\n確定要加入這張抄貨單嗎？`))return;
+  } else if(p.outOfStock){
     if(!await toastConfirm(`「${p.name}」目前缺貨中（供應商還沒有貨，目前庫存：${p.currentStock??0}）。\n\n確定還是要加入這張抄貨單嗎？`))return;
   }
   _saPid=pid;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};_saVariantSelected={};
