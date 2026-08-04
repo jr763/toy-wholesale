@@ -460,7 +460,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
         <label>格式</label>
         <select id="bp-format">
           <option value="standard">標準（含奧斯卡）</option>
-          <option value="triple">三合一（無奧斯卡）</option>
         </select>
       </div>
       <button class="btn btn-primary" onclick="addBarcodePrintItem()" style="align-self:flex-end;">＋ 加入</button>
@@ -1220,10 +1219,8 @@ async function loadData(btn=false){
   setSyncStatus('loading','載入中…');
   try{
     const collSections=['products','customers','orders','shipments','returns'];
-    const keyedSections=['pickingState','boxingState'];
-    const [collSnaps,keyedSnaps,metaSnap]=await Promise.all([
+    const [collSnaps,metaSnap]=await Promise.all([
       Promise.all(collSections.map(s=>fsdb.collection(s).get({source:'server'}))),
-      Promise.all(keyedSections.map(s=>fsdb.collection(s).get({source:'server'}))),
       fsdb.collection('sections').doc('meta').get({source:'server'})
     ]);
     collSnaps.forEach((snap,i)=>{
@@ -1238,18 +1235,13 @@ async function loadData(btn=false){
       db[key]=arr;
       _lastSyncedSnapshot[key]=JSON.parse(JSON.stringify(arr));
     });
-    keyedSnaps.forEach((snap,i)=>{
-      const key=keyedSections[i];
-      const obj={};
-      _lastItemUpdatedAt[key]={};
-      snap.forEach(doc=>{
-        const data=doc.data();
-        obj[doc.id]=data.state;
-        _lastItemUpdatedAt[key][doc.id]=data.updatedAt||0;
-      });
-      db[key]=obj;
-      _lastSyncedSnapshot[key]=JSON.parse(JSON.stringify(obj));
-    });
+    // pickingState/boxingState 不整包載入了，改成打開撿貨/裝箱視窗時才個別抓那張訂單的（見 ensureOrderStateLoaded）
+    db.pickingState=db.pickingState||{};
+    db.boxingState=db.boxingState||{};
+    _lastSyncedSnapshot.pickingState=_lastSyncedSnapshot.pickingState||{};
+    _lastSyncedSnapshot.boxingState=_lastSyncedSnapshot.boxingState||{};
+    _lastItemUpdatedAt.pickingState=_lastItemUpdatedAt.pickingState||{};
+    _lastItemUpdatedAt.boxingState=_lastItemUpdatedAt.boxingState||{};
     if(metaSnap.exists){
       const data=metaSnap.data();
       _lastUpdatedAt['meta']=data.updatedAt||0;
@@ -1363,6 +1355,77 @@ async function _saveKeyedDiff(collectionName){
   return true;
 }
 async function savePickingState(){ await _saveKeyedDiff('pickingState'); }
+// 撿貨/裝箱記錄「用到才抓」：打開某張訂單的撿貨/裝箱視窗前呼叫，只抓那張訂單的一份文件，
+// 不會把全部訂單的記錄整包載入、也不會掛常駐監聽器佔用瀏覽器資源
+async function ensureOrderStateLoaded(orderId){
+  const needPicking=!db.pickingState||!(orderId in db.pickingState);
+  const needBoxing=!db.boxingState||!(orderId in db.boxingState);
+  if(!needPicking&&!needBoxing)return;
+  if(!db.pickingState)db.pickingState={};
+  if(!db.boxingState)db.boxingState={};
+  if(!_lastSyncedSnapshot.pickingState)_lastSyncedSnapshot.pickingState={};
+  if(!_lastSyncedSnapshot.boxingState)_lastSyncedSnapshot.boxingState={};
+  if(!_lastItemUpdatedAt.pickingState)_lastItemUpdatedAt.pickingState={};
+  if(!_lastItemUpdatedAt.boxingState)_lastItemUpdatedAt.boxingState={};
+  try{
+    const [pSnap,bSnap]=await Promise.all([
+      needPicking?fsdb.collection('pickingState').doc(orderId).get():Promise.resolve(null),
+      needBoxing?fsdb.collection('boxingState').doc(orderId).get():Promise.resolve(null)
+    ]);
+    if(pSnap){
+      const data=pSnap.exists?pSnap.data():null;
+      db.pickingState[orderId]=data?data.state||{}:{};
+      _lastSyncedSnapshot.pickingState[orderId]=JSON.parse(JSON.stringify(db.pickingState[orderId]));
+      _lastItemUpdatedAt.pickingState[orderId]=data?(data.updatedAt||0):0;
+    }
+    if(bSnap){
+      const data=bSnap.exists?bSnap.data():null;
+      db.boxingState[orderId]=data?data.state||{}:{};
+      _lastSyncedSnapshot.boxingState[orderId]=JSON.parse(JSON.stringify(db.boxingState[orderId]));
+      _lastItemUpdatedAt.boxingState[orderId]=data?(data.updatedAt||0):0;
+    }
+  }catch(e){
+    console.error('載入撿貨/裝箱記錄失敗：',e);
+    toastAlert('載入撿貨/裝箱記錄失敗，請檢查網路','error');
+  }
+}
+// 訂單完成後，撿貨/裝箱記錄就沒用了，直接從雲端跟本機記憶體清掉，避免資料無限累積
+async function cleanupOrderState(orderId){
+  try{
+    await Promise.all([
+      fsdb.collection('pickingState').doc(orderId).delete(),
+      fsdb.collection('boxingState').doc(orderId).delete()
+    ]);
+  }catch(e){ console.warn('清除撿貨/裝箱記錄失敗：',e); }
+  if(db.pickingState)delete db.pickingState[orderId];
+  if(db.boxingState)delete db.boxingState[orderId];
+  if(_lastSyncedSnapshot.pickingState)delete _lastSyncedSnapshot.pickingState[orderId];
+  if(_lastSyncedSnapshot.boxingState)delete _lastSyncedSnapshot.boxingState[orderId];
+  if(_lastItemUpdatedAt.pickingState)delete _lastItemUpdatedAt.pickingState[orderId];
+  if(_lastItemUpdatedAt.boxingState)delete _lastItemUpdatedAt.boxingState[orderId];
+}
+// 一次性補齊：撿貨/裝箱改成用到才抓之前，舊的「進行中」訂單沒有 hasMissingItems 欄位，
+// 「⚠ 撿貨(補)」提示暫時不會顯示。這個函式幫這些舊訂單補上正確的值，只需要在 Console 手動執行一次。
+async function backfillHasMissingItems(){
+  if(!await toastConfirm('即將檢查所有「進行中」的舊訂單，補上撿貨(補)提示需要的欄位。\n\n這只需要執行一次，確定要開始嗎？'))return;
+  const inFlightStatuses=['picked','boxing','packed','completed','re_boxing','mod_picked','mod_boxing','shipped'];
+  const targets=db.orders.filter(o=>inFlightStatuses.includes(o.status)&&o.hasMissingItems===undefined);
+  if(!targets.length){toastAlert('沒有需要補齊的訂單','success');return;}
+  let count=0;
+  for(const o of targets){
+    try{
+      const snap=await fsdb.collection('pickingState').doc(o.id).get();
+      const state=snap.exists?(snap.data().state||{}):{};
+      const missing=(o.items||[]).some((_,i)=>!state[i]);
+      const oidx=db.orders.findIndex(x=>x.id===o.id);
+      if(oidx>=0)db.orders[oidx].hasMissingItems=missing;
+      count++;
+    }catch(e){ console.warn('補齊失敗：',o.id,e); }
+  }
+  await saveData('orders');
+  renderOrders();
+  toastAlert(`補齊完成，共處理 ${count} 筆訂單`,'success');
+}
 async function saveBoxingState(){ await _saveKeyedDiff('boxingState'); }
 async function saveMeta(){
   const metaData={
@@ -1801,10 +1864,9 @@ const _loadingTimeoutId=setTimeout(()=>{
 },10000);
 // 分區監聽：現在改成監聽「整個子集合」，只處理真的有變動的那幾筆（新增/修改/刪除），不是整包重收
 const _sectionKeys=['products','customers','orders','shipments','returns'];
-const _keyedSectionKeys=['pickingState','boxingState'];
 let _initialLoadDone=false;
 let _firstSnapshotDone=0;
-const _totalListeners=_sectionKeys.length+_keyedSectionKeys.length+1; // +1 是 meta
+const _totalListeners=_sectionKeys.length+1; // +1 是 meta（pickingState/boxingState 改成用到才抓，不掛常駐監聽器）
 _sectionKeys.forEach(key=>{
   fsdb.collection(key).onSnapshot({includeMetadataChanges:true},snap=>{
     clearTimeout(_loadingTimeoutId);
@@ -1841,42 +1903,7 @@ _sectionKeys.forEach(key=>{
     }
   },err=>{ console.error('onSnapshot error ('+key+'):',err); });
 });
-// pickingState/boxingState：key是訂單ID的集合，逐筆比對套用，不整包覆蓋
-_keyedSectionKeys.forEach(key=>{
-  fsdb.collection(key).onSnapshot({includeMetadataChanges:true},snap=>{
-    clearTimeout(_loadingTimeoutId);
-    G('loading-overlay').style.display='none';
-    if(snap.metadata.fromCache){setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');}
-    else{setSyncStatus('ok','雲端同步・所有人共用');}
-    if(!isSaving){
-      if(!_lastItemUpdatedAt[key])_lastItemUpdatedAt[key]={};
-      if(!db[key])db[key]={};
-      snap.docChanges().forEach(change=>{
-        const id=change.doc.id;
-        if(change.type==='removed'){
-          delete db[key][id];
-          delete _lastItemUpdatedAt[key][id];
-          return;
-        }
-        const data=change.doc.data();
-        const ts=data.updatedAt||0;
-        if(ts>=(_lastItemUpdatedAt[key][id]||0)){
-          db[key][id]=data.state;
-          _lastItemUpdatedAt[key][id]=ts;
-        } else {
-          console.warn('略過較舊的快取資料（'+key+'/'+id+'），保留目前較新的資料');
-        }
-      });
-      _lastSyncedSnapshot[key]=JSON.parse(JSON.stringify(db[key]));
-    }
-    if(!_initialLoadDone){
-      _firstSnapshotDone++;
-      if(_firstSnapshotDone>=_totalListeners){_initialLoadDone=true;renderAll();}
-    } else if(!isSaving){
-      renderAll();
-    }
-  },err=>{ console.error('onSnapshot error ('+key+'):',err); });
-});
+// pickingState/boxingState：不再掛常駐監聽器，改成打開撿貨/裝箱視窗時才個別抓那張訂單的（見 ensureOrderStateLoaded）
 fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true},snap=>{
   if(snap.exists&&!isSaving){
     const data=snap.data();
@@ -2675,6 +2702,7 @@ async function saveOrder(status){
 
   // ── 編輯邏輯 ──────────────────────────────────
   if(isEdit&&oldOrder){
+    await ensureOrderStateLoaded(editOrderId); // 撿貨記錄用到才抓，編輯前一定要先確保載入，不然會誤判成「都還沒撿」
     const oldItems=oldItemsForStock;
     const savedState=(db.pickingState||{})[editOrderId]||{};
     const inPickFlow=['picking','picked','boxing','packed','mod_picking','mod_picked','mod_boxing'].includes(oldOrder.status);
@@ -2934,8 +2962,7 @@ function renderOrders(){
   list.innerHTML=rows.map(o=>{
     const c=db.customers.find(x=>x.id===o.customerId);
     const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
-    const oPickState=(db.pickingState||{})[o.id]||{};
-    const hasUnpicked=o.status!=='draft'&&(o.items||[]).some((_,i)=>!oPickState[i]);
+    const hasUnpicked=!!o.hasMissingItems;
     return `<div class="card" style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:7px;">
         <div>
@@ -2962,8 +2989,9 @@ function renderOrders(){
     </div>`;
   }).join('');
 }
-function viewOrderReadonly(id){
+async function viewOrderReadonly(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
+  await ensureOrderStateLoaded(id); // 撿貨記錄用到才抓
   const cust=db.customers.find(x=>x.id===o.customerId);
   const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
   G('od-title').textContent=cust?cust.name:'撿貨單';
@@ -2995,8 +3023,9 @@ function viewOrderReadonly(id){
   openModal('modal-order-detail');
   history.pushState({tab:'orders',orderId:id},'','#/orders/'+id);
 }
-function viewOrder(id){
+async function viewOrder(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
+  await ensureOrderStateLoaded(id); // 撿貨記錄用到才抓，不整包常駐
   // Auto-confirm editAlert when entering picking page
   if(o.editAlert&&!o.editAlert.confirmed){
     const oidx=db.orders.findIndex(x=>x.id===id);
@@ -3144,6 +3173,7 @@ async function markPacked(orderId){
     db.orders[idx].picked=true;
     if(db.orders[idx].status==='mod_picking')db.orders[idx].status='mod_picked';
     else db.orders[idx].status='picked';
+    db.orders[idx].hasMissingItems=missing.length>0;
   }
   await flushChecklistSave(); // 確保前面的撿貨勾選都已存檔，同時存入這次的狀態變更
   closeModal('modal-order-detail');
@@ -4001,11 +4031,9 @@ function renderBpList(){
     el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px;">尚未加入任何售價</div>';
     return;
   }
-  const fmtLabel = f => f==='triple'?'三合一':'標準';
   el.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th>格式</th><th>售價</th><th>數量</th><th></th></tr></thead>
+    <thead><tr><th>售價</th><th>數量</th><th></th></tr></thead>
     <tbody>${_bpItems.map((item,idx) => `<tr>
-      <td><span class="badge ${item.format==='triple'?'badge-blue':'badge-green'}">${fmtLabel(item.format)}</span></td>
       <td style="font-weight:700;">$${fmt(item.price)} 元</td>
       <td><input type="number" value="${item.qty}" min="1" style="width:70px;"
         onchange="_bpItems[${idx}].qty=parseInt(this.value)||1"></td>
@@ -4024,26 +4052,16 @@ async function clearBarcodePrintList(){
 function printBarcodePrintList(){
   if(!_bpItems.length){ toastAlert('請先加入售價','warn'); return; }
   const prefix = G('bp-barcode-prefix')?.value || '7990341';
-  // 分組：標準和三合一分開，但合在同一個列印視窗
-  const standardItems = _bpItems.filter(x => x.format !== 'triple');
-  const tripleItems = _bpItems.filter(x => x.format === 'triple');
-  openMixedLabelPrintWindow(standardItems, tripleItems, prefix);
+  openLabelPrintWindow(_bpItems, prefix);
 }
 
-function openMixedLabelPrintWindow(standardItems, tripleItems, prefix){
+function openLabelPrintWindow(items, prefix){
   const w = window.open('', '_blank');
   if(!w){ toastAlert('請允許瀏覽器開啟新視窗','warn'); return; }
 
-  // 標準格式資料
-  const standardJson = JSON.stringify(standardItems.flatMap(({price,qty}) => {
+  const itemsJson = JSON.stringify(items.flatMap(({price,qty}) => {
     const barcode = getPriceBarcode(price, prefix);
-    return Array(Math.max(1,qty||1)).fill(0).map(()=>({price,barcode,type:'standard'}));
-  }));
-
-  // 三合一格式資料
-  const tripleJson = JSON.stringify(tripleItems.flatMap(({price,qty}) => {
-    const barcode = getPriceBarcode(price, prefix);
-    return Array(Math.max(1,qty||1)).fill(0).map(()=>({price,barcode,type:'triple'}));
+    return Array(Math.max(1,qty||1)).fill(0).map(()=>({price,barcode}));
   }));
 
   let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
@@ -4067,21 +4085,12 @@ function openMixedLabelPrintWindow(standardItems, tripleItems, prefix){
     .label svg{display:block;width:50mm;height:30mm;}
     .label .code{display:flex;justify-content:space-between;font-size:20px;font-family:monospace;margin-top:1px;line-height:1;}
     .label .price{display:flex;justify-content:space-between;font-size:25px;font-weight:450;margin-top:1px;line-height:1.5;}
-    .triple-wrap{display:flex;flex-direction:column;width:100%;gap:0;}
-    .bc-item{display:flex;flex-direction:column;align-items:center;flex:1;width:100%;}
-    .bc-item svg{display:block;width:48mm;height:7mm;}
-    .bc-item .code{display:flex;justify-content:space-between;width:46mm;font-size:10px;font-weight:500;font-family:monospace;margin-top:0.5px;line-height:1;}
-    .bc-item .price{display:flex;justify-content:space-between;width:28mm;font-size:11px;font-weight:600;margin-top:1px;line-height:1.2;}
-    .divider{border-top:0.5px dashed #ccc;width:90%;margin:0.5px auto;}
   </style></head><body>
   <div class="sheet" id="sheet"></div>
   <scr` + `ipt>
-    const standardItems=${standardJson};
-    const tripleItems=${tripleJson};
+    const items=${itemsJson};
     const sheet=document.getElementById('sheet');
-
-    // 先印標準格式
-    standardItems.forEach(it=>{
+    items.forEach(it=>{
       const div=document.createElement('div');div.className='label';
       const brand=document.createElement('div');brand.className='line brand';
       '奧斯卡'.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;brand.appendChild(s);});
@@ -4099,32 +4108,6 @@ function openMixedLabelPrintWindow(standardItems, tripleItems, prefix){
         svg.style.width='50mm';svg.style.height='30mm';svg.style.display='block';
       }catch(e){console.error(e);}
     });
-
-    // 再印三合一格式
-    tripleItems.forEach(it=>{
-      const label=document.createElement('div');label.className='label';
-      const wrap=document.createElement('div');wrap.className='triple-wrap';
-      for(let i=0;i<3;i++){
-        if(i>0){const div=document.createElement('div');div.className='divider';wrap.appendChild(div);}
-        const bcItem=document.createElement('div');bcItem.className='bc-item';
-        const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-        const code=document.createElement('div');code.className='code';
-        it.barcode.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;code.appendChild(s);});
-        const price=document.createElement('div');price.className='price';
-        ('單價 '+it.price+' 元').split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;price.appendChild(s);});
-        bcItem.appendChild(svg);bcItem.appendChild(code);bcItem.appendChild(price);
-        wrap.appendChild(bcItem);
-        try{
-          JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:60,width:2});
-          svg.setAttribute('preserveAspectRatio','none');
-          svg.setAttribute('width','48mm');svg.setAttribute('height','7mm');
-          svg.style.width='48mm';svg.style.height='7mm';svg.style.display='block';
-        }catch(e){console.error(e);}
-      }
-      label.appendChild(wrap);
-      sheet.appendChild(label);
-    });
-
     window.onload=()=>setTimeout(()=>window.print(),400);
   </scr`+`ipt>
   </body></html>`;
@@ -4132,81 +4115,6 @@ function openMixedLabelPrintWindow(standardItems, tripleItems, prefix){
   w.document.close();
 }
 
-function openTripleLabelPrintWindow(priceQtyList, prefix){
-  if(!priceQtyList.length){ toastAlert('沒有售價可列印','warn'); return; }
-  const w = window.open('', '_blank');
-  if(!w){ toastAlert('請允許瀏覽器開啟新視窗','warn'); return; }
-
-  // 三合一：每頁印同一售價3個
-  const itemsJson = JSON.stringify(priceQtyList.flatMap(({price, qty}) => {
-    const barcode = getPriceBarcode(price, prefix);
-    // 每「qty」張標籤紙，每張3個條碼
-    return Array(Math.max(1, qty || 1)).fill(0).map(() => ({price, barcode}));
-  }));
-
-  let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印（三合一）</title>';
-  html += '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
-  html += `<style>
-    @page{size:55.5mm 45.7mm;margin:0;}
-    *{box-sizing:border-box;}
-    body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
-    .sheet{display:flex;flex-direction:column;width:55.5mm;}
-    .label{
-      width:57mm;height:48mm;
-      box-sizing:border-box;
-      padding:2mm 1mm;
-      display:flex;flex-direction:column;
-      align-items:center;justify-content:center;
-      overflow:hidden;margin:0;
-      page-break-after:always;
-    }
-    .label:last-child{page-break-after:avoid;}
-    .triple-wrap{display:flex;flex-direction:column;width:100%;gap:0;}
-    .bc-item{display:flex;flex-direction:column;align-items:center;flex:1;width:100%;}
-    .bc-item svg{display:block;width:48mm;height:7mm;}
-    .bc-item .code{display:flex;justify-content:space-between;width:46mm;font-size:10px;font-weight:500;font-family:monospace;margin-top:0.5px;line-height:1;}
-    .bc-item .price{display:flex;justify-content:space-between;width:28mm;font-size:11px;font-weight:600;margin-top:1px;line-height:1.2;}
-    .divider{border-top:0.5px dashed #ccc;width:90%;margin:0.5px auto;}
-  </style></head><body>
-  <div class="sheet" id="sheet"></div>
-  <scr` + `ipt>
-    const items=${itemsJson};
-    const sheet=document.getElementById('sheet');
-    items.forEach(it=>{
-      const label=document.createElement('div');label.className='label';
-      const wrap=document.createElement('div');wrap.className='triple-wrap';
-
-      for(let i=0;i<3;i++){
-        if(i>0){
-          const div=document.createElement('div');div.className='divider';
-          wrap.appendChild(div);
-        }
-        const bcItem=document.createElement('div');bcItem.className='bc-item';
-        const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-        const code=document.createElement('div');code.className='code';
-        it.barcode.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;code.appendChild(s);});
-        const price=document.createElement('div');price.className='price';
-        ('單價 '+it.price+' 元').split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;price.appendChild(s);});
-        bcItem.appendChild(svg);
-        bcItem.appendChild(code);
-        bcItem.appendChild(price);
-        wrap.appendChild(bcItem);
-        try{
-          JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:60,width:2});
-          svg.setAttribute('preserveAspectRatio','none');
-          svg.setAttribute('width','48mm');svg.setAttribute('height','7mm');
-          svg.style.width='48mm';svg.style.height='7mm';svg.style.display='block';
-        }catch(e){console.error(e);}
-      }
-      label.appendChild(wrap);
-      sheet.appendChild(label);
-    });
-    window.onload=()=>setTimeout(()=>window.print(),400);
-  </scr`+`ipt>
-  </body></html>`;
-  w.document.write(html);
-  w.document.close();
-}
 // ── END 條碼列印頁面 ──────────────────────────
 
 // ── 銷售分析 ──────────────────────────────────
@@ -4790,9 +4698,10 @@ function printVisibleShipments(){
   window.print();
 }
 
-function openBoxingModal(orderId){
+async function openBoxingModal(orderId){
   _boxingOrderId=orderId;
   const o=db.orders.find(x=>x.id===orderId);if(!o)return;
+  await ensureOrderStateLoaded(orderId); // 撿貨/裝箱記錄用到才抓，不整包常駐
   const cust=db.customers.find(x=>x.id===o.customerId);
   const savedState=(db.pickingState||{})[orderId]||{};
   const pickedItems=(o.items||[]).filter((_,i)=>savedState[i]);
@@ -4859,8 +4768,13 @@ async function confirmBoxing(){
   const idx=db.orders.findIndex(x=>x.id===_boxingOrderId);
   const wasRe=['re_boxing','re_picking'].includes(db.orders[idx]?.status);
   const isMod=['mod_boxing','mod_picked'].includes(db.orders[idx]?.status);
-  if(idx>=0)db.orders[idx].status=missing.length?(isMod?'packed':'packed'):'completed';
+  const isFullyDone=!missing.length;
+  if(idx>=0){
+    db.orders[idx].status=missing.length?(isMod?'packed':'packed'):'completed';
+    db.orders[idx].hasMissingItems=missing.length>0; // 記在訂單本身，列表才不用整包載入撿貨明細也能顯示「補撿貨」提示
+  }
   await flushChecklistSave(); // 確保前面的裝箱勾選都已存檔，同時存入這次的狀態變更
+  if(isFullyDone) await cleanupOrderState(_boxingOrderId); // 訂單真的完成了，撿貨/裝箱記錄沒用了，清掉
   closeModal('modal-boxing');
   renderDashboard();renderOrders();
 }
