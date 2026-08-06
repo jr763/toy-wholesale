@@ -1,72 +1,49 @@
-// sw.js — 讓網頁本身可以離線開啟（不只是資料離線）
-const CACHE_NAME = 'osc-app-v2';
-const ASSETS = [
-  './',
+// 奧斯卡管理系統 Service Worker
+// 策略：只要有網路，一律先去抓最新版本（跟平常開網頁一樣）；
+// 只有真的斷網的時候，才會用快取裡的舊版本頂著用。
+// 這樣「有沒有裝成PWA」在更新這件事上幾乎沒有差別，不會卡在舊版本。
+
+const CACHE_NAME = 'oscar-app-v1'; // 之後如果要強制清掉舊快取，改這個版本號就好
+const CORE_ASSETS = [
   './index.html',
-  'https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
-  'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
-  'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js'
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
-// 安裝時，先把網頁本身和所有用到的程式庫下載存起來
-self.addEventListener('install', (event) => {
+// 安裝階段：預先把核心檔案存進快取，並且立刻讓新版 Service Worker 生效，
+// 不用等使用者把分頁全部關掉才會換新版
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return Promise.allSettled(
-        ASSETS.map((url) => cache.add(url).catch(() => {}))
-      );
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(CORE_ASSETS)).catch(()=>{})
   );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+// 啟用階段：清掉舊版本留下的快取，並立刻接管所有分頁
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then((names) =>
-      Promise.all(
-        names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))
-      )
-    )
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// 策略：先試著向網路要新的，連不上網路就用本機快取的版本
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+// 抓取階段：網路優先，離線才用快取
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return; // 只處理讀取請求，存檔等動作不經過這裡
+
   event.respondWith(
     fetch(event.request)
-      .then((response) => {
-        // 拿到新版本就順手更新快取，下次離線時用最新的
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return response;
+      .then(res => {
+        // 拿到最新版本，順便更新快取，下次離線時才有東西可以用
+        const resClone = res.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, resClone)).catch(()=>{});
+        return res;
       })
-      .catch(() => caches.match(event.request).then((cached) => {
-        if (cached) return cached;
-        // 連網頁本身都沒快取到時，至少回傳首頁殼子
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-      }))
-  );
-});
-  if (event.request.method !== 'GET') return;
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // 拿到新版本就順手更新快取，下次離線時用最新的
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return response;
-      })
-      .catch(() => caches.match(event.request).then((cached) => {
-        if (cached) return cached;
-        // 連網頁本身都沒快取到時，至少回傳首頁殼子
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-      }))
+      .catch(() =>
+        // 網路連不上，才退回用快取裡的舊版本
+        caches.match(event.request).then(cached => cached || caches.match('./index.html'))
+      )
   );
 });

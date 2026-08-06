@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>奧斯卡管理系統</title>
 <link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#8b5e3c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="奧斯卡管理">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -5938,8 +5944,22 @@ function previewInvoiceFormat(){
 loadData();
 setTimeout(handleHashChange,200);
 // 註冊 Service Worker，讓網頁本身能離線開啟
+// 註冊 Service Worker，讓網頁本身能離線開啟；並在偵測到新版本時提示使用者
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('SW 註冊失敗：',err));
+  navigator.serviceWorker.register('./sw.js').then(reg=>{
+    reg.addEventListener('updatefound', () => {
+      const newWorker = reg.installing;
+      if(!newWorker) return;
+      newWorker.addEventListener('statechange', () => {
+        if(newWorker.state === 'activated' && navigator.serviceWorker.controller){
+          showToast('系統有新版本，重新整理即可套用','info',0,[
+            {label:'重新整理', onClick:()=>location.reload()},
+            {label:'稍後', onClick:()=>{}}
+          ]);
+        }
+      });
+    });
+  }).catch(err=>console.warn('SW 註冊失敗：',err));
 }
 </script>
 </body>
