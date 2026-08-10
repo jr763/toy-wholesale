@@ -16,6 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
 <style>
 :root{
   --bg:#f5f2ed;--surface:#fff;--surface2:#faf8f5;--border:#e0dbd2;
@@ -230,6 +231,20 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
   <p id="loading-text">載入雲端資料中…</p>
 </div>
 
+<div class="loading-overlay" id="login-overlay" style="display:none;">
+  <div style="background:var(--surface);border-radius:16px;padding:28px 24px;width:min(90vw,340px);box-shadow:0 8px 32px rgba(0,0,0,.25);">
+    <div style="text-align:center;font-size:18px;font-weight:700;margin-bottom:4px;">奧斯卡管理系統</div>
+    <div style="text-align:center;font-size:13px;color:var(--text3);margin-bottom:18px;">這台裝置登入一次之後就會記得你，不用每次都輸入</div>
+    <div class="form-group"><label>姓名</label><input id="login-name" placeholder="例如：小美" autocomplete="username"></div>
+    <div class="form-group"><label>密碼</label><input id="login-pw" type="password" placeholder="至少6碼" autocomplete="current-password"></div>
+    <div id="login-error" style="color:var(--red);font-size:12px;margin-bottom:6px;display:none;"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;" onclick="doLogin()">登入</button>
+    <div style="text-align:center;margin-top:10px;font-size:12px;">
+      還沒有帳號？<a href="javascript:void(0)" onclick="doRegister()" style="color:var(--blue);">用這個姓名密碼建立一個</a>
+    </div>
+  </div>
+</div>
+
 <div class="sync-bar">
   <span class="sync-dot" id="sync-dot"></span>
   <span id="sync-text">連線中…</span>
@@ -249,6 +264,11 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 <div id="side-menu" style="display:none;position:fixed;top:0;right:0;width:200px;height:100%;background:var(--surface);box-shadow:-4px 0 20px rgba(0,0,0,.15);z-index:200;padding-top:60px;">
   <button onclick="closeMenu()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">✕</button>
   <div style="padding:8px 0;">
+    <div class="side-menu-group">目前使用者</div>
+    <div style="padding:4px 20px 10px;font-size:13px;color:var(--text2);display:flex;justify-content:space-between;align-items:center;">
+      <span id="current-user-name">—</span>
+      <button class="btn btn-xs btn-secondary" onclick="doLogout();closeMenu()">登出</button>
+    </div>
     <div class="side-menu-group">管理</div>
     <div class="side-menu-item" onclick="switchTab('products',this);closeMenu()">📦 商品</div>
     <div class="side-menu-item" onclick="switchTab('customers',this);closeMenu()">👥 客戶</div>
@@ -259,8 +279,22 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     <div class="side-menu-group">分析與設定</div>
     <div class="side-menu-item" onclick="switchTab('analytics',this);closeMenu()">📊 銷售分析</div>
     <div class="side-menu-item" onclick="openTrashModal();closeMenu()">🗑️ 最近刪除</div>
+    <div class="side-menu-item" onclick="openActivityLogModal();closeMenu()">📋 異動紀錄</div>
     <div class="side-menu-item" onclick="exportBackup();closeMenu()">📥 匯出備份</div>
     <div class="side-menu-item" onclick="restoreFromLocalBackup();closeMenu()">🔄 從本地備份還原</div>
+  </div>
+</div>
+
+<!-- Activity Log Modal -->
+<div class="modal-overlay" id="modal-activity-log">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <h3>📋 異動紀錄（最近90天，共顯示最新100筆）</h3>
+      <button class="modal-close" onclick="closeModal('modal-activity-log')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="activity-log-list"></div>
+    </div>
   </div>
 </div>
 
@@ -393,6 +427,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     </div>
     <input type="date" id="order-filter-date" placeholder="日期篩選" oninput="renderOrders()" style="width:auto;">
     <button class="btn btn-secondary btn-sm" onclick="clearOrderFilter()">清除</button>
+    <button class="btn btn-secondary btn-sm" onclick="loadOlderData()">📅 載入更早資料</button>
   </div>
   <div id="orders-list"></div>
 </div>
@@ -486,6 +521,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 
 <div id="tab-analytics" class="page">
   <div class="page-header"><div><h2>銷售分析</h2></div></div>
+  <div id="analytics-loading-note" style="display:none;font-size:12px;color:var(--text3);margin-bottom:8px;">📊 正在載入完整歷史資料（銷售分析需要全部資料，跟其他頁面只載最近1個月不同）…</div>
 
   <!-- 📈 每月出貨金額趨勢 -->
   <div class="card" style="margin-bottom:16px;">
@@ -1112,6 +1148,107 @@ const fsdb = firebase.firestore();
 // try{ fsdb.enablePersistence({synchronizeTabs:false}).catch(err=>console.warn('離線快取無法啟用：',err.code)); }catch(e){}
 const DOC_REF = fsdb.collection('data').doc('main');
 
+// ── 登入系統 ──────────────────────────────────
+// 用姓名+密碼登入，內部轉成 Firebase Auth 的 email 格式（使用者不會感覺到有「email」這回事）。
+// Firebase Auth 預設會記住登入狀態（存在瀏覽器裡），這台裝置登入一次之後，不用每次都輸入。
+const nameToEmail = name => name.trim().toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]/g,'') + '@oscar-internal.local';
+let currentUserName = null;
+function getCurrentUserName(){ return currentUserName || localStorage.getItem('oscar_user_name') || '未知使用者'; }
+
+async function doLogin(){
+  const name = G('login-name').value.trim();
+  const pw = G('login-pw').value;
+  const errEl = G('login-error');
+  errEl.style.display = 'none';
+  if(!name || !pw){ errEl.textContent = '請輸入姓名和密碼'; errEl.style.display = 'block'; return; }
+  try{
+    await firebase.auth().signInWithEmailAndPassword(nameToEmail(name), pw);
+    currentUserName = name;
+    localStorage.setItem('oscar_user_name', name);
+  }catch(e){
+    errEl.textContent = e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found'
+      ? '姓名或密碼不對，或還沒有帳號（可以點下面建立一個）'
+      : '登入失敗：' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+async function doRegister(){
+  const name = G('login-name').value.trim();
+  const pw = G('login-pw').value;
+  const errEl = G('login-error');
+  errEl.style.display = 'none';
+  if(!name || !pw){ errEl.textContent = '請輸入姓名和密碼'; errEl.style.display = 'block'; return; }
+  if(pw.length < 6){ errEl.textContent = '密碼至少要6碼'; errEl.style.display = 'block'; return; }
+  try{
+    await firebase.auth().createUserWithEmailAndPassword(nameToEmail(name), pw);
+    currentUserName = name;
+    localStorage.setItem('oscar_user_name', name);
+  }catch(e){
+    errEl.textContent = e.code === 'auth/email-already-in-use'
+      ? '這個姓名已經有人用了，如果是你自己的帳號請直接按「登入」；如果撞名，密碼欄輸入完後姓名可以加個註記（例如：小美2）'
+      : '建立帳號失敗：' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+function doLogout(){
+  firebase.auth().signOut();
+  localStorage.removeItem('oscar_user_name');
+  location.reload();
+}
+
+// ── 操作記錄 ──────────────────────────────────
+// 記重要異動（刪除、狀態改變等），不記錄每一次微小的編輯，避免資料量爆炸
+// 失敗只在背景記一筆log，不會用toast打擾使用者（記錄本身不是關鍵操作，記錄失敗不該擋住正在做的事）
+async function logActivity(action, detail){
+  try{
+    await fsdb.collection('activityLog').add({
+      user: getCurrentUserName(),
+      action,
+      detail: detail || '',
+      time: Date.now()
+    });
+  }catch(e){ console.warn('操作記錄寫入失敗：', e); }
+}
+// 清掉90天前的記錄，避免無限累積（進「最近異動」畫面時順便執行一次，不用整天佔資源檢查）
+let _activityCleanupDone = false;
+async function cleanupOldActivityLog(){
+  if(_activityCleanupDone) return;
+  _activityCleanupDone = true;
+  try{
+    const cutoff = Date.now() - 90*24*60*60*1000;
+    const snap = await fsdb.collection('activityLog').where('time','<',cutoff).limit(500).get();
+    if(snap.empty) return;
+    const batch = fsdb.batch();
+    snap.forEach(doc=>batch.delete(doc.ref));
+    await batch.commit();
+  }catch(e){ console.warn('清理舊操作記錄失敗：', e); }
+}
+async function openActivityLogModal(){
+  cleanupOldActivityLog();
+  openModal('modal-activity-log');
+  const list = G('activity-log-list');
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">載入中…</div>';
+  try{
+    const snap = await fsdb.collection('activityLog').orderBy('time','desc').limit(100).get();
+    if(snap.empty){
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div>還沒有任何記錄</div>';
+      return;
+    }
+    list.innerHTML = snap.docs.map(doc=>{
+      const d = doc.data();
+      const t = new Date(d.time).toLocaleString();
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;">
+        <div style="display:flex;justify-content:space-between;color:var(--text3);font-size:11px;margin-bottom:2px;">
+          <span>${d.user||'未知使用者'}</span><span>${t}</span>
+        </div>
+        <div><strong>${d.action||''}</strong>${d.detail?'　'+d.detail:''}</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    list.innerHTML = '<div class="empty-state">載入失敗：'+e.message+'</div>';
+  }
+}
+
 // ── LINE Messaging API ────────────────────────
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwI0owkCqK8RoZe9t6nlBJcJceshacfcGR6AiDI1jCr3nGto-4kr41466kgdGpSwG0jcA/exec';
 const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1527158493734502551/57EVOF5iINq258gZIqXnjlEN_VzCcIjuX5eyq1tMiw-hcT_H4uwyTVAZaErk3f7P3vZ6';
@@ -1220,17 +1357,38 @@ function renderAll(){
   renderDashboard();renderProducts();renderCustomers();renderOrders();renderShipments();renderReturns();renderRestock();
   updateRestockBadge();
 }
+// 訂單/出貨單/退貨單會持續累積，只先載入最近1個月的，舊資料要用「載入更早資料」按鈕才會抓（見 loadOlderData）
+function _oneMonthAgoStr(){
+  const d=new Date();
+  d.setMonth(d.getMonth()-1);
+  return d.toISOString().slice(0,10);
+}
+let _dateFilterCutoff=_oneMonthAgoStr();
 async function loadData(btn=false){
   if(btn){ const b=G('btn-refresh');if(b){b.disabled=true;b.textContent='載入中…';} }
   setSyncStatus('loading','載入中…');
   try{
-    const collSections=['products','customers','orders','shipments','returns'];
-    const [collSnaps,metaSnap]=await Promise.all([
+    const collSections=['products','customers']; // 這兩類資料量穩定，不用限制時間範圍
+    const dateSections=['orders','shipments','returns']; // 這幾類會持續累積，先只載入最近1個月
+    const [collSnaps,dateSnaps,metaSnap]=await Promise.all([
       Promise.all(collSections.map(s=>fsdb.collection(s).get({source:'server'}))),
+      Promise.all(dateSections.map(s=>fsdb.collection(s).where('date','>=',_dateFilterCutoff).get({source:'server'}))),
       fsdb.collection('sections').doc('meta').get({source:'server'})
     ]);
     collSnaps.forEach((snap,i)=>{
       const key=collSections[i];
+      const arr=[];
+      _lastItemUpdatedAt[key]={};
+      snap.forEach(doc=>{
+        const data=doc.data();
+        arr.push({...data,id:doc.id});
+        _lastItemUpdatedAt[key][doc.id]=data.updatedAt||0;
+      });
+      db[key]=arr;
+      _lastSyncedSnapshot[key]=JSON.parse(JSON.stringify(arr));
+    });
+    dateSnaps.forEach((snap,i)=>{
+      const key=dateSections[i];
       const arr=[];
       _lastItemUpdatedAt[key]={};
       snap.forEach(doc=>{
@@ -1267,6 +1425,36 @@ async function loadData(btn=false){
     processPendingQueue(); // 檢查有沒有上次網路沒恢復就留下的暫存資料
   }catch(e){ setSyncStatus('error','連線失敗：'+e.message); G('loading-text').textContent='連線失敗：'+e.message; G('loading-overlay').style.background='rgba(245,242,237,.95)'; console.error('Firebase error:',e); }
   if(btn){ const b=G('btn-refresh');if(b){b.disabled=false;b.textContent='🔄 重新整理';} }
+}
+// 載入更早的歷史資料（例如查上個月以前的抄貨單），手動觸發，不會自動一直抓
+let _oldestLoadedCutoff=null;
+async function loadOlderData(){
+  const targetCutoff=_oldestLoadedCutoff||_dateFilterCutoff;
+  const d=new Date(targetCutoff);
+  d.setMonth(d.getMonth()-1);
+  const newCutoff=d.toISOString().slice(0,10);
+  if(!await toastConfirm(`要載入 ${newCutoff} ～ ${targetCutoff} 這段期間的歷史抄貨單/出貨單/退貨單資料嗎？`))return;
+  toastAlert('載入歷史資料中…','info',2000);
+  try{
+    const dateSections=['orders','shipments','returns'];
+    const snaps=await Promise.all(dateSections.map(s=>
+      fsdb.collection(s).where('date','>=',newCutoff).where('date','<',targetCutoff).get({source:'server'})
+    ));
+    snaps.forEach((snap,i)=>{
+      const key=dateSections[i];
+      snap.forEach(doc=>{
+        const data=doc.data();
+        if(!db[key].some(x=>x.id===doc.id)){
+          db[key].push({...data,id:doc.id});
+          _lastItemUpdatedAt[key][doc.id]=data.updatedAt||0;
+          _lastSyncedSnapshot[key].push(JSON.parse(JSON.stringify({...data,id:doc.id})));
+        }
+      });
+    });
+    _oldestLoadedCutoff=newCutoff;
+    renderAll();
+    toastAlert('已載入 '+newCutoff+' 之後的歷史資料','success');
+  }catch(e){ toastAlert('載入歷史資料失敗：'+e.message,'error'); }
 }
 // 分區儲存函數
 function _logPayloadSize(section,obj){
@@ -1857,11 +2045,17 @@ async function flushChecklistSave(){
   if(_checklistSaveTimer){ clearTimeout(_checklistSaveTimer); _checklistSaveTimer=null; }
   return await saveMultiple(['orders','pickingState','boxingState'],{silentSuccess:true});
 }
-// 即時監聽（其他人存檔會自動更新）
+// 即時監聽（其他人存檔會自動更新）－登入成功後才會啟動，見 startApp()
 let _loadingTimedOut=false;
 // 版本保護：記錄每個區塊目前套用的資料時間戳記，避免較舊的（例如離線快取）資料覆蓋較新的資料
 let _lastUpdatedAt={};
-const _loadingTimeoutId=setTimeout(()=>{
+let _loadingTimeoutId=null;
+const _sectionKeys=['products','customers','orders','shipments','returns'];
+let _initialLoadDone=false;
+let _firstSnapshotDone=0;
+const _totalListeners=_sectionKeys.length+1; // +1 是 meta（pickingState/boxingState 改成用到才抓，不掛常駐監聽器）
+function startRealtimeListeners(){
+_loadingTimeoutId=setTimeout(()=>{
   _loadingTimedOut=true;
   const overlay=G('loading-overlay');
   if(overlay&&overlay.style.display!=='none'){
@@ -1869,12 +2063,11 @@ const _loadingTimeoutId=setTimeout(()=>{
   }
 },10000);
 // 分區監聽：現在改成監聽「整個子集合」，只處理真的有變動的那幾筆（新增/修改/刪除），不是整包重收
-const _sectionKeys=['products','customers','orders','shipments','returns'];
-let _initialLoadDone=false;
-let _firstSnapshotDone=0;
-const _totalListeners=_sectionKeys.length+1; // +1 是 meta（pickingState/boxingState 改成用到才抓，不掛常駐監聽器）
+// orders/shipments/returns 這幾類跟 loadData() 一樣，只監聽最近1個月內的，避免長期累積後監聽器要處理的資料量越來越大
+const _dateFilteredKeys=['orders','shipments','returns'];
 _sectionKeys.forEach(key=>{
-  fsdb.collection(key).onSnapshot({includeMetadataChanges:true},snap=>{
+  const query=_dateFilteredKeys.includes(key)?fsdb.collection(key).where('date','>=',_dateFilterCutoff):fsdb.collection(key);
+  query.onSnapshot({includeMetadataChanges:true},snap=>{
     clearTimeout(_loadingTimeoutId);
     G('loading-overlay').style.display='none';
     if(snap.metadata.fromCache){setSyncStatus('loading','📴 離線中（顯示本機快取）・變更會在恢復連線後自動同步');}
@@ -1934,6 +2127,7 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
     renderAll();
   }
 },err=>{ console.error('onSnapshot meta error:',err); });
+}
 
 // ── CAMERA SCANNER ────────────────────────────
 async function startScan(targetId, callback){
@@ -2287,8 +2481,8 @@ async function saveProduct(){
     variants:[...(window._productVariants||[])],
     variantImages:{...(window._productVariantImages||{})},
     image:window._prodImageData||''};
-  if(editProdId){const i=db.products.findIndex(x=>x.id===editProdId);db.products[i]={...db.products[i],...data};}
-  else db.products.push({id:uid(),...data});
+  if(editProdId){const i=db.products.findIndex(x=>x.id===editProdId);db.products[i]={...db.products[i],...data};logActivity('編輯商品',name);}
+  else{db.products.push({id:uid(),...data});logActivity('新增商品',name);}
   await saveData('products');
   closeModal('modal-product');renderProducts();renderDashboard();
   btn.disabled=false;btn.textContent='儲存商品';
@@ -2310,6 +2504,7 @@ async function deleteProduct(id){
   if(item)moveToTrash('product',item);
   db.products=db.products.filter(x=>x.id!==id);
   await saveMultiple(['products','meta']);renderProducts();
+  if(item)logActivity('刪除商品',item.name);
   setTimeout(()=>{ isSaving=false; },2000);
 }
 function renderProducts(){
@@ -2473,6 +2668,7 @@ async function deleteCustomer(id){
   if(item)moveToTrash('customer',item);
   db.customers=db.customers.filter(x=>x.id!==id);
   await saveMultiple(['customers','meta']);renderCustomers();
+  if(item)logActivity('刪除客戶',item.name);
   setTimeout(()=>{ isSaving=false; },2000);
 }
 function renderCustomers(){
@@ -2809,6 +3005,7 @@ async function saveOrder(status){
     const custName=cust?cust.name:'—';
     let msg=(!isEdit)?'📋 【'+custName+'】抄貨單已確認':wasConfirmed?'📝 【'+custName+'】抄貨單已修改':'📋 【'+custName+'】抄貨單已確認';
     sendLineNotify(msg);
+    logActivity(isEdit?'修改抄貨單':'確認抄貨單',custName);
   }
   closeModal('modal-order');renderOrders();renderDashboard();renderEditAlerts();
   b1.disabled=b2.disabled=false;
@@ -2824,6 +3021,7 @@ async function deleteOrder(id){
   }
   db.orders=db.orders.filter(x=>x.id!==id);
   await saveMultiple(['orders','products','meta']);renderOrders();renderProducts();renderDashboard();
+  if(item){const c=db.customers.find(x=>x.id===item.customerId);logActivity('刪除抄貨單',c?c.name:'');}
   setTimeout(()=>{ isSaving=false; },2000);
 }
 
@@ -2839,6 +3037,7 @@ async function deleteShipment(id){
     if(oi>=0&&db.orders[oi].status==='shipped') db.orders[oi].status='completed';
   }
   await saveMultiple(['shipments','orders','meta']);renderShipments();renderOrders();renderDashboard();
+  if(item){const c=db.customers.find(x=>x.id===item.customerId);logActivity('刪除出貨單',c?c.name:'');}
   setTimeout(()=>{ isSaving=false; },2000);
 }
 
@@ -3533,6 +3732,7 @@ async function markOutOfStock(pid){
   db.products[pi].discontinued=false;
   await saveData('products');
   renderRestock();renderProducts();renderDashboard();
+  logActivity('標記缺貨',p.name);
 }
 async function unmarkOutOfStock(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
@@ -3540,6 +3740,7 @@ async function unmarkOutOfStock(pid){
   db.products[pi].outOfStock=false;
   await saveData('products');
   renderRestock();renderProducts();renderDashboard();
+  logActivity('取消缺貨標記',p.name);
 }
 // 停售：供應商不會再進了，直接從補貨清單移除，不用再看到（跟商品編輯裡「商品狀態」同一個欄位，之後想恢復要去那裡改）
 async function markDiscontinued(pid){
@@ -3549,6 +3750,7 @@ async function markDiscontinued(pid){
   db.products[pi].outOfStock=false;
   await saveData('products');
   renderRestock();renderProducts();renderDashboard();
+  logActivity('標記停售',p.name);
 }
 async function onRestockCheck(pid, cb){
   if(!cb.checked)return;
@@ -4129,7 +4331,7 @@ const CHART_COLORS=['#c8401a','#1a5c8a','#2a7a4f','#e07020','#9e9890','#e8956d',
 
 function getAnalyticsYears(){
   const years=new Set();
-  db.shipments.forEach(s=>{ if(s.date) years.add(s.date.slice(0,4)); });
+  _analyticsShipments.forEach(s=>{ if(s.date) years.add(s.date.slice(0,4)); });
   if(!years.size) years.add(new Date().getFullYear().toString());
   return [...years].sort().reverse();
 }
@@ -4149,19 +4351,45 @@ function initCustSelect(selId){
 }
 
 function filterShipments(year, month, custId){
-  return db.shipments.filter(s=>{
+  return _analyticsShipments.filter(s=>{
     if(!s.date)return false;
     if(year&&!s.date.startsWith(year))return false;
     if(month&&s.date.slice(5,7)!==month)return false;
     if(custId){
-      const o=db.orders.find(x=>x.id===s.orderId);
+      const o=_analyticsOrders.find(x=>x.id===s.orderId);
       if(!o||o.customerId!==custId)return false;
     }
     return true;
   });
 }
 
-function renderAnalytics(){
+// 銷售分析需要完整歷史資料（其他頁面只載最近1個月），用獨立的變數存，
+// 不合併進 db.orders/db.shipments，避免看過分析頁之後，訂單/出貨單列表也跟著變成顯示全部歷史資料
+let _analyticsDataLoaded=false;
+let _analyticsOrders=[];
+let _analyticsShipments=[];
+async function ensureAnalyticsDataLoaded(){
+  if(_analyticsDataLoaded)return;
+  const note=G('analytics-loading-note');
+  if(note)note.style.display='block';
+  try{
+    const [orderSnap,shipSnap]=await Promise.all([
+      fsdb.collection('orders').get({source:'server'}),
+      fsdb.collection('shipments').get({source:'server'})
+    ]);
+    _analyticsOrders=[];
+    orderSnap.forEach(doc=>_analyticsOrders.push({...doc.data(),id:doc.id}));
+    _analyticsShipments=[];
+    shipSnap.forEach(doc=>_analyticsShipments.push({...doc.data(),id:doc.id}));
+    _analyticsDataLoaded=true;
+  }catch(e){
+    toastAlert('載入銷售分析完整資料失敗：'+e.message,'error');
+  }
+  if(note)note.style.display='none';
+}
+
+async function renderAnalytics(){
+  await ensureAnalyticsDataLoaded();
   initYearSelect('monthly-year');
   initYearSelect('pie-year');
   initCustSelect('monthly-cust');
@@ -4244,7 +4472,7 @@ function renderMonthlyChart(){
 
 function renderTopProductsChart(){
   const priceMap={};
-  db.shipments.forEach(s=>{
+  _analyticsShipments.forEach(s=>{
     (s.items||[]).forEach(item=>{
       const p=db.products.find(x=>x.id===item.productId);
       const key=p?p.name:('$'+item.price+'元');
@@ -4780,7 +5008,11 @@ async function confirmBoxing(){
     db.orders[idx].hasMissingItems=missing.length>0; // 記在訂單本身，列表才不用整包載入撿貨明細也能顯示「補撿貨」提示
   }
   await flushChecklistSave(); // 確保前面的裝箱勾選都已存檔，同時存入這次的狀態變更
-  if(isFullyDone) await cleanupOrderState(_boxingOrderId); // 訂單真的完成了，撿貨/裝箱記錄沒用了，清掉
+  if(isFullyDone){
+    await cleanupOrderState(_boxingOrderId); // 訂單真的完成了，撿貨/裝箱記錄沒用了，清掉
+    const c=db.customers.find(x=>x.id===o.customerId);
+    logActivity('訂單完成裝箱',c?c.name:'');
+  }
   closeModal('modal-boxing');
   renderDashboard();renderOrders();
 }
@@ -5941,9 +6173,23 @@ function previewInvoiceFormat(){
   w.document.close();
 }
 
-loadData();
-setTimeout(handleHashChange,200);
-// 註冊 Service Worker，讓網頁本身能離線開啟
+// 系統啟動：先確認登入狀態，登入成功才開始載入資料、開啟即時監聽
+function startApp(){
+  G('login-overlay').style.display='none';
+  if(G('current-user-name'))G('current-user-name').textContent=currentUserName;
+  loadData();
+  startRealtimeListeners();
+  setTimeout(handleHashChange,200);
+}
+firebase.auth().onAuthStateChanged(user=>{
+  if(user){
+    currentUserName = localStorage.getItem('oscar_user_name') || (user.email||'').split('@')[0] || '未知使用者';
+    startApp();
+  } else {
+    G('loading-overlay').style.display='none';
+    G('login-overlay').style.display='flex';
+  }
+});
 // 註冊 Service Worker，讓網頁本身能離線開啟；並在偵測到新版本時提示使用者
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('./sw.js').then(reg=>{
