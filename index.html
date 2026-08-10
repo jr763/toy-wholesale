@@ -251,7 +251,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 </div>
 
 <nav class="nav" style="justify-content:space-between;align-items:center;">
-  <div style="width:36px;"></div>
+  <div id="current-user-badge" style="width:auto;min-width:36px;font-size:11px;color:#ccc;padding-left:4px;white-space:nowrap;">👤 <span id="current-user-name">—</span></div>
   <div style="display:flex;overflow-x:auto;">
     <div class="nav-tab active" id="nav-dashboard" onclick="switchTab('dashboard',this);closeMenu()">總覽</div>
     <div class="nav-tab" id="nav-orders" onclick="switchTab('orders',this);closeMenu()">抄貨單</div>
@@ -261,14 +261,10 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
   <button onclick="toggleMenu()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;width:36px;" id="hamburger-btn">☰</button>
 </nav>
 <!-- Slide-out menu -->
-<div id="side-menu" style="display:none;position:fixed;top:0;right:0;width:200px;height:100%;background:var(--surface);box-shadow:-4px 0 20px rgba(0,0,0,.15);z-index:200;padding-top:60px;">
+<div id="side-menu" style="display:none;position:fixed;top:0;right:0;width:200px;height:100%;background:var(--surface);box-shadow:-4px 0 20px rgba(0,0,0,.15);z-index:200;padding-top:60px;overflow-y:auto;">
   <button onclick="closeMenu()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">✕</button>
   <div style="padding:8px 0;">
-    <div class="side-menu-group">目前使用者</div>
-    <div style="padding:4px 20px 10px;font-size:13px;color:var(--text2);display:flex;justify-content:space-between;align-items:center;">
-      <span id="current-user-name">—</span>
-      <button class="btn btn-xs btn-secondary" onclick="doLogout();closeMenu()">登出</button>
-    </div>
+    <div class="side-menu-item" onclick="doLogout();closeMenu()">🚪 登出</div>
     <div class="side-menu-group">管理</div>
     <div class="side-menu-item" onclick="switchTab('products',this);closeMenu()">📦 商品</div>
     <div class="side-menu-item" onclick="switchTab('customers',this);closeMenu()">👥 客戶</div>
@@ -2694,6 +2690,7 @@ function renderCustomers(){
 // ── ORDERS 抄貨單 ─────────────────────────────
 function openOrderModal(){
   editOrderId=null;orderItems=[];
+  ensureAnalyticsDataLoaded(); // 背景抓完整歷史訂單，讓「帶出上次售價」查得到一個月以前的紀錄（不等它完成，不阻塞畫面）
   G('o-modal-title').textContent='新增抄貨單';
   G('o-date').value=today();
   const _ci=G('o-cust-input');if(_ci)_ci.disabled=false;
@@ -2721,6 +2718,7 @@ function openOrderModal(){
 function editOrder(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
   editOrderId=id;orderItems=(o.items||[]).map(i=>({...i}));
+  ensureAnalyticsDataLoaded(); // 背景抓完整歷史訂單，同上
   G('o-modal-title').textContent='編輯抄貨單';
   G('o-date').value=o.date;
   // Always show customer input in edit mode
@@ -2776,17 +2774,35 @@ function getLastPrice(productId, customerId){
   // First check customer's custom price
   const cust=db.customers.find(x=>x.id===customerId);
   if(cust?.customPrices?.[productId]) return cust.customPrices[productId];
-  // Then find last order price for this customer
-  const custOrders=[...db.orders].filter(o=>o.customerId===customerId).sort((a,b)=>b.date.localeCompare(a.date));
-  for(const o of custOrders){
-    const item=(o.items||[]).find(i=>i.productId===productId);
-    if(item&&item.price>0)return item.price;
+  // Then find last order price for this customer（先查最近1個月，找不到再查完整歷史）
+  const searchIn=(arr)=>{
+    const custOrders=[...arr].filter(o=>o.customerId===customerId).sort((a,b)=>b.date.localeCompare(a.date));
+    for(const o of custOrders){
+      const item=(o.items||[]).find(i=>i.productId===productId);
+      if(item&&item.price>0)return item.price;
+    }
+    return null;
+  };
+  let found=searchIn(db.orders);
+  if(found)return found;
+  if(_analyticsDataLoaded){
+    found=searchIn(_analyticsOrders);
+    if(found)return found;
   }
-  // Fallback: any order with this product
-  const allOrders=[...db.orders].sort((a,b)=>b.date.localeCompare(a.date));
-  for(const o of allOrders){
-    const item=(o.items||[]).find(i=>i.productId===productId);
-    if(item&&item.price>0)return item.price;
+  // Fallback: any order with this product（同樣先查最近的，再查完整歷史）
+  const fallbackIn=(arr)=>{
+    const allOrders=[...arr].sort((a,b)=>b.date.localeCompare(a.date));
+    for(const o of allOrders){
+      const item=(o.items||[]).find(i=>i.productId===productId);
+      if(item&&item.price>0)return item.price;
+    }
+    return null;
+  };
+  found=fallbackIn(db.orders);
+  if(found)return found;
+  if(_analyticsDataLoaded){
+    found=fallbackIn(_analyticsOrders);
+    if(found)return found;
   }
   return null;
 }
