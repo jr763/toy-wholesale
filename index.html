@@ -3262,7 +3262,7 @@ async function viewOrder(id){
     <div id="bc-summary-inline" style="display:none;margin-bottom:12px;"></div>
     ${isPacked2?'<div style="font-size:12px;color:var(--orange);padding:6px 0;margin-bottom:6px;">⚠️ 以下為尚未補齊的商品</div>':''}
     <div class="table-wrap"><table>
-      <thead><tr><th>✓</th><th>存放地點</th><th>商檢標</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="pick-cb-all" onchange="toggleAllPicked(this)" title="全選/取消全選"></th><th>存放地點</th><th>商檢標</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
       <tbody>${displayItems.map((i,di)=>{const idx=displayOffset[di];
         const prod=db.products.find(x=>x.id===i.productId);
         const isOOS=!!(prod&&prod.outOfStock);
@@ -3297,9 +3297,14 @@ async function viewOrder(id){
   });
   // Enable pick-done-btn if any checkbox is checked
   setTimeout(()=>{
+    const allCbEl=G('pick-cb-all');
+    if(allCbEl){
+      const cbs=[...document.querySelectorAll('[id^="pick-cb-"]')].filter(x=>x.id!=='pick-cb-all'&&!x.disabled);
+      allCbEl.checked=cbs.length>0&&cbs.every(x=>x.checked);
+    }
     const btn=G('pick-done-btn');
     if(btn){
-      const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')];
+      const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')].filter(x=>x.id!=='pick-cb-all');
       const anyChecked=allCbs.some(cb=>cb.checked);
       btn.disabled=!anyChecked;
       btn.style.opacity=anyChecked?'1':'0.5';
@@ -3378,7 +3383,7 @@ async function markPacked(orderId){
 }
 function showBCSummary(){
   const items=window._pickItems||[];
-  const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')];
+  const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')].filter(x=>x.id!=='pick-cb-all');
   const checkedIdxs=allCbs.filter(cb=>cb.checked&&!cb.disabled).map(cb=>parseInt(cb.id.replace('pick-cb-','')));
   const selected=checkedIdxs.length>0?checkedIdxs.map(i=>items[i]):[];
   const cust=window._pickOrderId?db.customers.find(x=>x.id===db.orders.find(o=>o.id===window._pickOrderId)?.customerId):null;
@@ -3401,14 +3406,31 @@ function showBCSummary(){
   </div>`;
 }
 
+// 全選/取消全選撿貨勾選：跳過已鎖住（缺貨/停售且庫存0）的項目，逐一觸發跟手動點一樣的邏輯，確保存檔/畫面更新都正確
+function toggleAllPicked(allCb){
+  const cbs=[...document.querySelectorAll('[id^="pick-cb-"]')].filter(x=>x.id!=='pick-cb-all'&&!x.disabled);
+  cbs.forEach(cb=>{
+    if(cb.checked!==allCb.checked){
+      cb.checked=allCb.checked;
+      const idx=parseInt(cb.id.replace('pick-cb-',''));
+      togglePicked(idx,cb);
+    }
+  });
+}
 function togglePicked(idx,cb){
   const row=G('pick-row-'+idx);
   if(cb.checked){row.style.opacity='0.35';row.style.textDecoration='line-through';}
   else{row.style.opacity='1';row.style.textDecoration='none';}
   // Update pick-done-btn immediately
   const pickBtn=G('pick-done-btn');
+  const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')].filter(x=>x.id!=='pick-cb-all');
+  const allCbEl=G('pick-cb-all');
+  if(allCbEl){
+    const selectable=allCbs.filter(x=>!x.disabled);
+    allCbEl.checked=selectable.length>0&&selectable.every(x=>x.checked);
+  }
   if(pickBtn){
-    const anyChecked=[...document.querySelectorAll('[id^="pick-cb-"]')].some(x=>x.checked);
+    const anyChecked=allCbs.some(x=>x.checked);
     pickBtn.disabled=!anyChecked;
     pickBtn.style.opacity=anyChecked?'1':'0.5';
     pickBtn.style.cursor=anyChecked?'pointer':'not-allowed';
@@ -4940,7 +4962,7 @@ async function openBoxingModal(orderId){
   G('boxing-title').textContent=(cust?cust.name:'')+'  裝箱確認';
   G('boxing-summary').innerHTML=`
     <div class="table-wrap"><table>
-      <thead><tr><th>✓</th><th>售價</th><th>數量</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="box-cb-all" onchange="toggleAllBoxing(this)" title="全選/取消全選"></th><th>售價</th><th>數量</th></tr></thead>
       <tbody>${rows.map(([p,q],i)=>`<tr id="box-row-${i}">
         <td><input type="checkbox" id="box-cb-${i}" ${boxState[i]?'checked':''} onchange="toggleBoxing(${i},this)" style="${boxState[i]?'opacity:0.5;':''}" ></td>
         <td style="font-weight:700;color:var(--accent);${boxState[i]?'opacity:0.5;text-decoration:line-through;':''}">${p}</td>
@@ -4954,10 +4976,24 @@ async function openBoxingModal(orderId){
 }
 function updateBoxingBtn(total){
   const btn=G('boxing-confirm-btn');if(!btn)return;
-  const allChecked=[...document.querySelectorAll('[id^="box-cb-"]')].every(cb=>cb.checked);
+  const boxCbs=[...document.querySelectorAll('[id^="box-cb-"]')].filter(x=>x.id!=='box-cb-all');
+  const allChecked=boxCbs.length>0&&boxCbs.every(cb=>cb.checked);
   btn.disabled=!allChecked;
   btn.style.opacity=allChecked?'1':'0.5';
   btn.style.cursor=allChecked?'pointer':'not-allowed';
+  const allCbEl=G('box-cb-all');
+  if(allCbEl)allCbEl.checked=allChecked;
+}
+// 全選/取消全選裝箱勾選，逐一觸發跟手動點一樣的邏輯，確保存檔/畫面更新都正確
+function toggleAllBoxing(allCb){
+  const cbs=[...document.querySelectorAll('[id^="box-cb-"]')].filter(x=>x.id!=='box-cb-all');
+  cbs.forEach(cb=>{
+    if(cb.checked!==allCb.checked){
+      cb.checked=allCb.checked;
+      const idx=parseInt(cb.id.replace('box-cb-',''));
+      toggleBoxing(idx,cb);
+    }
+  });
 }
 function toggleBoxing(idx,cb){
   const row=G('box-row-'+idx);
@@ -4978,7 +5014,7 @@ function toggleBoxing(idx,cb){
       else if(db.orders[oidx].status==='re_picking')db.orders[oidx].status='re_boxing';
     }
   }
-  const total=document.querySelectorAll('[id^="box-cb-"]').length;
+  const total=[...document.querySelectorAll('[id^="box-cb-"]')].filter(x=>x.id!=='box-cb-all').length;
   updateBoxingBtn(total); // 立即更新按鈕狀態，不用等存檔
   scheduleChecklistSave(()=>{ renderOrders(); }); // 延遲存檔，連續勾選只會存一次
 }
