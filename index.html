@@ -2817,14 +2817,12 @@ async function selectOrderProduct(pid){
   window._oSelPid=pid;
   G('o-selected-name').textContent=`${p.name}${p.location?' ['+p.location+']':''}（查詢售價中…）`;
   const custId=G('o-cust').value;
-  const cust=db.customers.find(x=>x.id===custId);
-  const disc=cust?.discount||0;
   const remembered=await getLastPrice(pid,custId);
   if(window._oSelPid!==pid)return; // 使用者在查詢期間又選了別的商品，這次結果就不用了
-  const price=remembered?Math.round(remembered*(disc?1-disc/100:1)):0;
+  const price=remembered||0;
   G('o-price').value=price||'';
   G('o-selected-name').textContent=`${p.name}${p.location?' ['+p.location+']':''}`;
-  if(remembered) G('o-selected-name').textContent+=' ｜ 上次：$'+remembered+(disc?' (折後$'+price+')':'');
+  if(remembered) G('o-selected-name').textContent+=' ｜ 上次：$'+remembered;
   setVariantSelect(p.variants||[]);
   G('o-add-row').style.display='block';
   G('o-search-results').innerHTML='';
@@ -5532,9 +5530,7 @@ async function loadScanAddProduct(pid){
   const remembered=await getLastPrice(pid,custId);
   if(_saPid!==pid)return; // 使用者在查詢期間又選了別的商品，這次結果就不用了
   G('sa-prod-name').textContent=p.name;
-  const cust=db.customers.find(x=>x.id===custId);
-  const disc=cust?.discount||0;
-  const price=remembered?Math.round(remembered*(disc?1-disc/100:1)):0;
+  const price=remembered||0;
   G('sa-price').value=price||'';
   
   // Quantity (total qty)
