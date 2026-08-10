@@ -49,9 +49,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .nav-tab.active{color:var(--accent2);border-bottom-color:var(--accent2)}
 
 /* ── 側邊選單 ── */
-.side-menu-item{padding:13px 20px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);transition:background .15s;display:flex;align-items:center;gap:8px;}
-.side-menu-item:hover{background:var(--surface2);}
-.side-menu-group{padding:5px 20px 4px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:1.5px;background:var(--surface2);border-bottom:1px solid var(--border);border-top:1px solid var(--border);margin-top:4px;text-transform:uppercase;}
+.side-menu-item{padding:12px 20px;margin:0 8px;border-radius:10px;font-size:14px;cursor:pointer;color:var(--text);transition:background .15s;display:flex;align-items:center;gap:12px;}
+.side-menu-item:hover{background:var(--orange-bg);}
+.side-menu-item .smi-icon{width:22px;text-align:center;font-size:16px;flex-shrink:0;}
+.side-menu-group{padding:16px 20px 6px;font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;}
 
 /* ── 頁面 ── */
 .page{display:none;padding:16px 14px;max-width:1040px;margin:0 auto}.page.active{display:block}
@@ -261,22 +262,25 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
   <button onclick="toggleMenu()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px 8px;line-height:1;width:36px;" id="hamburger-btn">☰</button>
 </nav>
 <!-- Slide-out menu -->
-<div id="side-menu" style="display:none;position:fixed;top:0;right:0;width:200px;height:100%;background:var(--surface);box-shadow:-4px 0 20px rgba(0,0,0,.15);z-index:200;padding-top:60px;overflow-y:auto;">
-  <button onclick="closeMenu()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">✕</button>
-  <div style="padding:8px 0;">
+<div id="side-menu" style="display:none;position:fixed;top:0;right:0;width:230px;height:100%;background:var(--surface);box-shadow:-8px 0 32px rgba(0,0,0,.18);z-index:200;overflow-y:auto;">
+  <div style="padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+    <div style="font-size:15px;font-weight:700;">奧斯卡管理系統</div>
+    <button onclick="closeMenu()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2);line-height:1;padding:4px;border-radius:6px;">✕</button>
+  </div>
+  <div style="padding:10px 0 16px;">
     <div class="side-menu-group">管理</div>
-    <div class="side-menu-item" onclick="switchTab('products',this);closeMenu()">📦 商品</div>
-    <div class="side-menu-item" onclick="switchTab('customers',this);closeMenu()">👥 客戶</div>
-    <div class="side-menu-item" id="nav-restock" onclick="switchTab('restock',this);closeMenu()">🔔 補貨</div>
-    <div class="side-menu-item" onclick="switchTab('returns',this);closeMenu()">↩️ 退貨</div>
-    <div class="side-menu-item" onclick="switchTab('barcode-print',this);closeMenu()">🏷️ 條碼列印</div>
+    <div class="side-menu-item" onclick="switchTab('products',this);closeMenu()"><span class="smi-icon">📦</span>商品</div>
+    <div class="side-menu-item" onclick="switchTab('customers',this);closeMenu()"><span class="smi-icon">👥</span>客戶</div>
+    <div class="side-menu-item" id="nav-restock" onclick="switchTab('restock',this);closeMenu()"><span class="smi-icon">🔔</span>補貨</div>
+    <div class="side-menu-item" onclick="switchTab('returns',this);closeMenu()"><span class="smi-icon">↩️</span>退貨</div>
+    <div class="side-menu-item" onclick="switchTab('barcode-print',this);closeMenu()"><span class="smi-icon">🏷️</span>條碼列印</div>
 
     <div class="side-menu-group">分析與設定</div>
-    <div class="side-menu-item" onclick="switchTab('analytics',this);closeMenu()">📊 銷售分析</div>
-    <div class="side-menu-item" onclick="openTrashModal();closeMenu()">🗑️ 最近刪除</div>
-    <div class="side-menu-item" onclick="openActivityLogModal();closeMenu()">📋 異動紀錄</div>
-    <div class="side-menu-item" onclick="exportBackup();closeMenu()">📥 匯出備份</div>
-    <div class="side-menu-item" onclick="restoreFromLocalBackup();closeMenu()">🔄 從本地備份還原</div>
+    <div class="side-menu-item" onclick="switchTab('analytics',this);closeMenu()"><span class="smi-icon">📊</span>銷售分析</div>
+    <div class="side-menu-item" onclick="openTrashModal();closeMenu()"><span class="smi-icon">🗑️</span>最近刪除</div>
+    <div class="side-menu-item" onclick="openActivityLogModal();closeMenu()"><span class="smi-icon">📋</span>異動紀錄</div>
+    <div class="side-menu-item" onclick="exportBackup();closeMenu()"><span class="smi-icon">📥</span>匯出備份</div>
+    <div class="side-menu-item" onclick="restoreFromLocalBackup();closeMenu()"><span class="smi-icon">🔄</span>從本地備份還原</div>
   </div>
 </div>
 
