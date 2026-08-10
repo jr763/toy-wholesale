@@ -239,9 +239,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     <div class="form-group"><label>密碼</label><input id="login-pw" type="password" placeholder="至少6碼" autocomplete="current-password"></div>
     <div id="login-error" style="color:var(--red);font-size:12px;margin-bottom:6px;display:none;"></div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;" onclick="doLogin()">登入</button>
-    <div style="text-align:center;margin-top:10px;font-size:12px;">
-      還沒有帳號？<a href="javascript:void(0)" onclick="doRegister()" style="color:var(--blue);">用這個姓名密碼建立一個</a>
-    </div>
   </div>
 </div>
 
@@ -1163,26 +1160,8 @@ async function doLogin(){
     localStorage.setItem('oscar_user_name', name);
   }catch(e){
     errEl.textContent = e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found'
-      ? '姓名或密碼不對，或還沒有帳號（可以點下面建立一個）'
+      ? '姓名或密碼不對，帳號要請管理員幫忙建立'
       : '登入失敗：' + e.message;
-    errEl.style.display = 'block';
-  }
-}
-async function doRegister(){
-  const name = G('login-name').value.trim();
-  const pw = G('login-pw').value;
-  const errEl = G('login-error');
-  errEl.style.display = 'none';
-  if(!name || !pw){ errEl.textContent = '請輸入姓名和密碼'; errEl.style.display = 'block'; return; }
-  if(pw.length < 6){ errEl.textContent = '密碼至少要6碼'; errEl.style.display = 'block'; return; }
-  try{
-    await firebase.auth().createUserWithEmailAndPassword(nameToEmail(name), pw);
-    currentUserName = name;
-    localStorage.setItem('oscar_user_name', name);
-  }catch(e){
-    errEl.textContent = e.code === 'auth/email-already-in-use'
-      ? '這個姓名已經有人用了，如果是你自己的帳號請直接按「登入」；如果撞名，密碼欄輸入完後姓名可以加個註記（例如：小美2）'
-      : '建立帳號失敗：' + e.message;
     errEl.style.display = 'block';
   }
 }
