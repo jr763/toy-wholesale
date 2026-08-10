@@ -2770,11 +2770,11 @@ document.addEventListener('click',e=>{
 function setVariantSelect(variants){
   G('o-variant').innerHTML='<option value="">無</option>'+(variants||[]).map(v=>`<option value="${v}">${v}</option>`).join('');
 }
-function getLastPrice(productId, customerId){
+async function getLastPrice(productId, customerId){
   // First check customer's custom price
   const cust=db.customers.find(x=>x.id===customerId);
   if(cust?.customPrices?.[productId]) return cust.customPrices[productId];
-  // Then find last order price for this customer（先查最近1個月，找不到再查完整歷史）
+  // Then find last order price for this customer（先查最近1個月，找不到再等完整歷史抓完、查完整歷史）
   const searchIn=(arr)=>{
     const custOrders=[...arr].filter(o=>o.customerId===customerId).sort((a,b)=>b.date.localeCompare(a.date));
     for(const o of custOrders){
@@ -2785,10 +2785,9 @@ function getLastPrice(productId, customerId){
   };
   let found=searchIn(db.orders);
   if(found)return found;
-  if(_analyticsDataLoaded){
-    found=searchIn(_analyticsOrders);
-    if(found)return found;
-  }
+  await ensureAnalyticsDataLoaded(); // 最近1個月查不到，真的等完整歷史資料抓完，不用猜有沒有抓完
+  found=searchIn(_analyticsOrders);
+  if(found)return found;
   // Fallback: any order with this product（同樣先查最近的，再查完整歷史）
   const fallbackIn=(arr)=>{
     const allOrders=[...arr].sort((a,b)=>b.date.localeCompare(a.date));
@@ -2800,10 +2799,8 @@ function getLastPrice(productId, customerId){
   };
   found=fallbackIn(db.orders);
   if(found)return found;
-  if(_analyticsDataLoaded){
-    found=fallbackIn(_analyticsOrders);
-    if(found)return found;
-  }
+  found=fallbackIn(_analyticsOrders);
+  if(found)return found;
   return null;
 }
 async function selectOrderProduct(pid){
@@ -2818,13 +2815,15 @@ async function selectOrderProduct(pid){
     if(!await toastConfirm(`「${p.name}」目前缺貨中（供應商還沒有貨，目前庫存：${p.currentStock??0}）。\n\n確定還是要加入這張抄貨單嗎？`))return;
   }
   window._oSelPid=pid;
-  G('o-selected-name').textContent=`${p.name}${p.location?' ['+p.location+']':''}`;
+  G('o-selected-name').textContent=`${p.name}${p.location?' ['+p.location+']':''}（查詢售價中…）`;
   const custId=G('o-cust').value;
   const cust=db.customers.find(x=>x.id===custId);
   const disc=cust?.discount||0;
-  const remembered=getLastPrice(pid,custId);
+  const remembered=await getLastPrice(pid,custId);
+  if(window._oSelPid!==pid)return; // 使用者在查詢期間又選了別的商品，這次結果就不用了
   const price=remembered?Math.round(remembered*(disc?1-disc/100:1)):0;
   G('o-price').value=price||'';
+  G('o-selected-name').textContent=`${p.name}${p.location?' ['+p.location+']':''}`;
   if(remembered) G('o-selected-name').textContent+=' ｜ 上次：$'+remembered+(disc?' (折後$'+price+')':'');
   setVariantSelect(p.variants||[]);
   G('o-add-row').style.display='block';
@@ -5523,14 +5522,16 @@ async function loadScanAddProduct(pid){
     if(!await toastConfirm(`「${p.name}」目前缺貨中（供應商還沒有貨，目前庫存：${p.currentStock??0}）。\n\n確定還是要加入這張抄貨單嗎？`))return;
   }
   _saPid=pid;_saQty=1;_saVariant='';_saPack='none';_saVariantQtys={};_saVariantSelected={};
-  G('sa-prod-name').textContent=p.name;
+  G('sa-prod-name').textContent=p.name+'（查詢售價中…）';
   if(G('sa-prod-cost'))G('sa-prod-cost').textContent='成本：$'+fmt(p.cost||0);
   if(p.image){G('sa-prod-image').src=p.image;G('sa-prod-image-wrap').style.display='block';}
   else G('sa-prod-image-wrap').style.display='none';
   
   // Price - last price
   const custId=G('o-cust').value;
-  const remembered=getLastPrice(pid,custId);
+  const remembered=await getLastPrice(pid,custId);
+  if(_saPid!==pid)return; // 使用者在查詢期間又選了別的商品，這次結果就不用了
+  G('sa-prod-name').textContent=p.name;
   const cust=db.customers.find(x=>x.id===custId);
   const disc=cust?.discount||0;
   const price=remembered?Math.round(remembered*(disc?1-disc/100:1)):0;
