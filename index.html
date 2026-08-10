@@ -3408,14 +3408,16 @@ function showBCSummary(){
 
 // 全選/取消全選撿貨勾選：跳過已鎖住（缺貨/停售且庫存0）的項目，逐一觸發跟手動點一樣的邏輯，確保存檔/畫面更新都正確
 function toggleAllPicked(allCb){
+  const target=allCb.checked; // 先記下目標值，迴圈全程用這個，不要每次重新讀 allCb.checked（會被 togglePicked 內部同步邏輯中途改掉）
   const cbs=[...document.querySelectorAll('[id^="pick-cb-"]')].filter(x=>x.id!=='pick-cb-all'&&!x.disabled);
   cbs.forEach(cb=>{
-    if(cb.checked!==allCb.checked){
-      cb.checked=allCb.checked;
+    if(cb.checked!==target){
+      cb.checked=target;
       const idx=parseInt(cb.id.replace('pick-cb-',''));
       togglePicked(idx,cb);
     }
   });
+  allCb.checked=target; // 迴圈裡途中可能被同步邏輯改掉，最後強制設回正確的目標值
 }
 function togglePicked(idx,cb){
   const row=G('pick-row-'+idx);
@@ -4986,14 +4988,16 @@ function updateBoxingBtn(total){
 }
 // 全選/取消全選裝箱勾選，逐一觸發跟手動點一樣的邏輯，確保存檔/畫面更新都正確
 function toggleAllBoxing(allCb){
+  const target=allCb.checked; // 先記下目標值，迴圈全程用這個，不要每次重新讀 allCb.checked（會被 updateBoxingBtn 內部同步邏輯中途改掉）
   const cbs=[...document.querySelectorAll('[id^="box-cb-"]')].filter(x=>x.id!=='box-cb-all');
   cbs.forEach(cb=>{
-    if(cb.checked!==allCb.checked){
-      cb.checked=allCb.checked;
+    if(cb.checked!==target){
+      cb.checked=target;
       const idx=parseInt(cb.id.replace('box-cb-',''));
       toggleBoxing(idx,cb);
     }
   });
+  allCb.checked=target; // 迴圈裡途中可能被同步邏輯改掉，最後強制設回正確的目標值
 }
 function toggleBoxing(idx,cb){
   const row=G('box-row-'+idx);
