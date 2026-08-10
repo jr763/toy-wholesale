@@ -248,7 +248,10 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 </div>
 
 <nav class="nav" style="justify-content:space-between;align-items:center;">
-  <div id="current-user-badge" style="width:auto;min-width:36px;font-size:11px;color:#ccc;padding-left:4px;white-space:nowrap;">👤 <span id="current-user-name">—</span></div>
+  <div id="current-user-badge" style="width:auto;min-width:36px;font-size:11px;color:#ccc;padding-left:4px;white-space:nowrap;display:flex;align-items:center;gap:6px;">
+    👤 <span id="current-user-name">—</span>
+    <button onclick="doLogout()" style="background:none;border:1px solid #666;color:#ccc;font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;">登出</button>
+  </div>
   <div style="display:flex;overflow-x:auto;">
     <div class="nav-tab active" id="nav-dashboard" onclick="switchTab('dashboard',this);closeMenu()">總覽</div>
     <div class="nav-tab" id="nav-orders" onclick="switchTab('orders',this);closeMenu()">抄貨單</div>
@@ -261,7 +264,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 <div id="side-menu" style="display:none;position:fixed;top:0;right:0;width:200px;height:100%;background:var(--surface);box-shadow:-4px 0 20px rgba(0,0,0,.15);z-index:200;padding-top:60px;overflow-y:auto;">
   <button onclick="closeMenu()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">✕</button>
   <div style="padding:8px 0;">
-    <div class="side-menu-item" onclick="doLogout();closeMenu()">🚪 登出</div>
     <div class="side-menu-group">管理</div>
     <div class="side-menu-item" onclick="switchTab('products',this);closeMenu()">📦 商品</div>
     <div class="side-menu-item" onclick="switchTab('customers',this);closeMenu()">👥 客戶</div>
