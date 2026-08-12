@@ -1564,7 +1564,8 @@ async function ensureOrderStateLoaded(orderId){
     toastAlert('載入撿貨/裝箱記錄失敗，請檢查網路','error');
   }
 }
-// 訂單完成後，撿貨/裝箱記錄就沒用了，直接從雲端跟本機記憶體清掉，避免資料無限累積
+// 撿貨/裝箱記錄清理：不用「訂單狀態」判斷（狀態不可靠，已出貨/已完成的單都還可能被要求加商品、重新走一次撿貨流程），
+// 改成「超過60天沒被動過」才清掉，比較保守但不會誤刪還在用的記錄
 async function cleanupOrderState(orderId){
   try{
     await Promise.all([
@@ -1578,6 +1579,24 @@ async function cleanupOrderState(orderId){
   if(_lastSyncedSnapshot.boxingState)delete _lastSyncedSnapshot.boxingState[orderId];
   if(_lastItemUpdatedAt.pickingState)delete _lastItemUpdatedAt.pickingState[orderId];
   if(_lastItemUpdatedAt.boxingState)delete _lastItemUpdatedAt.boxingState[orderId];
+}
+// 定期清理超過60天沒異動的撿貨/裝箱記錄，每次登入後背景執行一次，不用手動觸發
+let _orderStateCleanupDone=false;
+async function cleanupOldOrderStates(){
+  if(_orderStateCleanupDone)return;
+  _orderStateCleanupDone=true;
+  try{
+    const cutoff=Date.now()-60*24*60*60*1000;
+    const [pSnap,bSnap]=await Promise.all([
+      fsdb.collection('pickingState').where('updatedAt','<',cutoff).limit(300).get(),
+      fsdb.collection('boxingState').where('updatedAt','<',cutoff).limit(300).get()
+    ]);
+    if(pSnap.empty&&bSnap.empty)return;
+    const batch=fsdb.batch();
+    pSnap.forEach(doc=>batch.delete(doc.ref));
+    bSnap.forEach(doc=>batch.delete(doc.ref));
+    await batch.commit();
+  }catch(e){ console.warn('清理舊撿貨/裝箱記錄失敗：',e); }
 }
 // 一次性補齊：撿貨/裝箱改成用到才抓之前，舊的「進行中」訂單沒有 hasMissingItems 欄位，
 // 「⚠ 撿貨(補)」提示暫時不會顯示。這個函式幫這些舊訂單補上正確的值，只需要在 Console 手動執行一次。
@@ -5047,7 +5066,7 @@ async function confirmBoxing(){
   }
   await flushChecklistSave(); // 確保前面的裝箱勾選都已存檔，同時存入這次的狀態變更
   if(isFullyDone){
-    await cleanupOrderState(_boxingOrderId); // 訂單真的完成了，撿貨/裝箱記錄沒用了，清掉
+    // 裝箱完成了，但訂單還沒真的出貨前都可能被要求加東西（撿貨/裝箱記錄改成時間到了才清，見 cleanupOldOrderStates）
     const c=db.customers.find(x=>x.id===o.customerId);
     logActivity('訂單完成裝箱',c?c.name:'');
   }
@@ -6218,6 +6237,7 @@ function startApp(){
   loadData();
   startRealtimeListeners();
   setTimeout(handleHashChange,200);
+  setTimeout(cleanupOldOrderStates,5000); // 背景清理超過60天沒動過的撿貨/裝箱記錄，不擋畫面
 }
 firebase.auth().onAuthStateChanged(user=>{
   if(user){
