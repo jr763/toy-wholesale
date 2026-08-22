@@ -3411,6 +3411,10 @@ function showBCSummary(){
   const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')].filter(x=>x.id!=='pick-cb-all');
   const checkedIdxs=allCbs.filter(cb=>cb.checked&&!cb.disabled).map(cb=>parseInt(cb.id.replace('pick-cb-','')));
   const selected=checkedIdxs.length>0?checkedIdxs.map(i=>items[i]):[];
+  console.log('🏷️ 條碼統計診斷 → 訂單ID:',window._pickOrderId,
+    '｜勾選中的checkbox idx:',checkedIdxs,
+    '｜items總長度:',items.length,
+    '｜對應到的商品:',selected.map(i=>i?({name:i.name,variant:i.variant,price:i.price,qty:i.qty}):'(找不到，idx對應不到items!)'));
   const cust=window._pickOrderId?db.customers.find(x=>x.id===db.orders.find(o=>o.id===window._pickOrderId)?.customerId):null;
   const custBarcode=cust?.labelBarcode||'—';
   const priceMap={};
@@ -4304,65 +4308,7 @@ function printBarcodePrintList(){
   openLabelPrintWindow(_bpItems, prefix);
 }
 
-function openLabelPrintWindow(items, prefix){
-  const w = window.open('', '_blank');
-  if(!w){ toastAlert('請允許瀏覽器開啟新視窗','warn'); return; }
-
-  const itemsJson = JSON.stringify(items.flatMap(({price,qty}) => {
-    const barcode = getPriceBarcode(price, prefix);
-    return Array(Math.max(1,qty||1)).fill(0).map(()=>({price,barcode}));
-  }));
-
-  let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>條碼列印</title>';
-  html += '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></scr'+'ipt>';
-  html += `<style>
-    @page{size:55.5mm 45.7mm;margin:0;}
-    *{box-sizing:border-box;}
-    body{margin:0;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;}
-    .sheet{display:flex;flex-direction:column;width:55.5mm;}
-    .label{
-      width:57mm;height:48mm;
-      box-sizing:border-box;
-      padding-top:4mm;padding-bottom:0mm;padding-left:1mm;padding-right:1mm;
-      display:flex;flex-direction:column;
-      align-items:center;justify-content:center;
-      overflow:hidden;margin:0;page-break-after:always;
-    }
-    .label:last-child{page-break-after:avoid;}
-    .label .line{width:50mm;text-align:center;white-space:nowrap;overflow:visible;}
-    .label .brand{display:flex;justify-content:space-between;font-size:25px;font-weight:600;line-height:1.5;margin-bottom:2.5px;}
-    .label svg{display:block;width:50mm;height:30mm;}
-    .label .code{display:flex;justify-content:space-between;font-size:20px;font-family:monospace;margin-top:1px;line-height:1;}
-    .label .price{display:flex;justify-content:space-between;font-size:25px;font-weight:450;margin-top:1px;line-height:1.5;}
-  </style></head><body>
-  <div class="sheet" id="sheet"></div>
-  <scr` + `ipt>
-    const items=${itemsJson};
-    const sheet=document.getElementById('sheet');
-    items.forEach(it=>{
-      const div=document.createElement('div');div.className='label';
-      const brand=document.createElement('div');brand.className='line brand';
-      '奧斯卡'.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;brand.appendChild(s);});
-      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-      const code=document.createElement('div');code.className='line code';
-      it.barcode.split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;code.appendChild(s);});
-      const price=document.createElement('div');price.className='line price';
-      ('單價 '+it.price+' 元').split('').forEach(ch=>{const s=document.createElement('span');s.textContent=ch;price.appendChild(s);});
-      div.appendChild(brand);div.appendChild(svg);div.appendChild(code);div.appendChild(price);
-      sheet.appendChild(div);
-      try{
-        JsBarcode(svg,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:150,width:4});
-        svg.setAttribute('preserveAspectRatio','none');
-        svg.setAttribute('width','50mm');svg.setAttribute('height','30mm');
-        svg.style.width='50mm';svg.style.height='30mm';svg.style.display='block';
-      }catch(e){console.error(e);}
-    });
-    window.onload=()=>setTimeout(()=>window.print(),400);
-  </scr`+`ipt>
-  </body></html>`;
-  w.document.write(html);
-  w.document.close();
-}
+// (openLabelPrintWindow 的完整定義在檔案後面，這裡拿掉原本重複、會被蓋掉的舊版本)
 
 // ── END 條碼列印頁面 ──────────────────────────
 
@@ -5954,11 +5900,20 @@ document.addEventListener('click',function(e){
   if(saRes&&!saRes.contains(e.target)&&e.target!==G('sa-barcode-input'))saRes.style.display='none';
 });
 
+let _labelPrintBusy=false;
 function openLabelPrintWindow(priceQtyList,prefix){
   if(!priceQtyList.length){toastAlert('沒有售價可列印','warn');return;}
+  // 防止手滑連點兩下，同時開兩個列印視窗、各印一份，變成印了兩倍
+  if(_labelPrintBusy){ console.warn('列印中，忽略重複點擊'); return; }
+  _labelPrintBusy=true;
+  setTimeout(()=>{ _labelPrintBusy=false; },1500);
   const w=window.open('','_blank');
   if(!w){toastAlert('請允許瀏覽器開啟新視窗（彈出視窗）','warn');return;}
-  const normalized=priceQtyList.map(it=>typeof it==='object'?it:{price:it,qty:2});
+  // 一定要是 {price,qty} 物件格式，數量不能用猜的（之前這裡曾經對「不是物件格式」的項目偷偷預設印2張，是潛在的算錯來源，拿掉了）
+  const invalidCount=priceQtyList.filter(it=>typeof it!=='object'||it===null||typeof it.qty!=='number').length;
+  if(invalidCount>0) console.warn('openLabelPrintWindow：略過',invalidCount,'筆格式不正確（缺少數量）的項目');
+  const normalized=priceQtyList.filter(it=>typeof it==='object'&&it!==null&&typeof it.qty==='number');
+  console.log('🏷️ 列印條碼診斷 → 這次要印的項目：',normalized,'｜總張數：',normalized.reduce((s,i)=>s+(i.qty||0),0));
   const itemsJson=JSON.stringify(normalized.flatMap(({price,qty})=>{
     const barcode=getPriceBarcode(price,prefix);
     return Array(Math.max(1,qty||1)).fill(0).map(()=>({price,barcode}));
