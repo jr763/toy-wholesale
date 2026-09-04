@@ -641,6 +641,18 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 </div>
 
 <!-- 收款記錄 Modal -->
+<div class="modal-overlay" id="modal-invoice-helper">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <h3>🧾 發票試算（三聯式）</h3>
+      <button class="modal-close" onclick="closeModal('modal-invoice-helper')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="invoice-helper-body"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-payment">
   <div class="modal" style="max-width:480px;">
     <div class="modal-header">
@@ -766,6 +778,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
         <div class="form-group full"><label>客戶名稱 <span class="req">*</span></label><input id="c-name" placeholder="例：小熊玩具行"></div>
         <div class="form-group"><label>電話</label><input id="c-phone" placeholder="0912-345-678"></div>
         <div class="form-group full"><label>地址</label><input id="c-address" placeholder="縣市地址"></div>
+        <div class="form-group"><label>統一編號</label><input id="c-tax-id" placeholder="8碼統編（三聯式發票用）" maxlength="8"></div>
+        <div class="form-group"><label>發票抬頭</label><input id="c-invoice-title" placeholder="公司抬頭，留空則用客戶名稱"></div>
         <div class="form-group"><label>折扣（%）</label><input id="c-discount" type="number" placeholder="0" min="0" max="100" value="0"></div>
         <div class="form-group"><label>客戶條碼 <span class="req">*</span></label>
           <select id="c-barcode"><option value="7990341">7990341</option><option value="2003751">2003751</option></select>
@@ -2543,7 +2557,7 @@ function renderProducts(){
 function openCustomerModal(){
   editCustId=null;
   G('c-modal-title').textContent='新增客戶';
-  ['c-name','c-phone','c-address','c-note'].forEach(id=>{if(G(id))G(id).value='';});
+  ['c-name','c-phone','c-address','c-note','c-tax-id','c-invoice-title'].forEach(id=>{if(G(id))G(id).value='';});
   G('c-discount').value='0';
   if(G('c-pay-cash-discount'))G('c-pay-cash-discount').value='';
   G('c-barcode').value='7990341';
@@ -2566,6 +2580,8 @@ function editCustomer(id){
   if(G('c-phone'))G('c-phone').value=c.phone||'';
   if(G('c-address'))G('c-address').value=c.address||'';
   if(G('c-note'))G('c-note').value=c.note||'';
+  if(G('c-tax-id'))G('c-tax-id').value=c.taxId||'';
+  if(G('c-invoice-title'))G('c-invoice-title').value=c.invoiceTitle||'';
   G('c-discount').value=c.discount||0;
   G('c-barcode').value=c.labelBarcode||'7990341';
   if(G('c-invoice-format'))G('c-invoice-format').value=c.invoiceFormat||'A';
@@ -2651,6 +2667,7 @@ async function saveCustomer(){
     cashDiscount:parseFloat(G('c-pay-cash-discount')?.value)||0,
   };
   const data={name:V('c-name'),phone:V('c-phone')||'',address:V('c-address')||'',note:V('c-note')||'',paymentTerms,
+    taxId:V('c-tax-id')||'',invoiceTitle:V('c-invoice-title')||'',
     discount:parseFloat(G('c-discount').value)||0,labelBarcode:G('c-barcode').value,
     invoiceFormat:G('c-invoice-format')?.value||'A',pricingRule,
     hideBarcodeInName:G('c-hide-barcode-name').checked,customCostMap};
@@ -3272,20 +3289,20 @@ async function viewOrder(id){
   });
   window._pickItems=items;
   window._pickOrderId=id;
-  // 只要清單裡有「部分已撿、部分未撿」（混合狀態），就只顯示尚未撿到的商品，不要全部列出
+  // 商品永遠都顯示在清單上，已撿的用淡化+劃線表示，不再把已撿的隱藏掉（之前隱藏的設計會讓人誤以為東西不見了）
   const savedState2=(db.pickingState||{})[id]||{};
   const hasAnyPicked2=(items||[]).some((_,i)=>savedState2[i]);
   const hasAnyUnpicked2=(items||[]).some((_,i)=>!savedState2[i]);
   const isPacked2=hasAnyPicked2&&hasAnyUnpicked2;
-  const displayItems=isPacked2?items.filter((_,idx)=>!savedState2[idx]):items;
-  const displayOffset=isPacked2?items.map((_,i)=>i).filter(i=>!savedState2[i]):items.map((_,i)=>i);
+  const displayItems=items;
+  const displayOffset=items.map((_,i)=>i);
   G('od-body').innerHTML=`
 
     <div style="margin-bottom:12px;">
       <button class="btn btn-primary btn-sm" id="bc-toggle-btn" onclick="toggleBCSummary()">🏷 顯示條碼列印清單</button>
     </div>
     <div id="bc-summary-inline" style="display:none;margin-bottom:12px;"></div>
-    ${isPacked2?'<div style="font-size:12px;color:var(--orange);padding:6px 0;margin-bottom:6px;">⚠️ 以下為尚未補齊的商品</div>':''}
+    ${isPacked2?'<div style="font-size:12px;color:var(--orange);padding:6px 0;margin-bottom:6px;">⚠️ 這張單已經撿過一部分了，淡化劃線的是已撿的，請把剩下的撿完</div>':''}
     <div class="table-wrap"><table>
       <thead><tr><th><input type="checkbox" id="pick-cb-all" onchange="toggleAllPicked(this)" title="全選/取消全選"></th><th>存放地點</th><th>商檢標</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
       <tbody>${displayItems.map((i,di)=>{const idx=displayOffset[di];
@@ -3411,10 +3428,6 @@ function showBCSummary(){
   const allCbs=[...document.querySelectorAll('[id^="pick-cb-"]')].filter(x=>x.id!=='pick-cb-all');
   const checkedIdxs=allCbs.filter(cb=>cb.checked&&!cb.disabled).map(cb=>parseInt(cb.id.replace('pick-cb-','')));
   const selected=checkedIdxs.length>0?checkedIdxs.map(i=>items[i]):[];
-  console.log('🏷️ 條碼統計診斷 → 訂單ID:',window._pickOrderId,
-    '｜勾選中的checkbox idx:',checkedIdxs,
-    '｜items總長度:',items.length,
-    '｜對應到的商品:',selected.map(i=>i?({name:i.name,variant:i.variant,price:i.price,qty:i.qty}):'(找不到，idx對應不到items!)'));
   const cust=window._pickOrderId?db.customers.find(x=>x.id===db.orders.find(o=>o.id===window._pickOrderId)?.customerId):null;
   const custBarcode=cust?.labelBarcode||'—';
   const priceMap={};
@@ -4019,6 +4032,130 @@ function calcAccountingData(year, month, custId){
   return Object.values(custMap);
 }
 
+// ── 發票試算（三聯式，5% 營業稅）───────────────
+// 純計算功能，不串接任何外部服務。輸入含稅總額，反推未稅金額跟稅額，
+// 排版成方便照抄手開發票的格式。統編/抬頭直接從客戶資料帶出。
+function calcInvoiceBreakdown(totalWithTax){
+  // 三聯式：金額欄通常填「未稅」，稅額欄填 5%，兩者相加＝總計（含稅）
+  // 反推：未稅金額 = 含稅總額 ÷ 1.05（四捨五入取整數），稅額 = 含稅總額 - 未稅金額
+  const untaxed=Math.round(totalWithTax/1.05);
+  const tax=totalWithTax-untaxed;
+  return {untaxed,tax,total:totalWithTax};
+}
+function openInvoiceHelper(custId,amount){
+  const cust=db.customers.find(x=>x.id===custId);if(!cust)return;
+  window._invHelperCustId=custId;
+  window._invHelperAmount=amount;
+  renderInvoiceHelper();
+  openModal('modal-invoice-helper');
+}
+function renderInvoiceHelper(){
+  const cust=db.customers.find(x=>x.id===window._invHelperCustId);if(!cust)return;
+  const amount=window._invHelperAmount||0;
+  const b=calcInvoiceBreakdown(amount);
+  const title=cust.invoiceTitle||cust.name;
+  const taxId=cust.taxId||'';
+  const body=G('invoice-helper-body');if(!body)return;
+  body.innerHTML=`
+    ${!taxId?`<div style="background:var(--orange-bg);color:var(--orange);border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:12px;">⚠️ 這個客戶還沒有設定統一編號，三聯式發票會需要，建議去「編輯客戶」補上。</div>`:''}
+    <div style="background:var(--surface2);border-radius:10px;padding:16px;font-size:14px;line-height:2;">
+      <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">買受人抬頭</span><strong>${title}</strong></div>
+      <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">統一編號</span><strong style="font-family:monospace;">${taxId||'（未設定）'}</strong></div>
+      <div style="border-top:1px dashed var(--border);margin:6px 0;"></div>
+      <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">銷售額（未稅）</span><strong>$${fmt(b.untaxed)}</strong></div>
+      <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">營業稅額（5%）</span><strong>$${fmt(b.tax)}</strong></div>
+      <div style="border-top:1px dashed var(--border);margin:6px 0;"></div>
+      <div style="display:flex;justify-content:space-between;font-size:16px;"><span>總計（含稅）</span><strong style="color:var(--accent);">$${fmt(b.total)}</strong></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px;">照這個「銷售額」「稅額」「總計」三個數字，分別填到發票上對應的欄位就可以了。金額是用你目前「應收金額」（含稅總額）反推的，如果跟實際要開的金額不同，可以手動調整：</div>
+    <div class="form-group" style="margin-top:8px;">
+      <label>含稅總金額（可手動調整重新試算）</label>
+      <div style="display:flex;gap:8px;">
+        <input id="inv-helper-amount" type="number" value="${amount}" style="flex:1;">
+        <button class="btn btn-sm btn-secondary" onclick="window._invHelperAmount=parseFloat(G('inv-helper-amount').value)||0;renderInvoiceHelper()">重新試算</button>
+      </div>
+    </div>
+    <button class="btn btn-sm btn-secondary" style="width:100%;justify-content:center;margin-top:12px;" onclick="toggleInvoiceMockup()"><span id="inv-mockup-toggle-label">📄 查看發票示意圖</span></button>
+    <div id="inv-mockup-wrap" style="display:none;margin-top:10px;"></div>`;
+}
+function toggleInvoiceMockup(){
+  const wrap=G('inv-mockup-wrap');if(!wrap)return;
+  const label=G('inv-mockup-toggle-label');
+  const showing=wrap.style.display!=='none';
+  if(showing){ wrap.style.display='none'; if(label)label.textContent='📄 查看發票示意圖'; return; }
+  wrap.style.display='block';
+  if(label)label.textContent='📄 收起發票示意圖';
+  wrap.innerHTML=renderInvoiceMockupHTML();
+}
+// 三聯式統一發票版面示意圖：純視覺輔助，標示每個數字要填在紙本發票的哪個欄位，
+// 品名/數量/單價逐筆明細不在這個功能範圍內（這是依算帳頁面的月結總額試算，不是拆每一筆出貨單品項）
+function renderInvoiceMockupHTML(){
+  const cust=db.customers.find(x=>x.id===window._invHelperCustId);
+  const amount=window._invHelperAmount||0;
+  const b=calcInvoiceBreakdown(amount);
+  const title=cust?(cust.invoiceTitle||cust.name):'';
+  const taxId=cust?.taxId||'';
+  const hint=(text)=>`<span style="color:var(--text3);font-size:10px;">${text}</span>`;
+  return `
+  <div style="border:2px solid #333;border-radius:4px;padding:14px;font-family:'Noto Sans TC',sans-serif;background:#fff;color:#222;font-size:12px;">
+    <div style="text-align:center;font-weight:700;font-size:15px;letter-spacing:2px;margin-bottom:2px;">三聯式統一發票</div>
+    <div style="text-align:center;font-size:10px;color:#888;margin-bottom:10px;">（示意圖，實際請照紙本發票欄位填寫）</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <tr>
+        <td style="border:1px solid #999;padding:4px 6px;width:50%;">發票號碼：${hint('（紙本已預印）')}</td>
+        <td style="border:1px solid #999;padding:4px 6px;">開立日期：${hint('（填今天日期）')}</td>
+      </tr>
+      <tr>
+        <td colspan="2" style="border:1px solid #999;padding:4px 6px;">
+          買受人：<strong>${title||hint('（未設定）')}</strong>　　統一編號：<strong style="font-family:monospace;">${taxId||hint('（未設定）')}</strong>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="border:1px solid #999;padding:0;">
+          <table style="width:100%;border-collapse:collapse;">
+            <tr style="background:#f0f0f0;">
+              <th style="border:1px solid #999;padding:4px;">品名</th>
+              <th style="border:1px solid #999;padding:4px;width:15%;">數量</th>
+              <th style="border:1px solid #999;padding:4px;width:18%;">單價</th>
+              <th style="border:1px solid #999;padding:4px;width:20%;">金額</th>
+            </tr>
+            <tr>
+              <td style="border:1px solid #999;padding:10px 4px;color:#999;">${hint('（依實際出貨商品品項填寫，可寫「商品一批」）')}</td>
+              <td style="border:1px solid #999;padding:10px 4px;"></td>
+              <td style="border:1px solid #999;padding:10px 4px;"></td>
+              <td style="border:1px solid #999;padding:10px 4px;"></td>
+            </tr>
+            <tr><td style="border:1px solid #999;height:22px;"></td><td style="border:1px solid #999;"></td><td style="border:1px solid #999;"></td><td style="border:1px solid #999;"></td></tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="border:1px solid #999;padding:0;">
+          <table style="width:100%;border-collapse:collapse;">
+            <tr>
+              <td style="border:1px solid #999;padding:5px 8px;text-align:right;width:70%;">銷售額合計</td>
+              <td style="border:1px solid #999;padding:5px 8px;text-align:right;font-weight:700;">$${fmt(b.untaxed)}</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #999;padding:5px 8px;text-align:right;">營業稅額（5%）</td>
+              <td style="border:1px solid #999;padding:5px 8px;text-align:right;font-weight:700;">$${fmt(b.tax)}</td>
+            </tr>
+            <tr style="background:#f0f0f0;">
+              <td style="border:1px solid #999;padding:6px 8px;text-align:right;font-weight:700;">總計</td>
+              <td style="border:1px solid #999;padding:6px 8px;text-align:right;font-weight:700;font-size:13px;">$${fmt(b.total)}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="border:1px solid #999;padding:4px 6px;">
+          賣方統一編號：${hint('（填你們公司自己的統編，紙本可能已預印）')}
+        </td>
+      </tr>
+    </table>
+  </div>`;
+}
+
 function renderAccounting(){
   const yearSel=G('acc-year');
   if(yearSel){
@@ -4103,6 +4240,7 @@ function renderAccounting(){
           <span style="font-size:12px;font-weight:700;color:${statusColor};">${statusLabel}</span>
           <div style="display:flex;gap:5px;">
             <button class="btn btn-sm btn-secondary" onclick="toggleAccDetail('${custKey}')">📋</button>
+            <button class="btn btn-sm btn-secondary" onclick="openInvoiceHelper('${d.cust.id}',${finalAmount})">🧾 發票試算</button>
             ${!bill
               ? `<button class="btn btn-sm btn-green" onclick="checkoutAccounting('${d.cust.id}','${year}','${month||'all'}',${actualReceivable})">結帳</button>`
               : `<button class="btn btn-sm btn-secondary" onclick="cancelCheckout('${d.cust.id}','${year}','${month||'all'}')">取消結帳</button>
