@@ -3228,6 +3228,14 @@ function renderOrders(){
     </div>`;
   }).join('');
 }
+// 用售價快速找商品（查看撿貨-唯讀版）
+function filterPickReadonlyByPrice(){
+  const q=(G('pick-ro-price-search')?.value||'').trim();
+  document.querySelectorAll('[id^="pick-ro-row-"]').forEach(row=>{
+    if(!q){ row.style.display=''; return; }
+    row.style.display=(row.dataset.price===q)?'':'none';
+  });
+}
 async function viewOrderReadonly(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
   await ensureOrderStateLoaded(id); // 撿貨記錄用到才抓
@@ -3244,11 +3252,14 @@ async function viewOrderReadonly(id){
   });
   const savedState=(db.pickingState||{})[id]||{};
   G('od-body').innerHTML=`
+    <div style="margin-bottom:12px;">
+      <input id="pick-ro-price-search" type="number" placeholder="輸入售價搜尋，例如 50" oninput="filterPickReadonlyByPrice()" style="width:100%;">
+    </div>
     <div class="table-wrap"><table>
       <thead><tr><th>✓</th><th>存放地點</th><th>商檢標</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
       <tbody>${items.map((i,idx)=>{
         const checked=!!savedState[idx];
-        return `<tr style="${checked?'opacity:0.35;text-decoration:line-through;':''}">
+        return `<tr id="pick-ro-row-${idx}" data-price="${i.price}" style="${checked?'opacity:0.55;text-decoration:line-through;':''}">
           <td>${checked?'✓':'□'}</td>
           <td><span class="badge badge-blue">${i.location||'—'}</span></td>
           <td>${i.hasInspMark!==false?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'—')+'</span>'}</td>
@@ -3298,8 +3309,9 @@ async function viewOrder(id){
   const displayOffset=items.map((_,i)=>i);
   G('od-body').innerHTML=`
 
-    <div style="margin-bottom:12px;">
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn btn-primary btn-sm" id="bc-toggle-btn" onclick="toggleBCSummary()">🏷 顯示條碼列印清單</button>
+      <input id="pick-price-search" type="number" placeholder="輸入售價搜尋，例如 50" oninput="filterPickByPrice()" style="flex:1;min-width:140px;">
     </div>
     <div id="bc-summary-inline" style="display:none;margin-bottom:12px;"></div>
     ${isPacked2?'<div style="font-size:12px;color:var(--orange);padding:6px 0;margin-bottom:6px;">⚠️ 這張單已經撿過一部分了，淡化劃線的是已撿的，請把剩下的撿完</div>':''}
@@ -3311,7 +3323,7 @@ async function viewOrder(id){
         const isDisc=!!(prod&&prod.discontinued);
         const noStock=(prod?.currentStock??0)<=0;
         const isBlocked=(isOOS||isDisc)&&noStock; // 有標記但庫存還夠，還是可以正常撿貨；真的沒庫存才鎖住
-        return `<tr id="pick-row-${idx}" style="transition:opacity .2s;${isBlocked?'background:var(--bg2);':''}">
+        return `<tr id="pick-row-${idx}" data-price="${i.price}" style="transition:opacity .2s;${isBlocked?'background:var(--bg2);':''}">
         <td><input type="checkbox" id="pick-cb-${idx}" onchange="togglePicked(${idx},this)" ${isBlocked?`disabled title="此商品已標記${isDisc?'停售':'缺貨'}且庫存為0，無法撿貨"`:''}></td>
         <td><span class="badge badge-blue">${i.location||'—'}</span></td>
         <td>${i.hasInspMark?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'無批號')+'</span>'}</td>
@@ -3333,7 +3345,7 @@ async function viewOrder(id){
     const row=G('pick-row-'+idx);
     if(cb&&checked){
       cb.checked=true;
-      if(row){row.style.opacity='0.35';row.style.textDecoration='line-through';}
+      if(row){row.style.opacity='0.55';row.style.textDecoration='line-through';}
       if(isPacked){cb.disabled=true;cb.title='已裝箱，無法變更';}
     }
   });
@@ -3461,9 +3473,17 @@ function toggleAllPicked(allCb){
   });
   allCb.checked=target; // 迴圈裡途中可能被同步邏輯改掉，最後強制設回正確的目標值
 }
+// 用售價快速找商品：輸入的數字要跟售價完全一樣才顯示，清空搜尋框就恢復顯示全部
+function filterPickByPrice(){
+  const q=(G('pick-price-search')?.value||'').trim();
+  document.querySelectorAll('[id^="pick-row-"]').forEach(row=>{
+    if(!q){ row.style.display=''; return; }
+    row.style.display=(row.dataset.price===q)?'':'none';
+  });
+}
 function togglePicked(idx,cb){
   const row=G('pick-row-'+idx);
-  if(cb.checked){row.style.opacity='0.35';row.style.textDecoration='line-through';}
+  if(cb.checked){row.style.opacity='0.55';row.style.textDecoration='line-through';}
   else{row.style.opacity='1';row.style.textDecoration='none';}
   // Update pick-done-btn immediately
   const pickBtn=G('pick-done-btn');
@@ -4074,86 +4094,7 @@ function renderInvoiceHelper(){
         <input id="inv-helper-amount" type="number" value="${amount}" style="flex:1;">
         <button class="btn btn-sm btn-secondary" onclick="window._invHelperAmount=parseFloat(G('inv-helper-amount').value)||0;renderInvoiceHelper()">重新試算</button>
       </div>
-    </div>
-    <button class="btn btn-sm btn-secondary" style="width:100%;justify-content:center;margin-top:12px;" onclick="toggleInvoiceMockup()"><span id="inv-mockup-toggle-label">📄 查看發票示意圖</span></button>
-    <div id="inv-mockup-wrap" style="display:none;margin-top:10px;"></div>`;
-}
-function toggleInvoiceMockup(){
-  const wrap=G('inv-mockup-wrap');if(!wrap)return;
-  const label=G('inv-mockup-toggle-label');
-  const showing=wrap.style.display!=='none';
-  if(showing){ wrap.style.display='none'; if(label)label.textContent='📄 查看發票示意圖'; return; }
-  wrap.style.display='block';
-  if(label)label.textContent='📄 收起發票示意圖';
-  wrap.innerHTML=renderInvoiceMockupHTML();
-}
-// 三聯式統一發票版面示意圖：純視覺輔助，標示每個數字要填在紙本發票的哪個欄位，
-// 品名/數量/單價逐筆明細不在這個功能範圍內（這是依算帳頁面的月結總額試算，不是拆每一筆出貨單品項）
-function renderInvoiceMockupHTML(){
-  const cust=db.customers.find(x=>x.id===window._invHelperCustId);
-  const amount=window._invHelperAmount||0;
-  const b=calcInvoiceBreakdown(amount);
-  const title=cust?(cust.invoiceTitle||cust.name):'';
-  const taxId=cust?.taxId||'';
-  const hint=(text)=>`<span style="color:var(--text3);font-size:10px;">${text}</span>`;
-  return `
-  <div style="border:2px solid #333;border-radius:4px;padding:14px;font-family:'Noto Sans TC',sans-serif;background:#fff;color:#222;font-size:12px;">
-    <div style="text-align:center;font-weight:700;font-size:15px;letter-spacing:2px;margin-bottom:2px;">三聯式統一發票</div>
-    <div style="text-align:center;font-size:10px;color:#888;margin-bottom:10px;">（示意圖，實際請照紙本發票欄位填寫）</div>
-    <table style="width:100%;border-collapse:collapse;font-size:11px;">
-      <tr>
-        <td style="border:1px solid #999;padding:4px 6px;width:50%;">發票號碼：${hint('（紙本已預印）')}</td>
-        <td style="border:1px solid #999;padding:4px 6px;">開立日期：${hint('（填今天日期）')}</td>
-      </tr>
-      <tr>
-        <td colspan="2" style="border:1px solid #999;padding:4px 6px;">
-          買受人：<strong>${title||hint('（未設定）')}</strong>　　統一編號：<strong style="font-family:monospace;">${taxId||hint('（未設定）')}</strong>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2" style="border:1px solid #999;padding:0;">
-          <table style="width:100%;border-collapse:collapse;">
-            <tr style="background:#f0f0f0;">
-              <th style="border:1px solid #999;padding:4px;">品名</th>
-              <th style="border:1px solid #999;padding:4px;width:15%;">數量</th>
-              <th style="border:1px solid #999;padding:4px;width:18%;">單價</th>
-              <th style="border:1px solid #999;padding:4px;width:20%;">金額</th>
-            </tr>
-            <tr>
-              <td style="border:1px solid #999;padding:10px 4px;color:#999;">${hint('（依實際出貨商品品項填寫，可寫「商品一批」）')}</td>
-              <td style="border:1px solid #999;padding:10px 4px;"></td>
-              <td style="border:1px solid #999;padding:10px 4px;"></td>
-              <td style="border:1px solid #999;padding:10px 4px;"></td>
-            </tr>
-            <tr><td style="border:1px solid #999;height:22px;"></td><td style="border:1px solid #999;"></td><td style="border:1px solid #999;"></td><td style="border:1px solid #999;"></td></tr>
-          </table>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2" style="border:1px solid #999;padding:0;">
-          <table style="width:100%;border-collapse:collapse;">
-            <tr>
-              <td style="border:1px solid #999;padding:5px 8px;text-align:right;width:70%;">銷售額合計</td>
-              <td style="border:1px solid #999;padding:5px 8px;text-align:right;font-weight:700;">$${fmt(b.untaxed)}</td>
-            </tr>
-            <tr>
-              <td style="border:1px solid #999;padding:5px 8px;text-align:right;">營業稅額（5%）</td>
-              <td style="border:1px solid #999;padding:5px 8px;text-align:right;font-weight:700;">$${fmt(b.tax)}</td>
-            </tr>
-            <tr style="background:#f0f0f0;">
-              <td style="border:1px solid #999;padding:6px 8px;text-align:right;font-weight:700;">總計</td>
-              <td style="border:1px solid #999;padding:6px 8px;text-align:right;font-weight:700;font-size:13px;">$${fmt(b.total)}</td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2" style="border:1px solid #999;padding:4px 6px;">
-          賣方統一編號：${hint('（填你們公司自己的統編，紙本可能已預印）')}
-        </td>
-      </tr>
-    </table>
-  </div>`;
+    </div>`;
 }
 
 function renderAccounting(){
