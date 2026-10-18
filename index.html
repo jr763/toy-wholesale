@@ -6002,10 +6002,10 @@ async function openLabelPrintWindow(priceQtyList,prefix){
         const r=await fetch('http://127.0.0.1:8765/print',{method:'POST',body:JSON.stringify(jobs),signal:ctl2.signal});
         clearTimeout(t2);
         const d=await r.json();
-        if(d.ok) showToast('✅ LabelView 已完成 '+d.count+' 種價格的列印指令','success',4000);
-        else toastAlert('❌ 沒有列印：'+(d.error||'未知錯誤'),'error',9000);
+        if(d.ok) showToast('LabelView 已完成 '+d.count+' 種價格的列印指令','success',4000);
+        else toastAlert('沒有列印：'+(d.error||'未知錯誤'),'error',9000);
       }catch(e){
-        toastAlert('❌ 小程式超過90秒沒有回應，請看電腦上的黑視窗訊息','error',9000);
+        toastAlert('小程式超過90秒沒有回應，請看電腦上的黑視窗訊息','error',9000);
       }
       _lvBusy=false;
       return;
