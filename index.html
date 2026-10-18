@@ -5980,7 +5980,38 @@ document.addEventListener('click',function(e){
 });
 
 let _labelPrintBusy=false;
-function openLabelPrintWindow(priceQtyList,prefix){
+// 按「列印條碼」：直接交給店裡電腦的 LabelView 小程式自動列印（不再跳出網頁列印視窗；小程式沒開會提示）
+let _lvBusy=false;
+async function openLabelPrintWindow(priceQtyList,prefix){
+  if(!priceQtyList.length){toastAlert('沒有售價可列印','warn');return;}
+  if(_lvBusy) return;
+  const jobs=priceQtyList.filter(it=>it&&typeof it==='object'&&typeof it.qty==='number'&&it.qty>0).map(it=>{
+    const bc=getPriceBarcode(it.price,prefix);return {prefix:bc.slice(0,7),price:it.price,qty:it.qty};
+  });
+  if(jobs.length){
+    let alive=false;
+    try{
+      const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),1500);
+      const pr=await fetch('http://127.0.0.1:8765/ping',{signal:ctl.signal});clearTimeout(t);alive=pr.ok;
+    }catch(e){ alive=false; /* 小程式沒開 → 退回網頁列印 */ }
+    if(alive){
+      _lvBusy=true;
+      showToast('LabelView 列印中，請勿操作電腦…','success',60000);
+      try{
+        const r=await fetch('http://127.0.0.1:8765/print',{method:'POST',body:JSON.stringify(jobs)});
+        const d=await r.json();
+        if(d.ok) showToast('✅ LabelView 已完成 '+d.count+' 種價格的列印指令','success',4000);
+        else toastAlert('❌ 沒有列印：'+(d.error||'未知錯誤'),'error',9000);
+      }catch(e){
+        toastAlert('❌ 小程式沒有回應，請看電腦上的黑視窗訊息','error',9000);
+      }
+      _lvBusy=false;
+      return;
+    }
+  }
+  toastAlert('找不到 LabelView 小程式：請先雙擊「啟動小程式.bat」，黑視窗開著再按列印','warn',7000);
+}
+function _openLabelPopup(priceQtyList,prefix){
   if(!priceQtyList.length){toastAlert('沒有售價可列印','warn');return;}
   // 防止手滑連點兩下，同時開兩個列印視窗、各印一份，變成印了兩倍
   if(_labelPrintBusy){ console.warn('列印中，忽略重複點擊'); return; }
@@ -6025,7 +6056,7 @@ function openLabelPrintWindow(priceQtyList,prefix){
     @media print{#tspl-bar{display:none;}}
     .label .line{width:50mm;text-align:center;white-space:nowrap;overflow:visible;}
     .label .brand{display:flex;justify-content:space-between;font-size:25px;font-weight:600;line-height:1.5;margin-bottom:2.5px;}
-    .label img{display:block;width:23.75mm;height:26mm;image-rendering:pixelated;}
+    .label img{display:block;flex-shrink:0;width:23.75mm;height:17mm;image-rendering:pixelated;}
     .label .code{display:flex;justify-content:space-between;font-size:20px;font-family:monospace;margin-top:1px;line-height:1;}
     .label .price{display:flex;justify-content:space-between;font-size:25px;font-weight:450;margin-top:1px;line-height:1.5;}
   </style></head><body>
@@ -6049,9 +6080,9 @@ function openLabelPrintWindow(priceQtyList,prefix){
         // 改用「點陣圖」：畫布1像素=印表機1點(203DPI)，線寬2點，不經過向量縮放/反鋸齒，
         // 印出來就是乾淨銳利的黑白線(跟條碼機專用程式一樣的原理)
         const cv=document.createElement('canvas');
-        JsBarcode(cv,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:208,width:2,background:'#ffffff',lineColor:'#000000'});
+        JsBarcode(cv,it.barcode,{format:'EAN13',displayValue:false,margin:0,height:136,width:2,background:'#ffffff',lineColor:'#000000'});
         svg.src=cv.toDataURL('image/png');
-        svg.style.width=(cv.width*0.125)+'mm';svg.style.height='26mm';svg.style.display='block';
+        svg.style.width=(cv.width*0.125)+'mm';svg.style.height='17mm';svg.style.display='block';
         svg.style.imageRendering='pixelated';
       }catch(e){console.error(e);}
     });
@@ -6068,15 +6099,15 @@ function openLabelPrintWindow(priceQtyList,prefix){
     function buildTSPL(){
       const enc=new TextEncoder(),parts=[];const T=t=>parts.push(enc.encode(t));
       // 紙張設定：如果印出來位置/間距不對，改這幾個數字（1mm=8點）
-      T('SIZE 55.5 mm,45.7 mm\r\nGAP 3 mm,0 mm\r\nDIRECTION 1\r\nREFERENCE 0,0\r\nDENSITY 8\r\nSPEED 3\r\n');
+      T('SIZE 55.5 mm,45.7 mm\\r\\nGAP 3 mm,0 mm\\r\\nDIRECTION 1\\r\\nREFERENCE 0,0\\r\\nDENSITY 8\\r\\nSPEED 3\\r\\n');
       const brand=textBmp('奧 斯 卡',34,444,56);
       items.forEach(it=>{
-        T('CLS\r\n');
-        T('BITMAP 0,14,'+brand.rb+','+brand.h+',0,');parts.push(brand.data);T('\r\n');
-        T('BARCODE 127,80,"EAN13",150,1,0,2,4,"'+it.barcode+'"\r\n');
+        T('CLS\\r\\n');
+        T('BITMAP 0,14,'+brand.rb+','+brand.h+',0,');parts.push(brand.data);T('\\r\\n');
+        T('BARCODE 127,80,"EAN13",150,1,0,2,4,"'+it.barcode+'"\\r\\n');
         const pr=textBmp('單價 '+it.price+' 元',32,444,56);
-        T('BITMAP 0,285,'+pr.rb+','+pr.h+',0,');parts.push(pr.data);T('\r\n');
-        T('PRINT 1,1\r\n');
+        T('BITMAP 0,285,'+pr.rb+','+pr.h+',0,');parts.push(pr.data);T('\\r\\n');
+        T('PRINT 1,1\\r\\n');
       });
       let n=0;parts.forEach(a=>n+=a.length);const all=new Uint8Array(n);let o=0;parts.forEach(a=>{all.set(a,o);o+=a.length;});return all;
     }
@@ -6090,8 +6121,8 @@ function openLabelPrintWindow(priceQtyList,prefix){
     };
     document.getElementById('csv-dl').onclick=()=>{
       const m={};items.forEach(it=>{const k=it.barcode;m[k]=m[k]||{barcode:it.barcode,price:it.price,qty:0};m[k].qty++;});
-      let csv='﻿條碼,單價,數量,品牌\r\n';
-      Object.values(m).forEach(r=>{csv+=r.barcode+','+r.price+','+r.qty+',奧斯卡\r\n';});
+      let csv='﻿條碼,單價,數量,品牌\\r\\n';
+      Object.values(m).forEach(r=>{csv+=r.barcode+','+r.price+','+r.qty+',奧斯卡\\r\\n';});
       const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='條碼列印清單.csv';a.click();msg('已下載 條碼列印清單.csv');
     };
     document.getElementById('tspl-dl').onclick=()=>{
