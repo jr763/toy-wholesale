@@ -6020,12 +6020,16 @@ function openLabelPrintWindow(priceQtyList,prefix){
   page-break-after:always;
 }
     .label:last-child{margin-bottom:0;page-break-after:avoid;}
+    #tspl-bar{position:fixed;top:0;left:0;right:0;background:#fff3cd;padding:8px;font-size:14px;z-index:99;border-bottom:1px solid #e0c36a;}
+    #tspl-bar button{font-size:14px;padding:6px 12px;margin-right:6px;cursor:pointer;}
+    @media print{#tspl-bar{display:none;}}
     .label .line{width:50mm;text-align:center;white-space:nowrap;overflow:visible;}
     .label .brand{display:flex;justify-content:space-between;font-size:25px;font-weight:600;line-height:1.5;margin-bottom:2.5px;}
     .label img{display:block;width:23.75mm;height:26mm;image-rendering:pixelated;}
     .label .code{display:flex;justify-content:space-between;font-size:20px;font-family:monospace;margin-top:1px;line-height:1;}
     .label .price{display:flex;justify-content:space-between;font-size:25px;font-weight:450;margin-top:1px;line-height:1.5;}
   </style></head><body>
+  <div id="tspl-bar"><button id="tspl-btn">⚡ 直接傳給TSC印表機列印（細條碼）</button><button id="lv-btn">🖨️ 自動用LabelView列印</button><button id="csv-dl">📄 下載CSV（給條碼程式匯入）</button><button id="tspl-dl">下載指令檔(.prn)</button><span id="tspl-msg"></span></div><div style="height:46px"></div>
   <div class="sheet" id="sheet"></div>
   <scr`+`ipt>
     const items=${itemsJson};
@@ -6051,6 +6055,65 @@ function openLabelPrintWindow(priceQtyList,prefix){
         svg.style.imageRendering='pixelated';
       }catch(e){console.error(e);}
     });
+    // ===== 直接用TSPL指令列印（跟條碼機專用程式同一個原理：條碼由印表機自己畫，線寬就是2點）=====
+    const msg=t=>{document.getElementById('tspl-msg').textContent=t;};
+    function textBmp(text,fontPx,w,h){
+      const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+      x.fillStyle='#fff';x.fillRect(0,0,w,h);x.fillStyle='#000';x.textAlign='center';x.textBaseline='middle';
+      x.font='bold '+fontPx+'px "Microsoft JhengHei","Noto Sans TC",sans-serif';x.fillText(text,w/2,h/2+2);
+      const d=x.getImageData(0,0,w,h).data,rb=Math.ceil(w/8),out=new Uint8Array(rb*h).fill(255);
+      for(let r=0;r<h;r++)for(let k=0;k<w;k++){ if(d[(r*w+k)*4]<140) out[r*rb+(k>>3)]&=~(0x80>>(k&7)); }
+      return {rb,h,data:out};
+    }
+    function buildTSPL(){
+      const enc=new TextEncoder(),parts=[];const T=t=>parts.push(enc.encode(t));
+      // 紙張設定：如果印出來位置/間距不對，改這幾個數字（1mm=8點）
+      T('SIZE 55.5 mm,45.7 mm\r\nGAP 3 mm,0 mm\r\nDIRECTION 1\r\nREFERENCE 0,0\r\nDENSITY 8\r\nSPEED 3\r\n');
+      const brand=textBmp('奧 斯 卡',34,444,56);
+      items.forEach(it=>{
+        T('CLS\r\n');
+        T('BITMAP 0,14,'+brand.rb+','+brand.h+',0,');parts.push(brand.data);T('\r\n');
+        T('BARCODE 127,80,"EAN13",150,1,0,2,4,"'+it.barcode+'"\r\n');
+        const pr=textBmp('單價 '+it.price+' 元',32,444,56);
+        T('BITMAP 0,285,'+pr.rb+','+pr.h+',0,');parts.push(pr.data);T('\r\n');
+        T('PRINT 1,1\r\n');
+      });
+      let n=0;parts.forEach(a=>n+=a.length);const all=new Uint8Array(n);let o=0;parts.forEach(a=>{all.set(a,o);o+=a.length;});return all;
+    }
+    document.getElementById('lv-btn').onclick=async()=>{
+      const m={};items.forEach(it=>{const k=it.barcode;m[k]=m[k]||{prefix:it.barcode.slice(0,7),price:it.price,qty:0};m[k].qty++;});
+      const jobs=Object.values(m);
+      try{
+        const r=await fetch('http://127.0.0.1:8765/print',{method:'POST',body:JSON.stringify(jobs)});
+        msg(r.ok?'✅ 已交給小程式，共 '+jobs.length+' 種價格，請不要碰鍵盤滑鼠':'小程式回應異常');
+      }catch(e){msg('連不到小程式，請先雙擊「啟動小程式.bat」');}
+    };
+    document.getElementById('csv-dl').onclick=()=>{
+      const m={};items.forEach(it=>{const k=it.barcode;m[k]=m[k]||{barcode:it.barcode,price:it.price,qty:0};m[k].qty++;});
+      let csv='﻿條碼,單價,數量,品牌\r\n';
+      Object.values(m).forEach(r=>{csv+=r.barcode+','+r.price+','+r.qty+',奧斯卡\r\n';});
+      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='條碼列印清單.csv';a.click();msg('已下載 條碼列印清單.csv');
+    };
+    document.getElementById('tspl-dl').onclick=()=>{
+      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buildTSPL()],{type:'application/octet-stream'}));a.download='labels.prn';a.click();msg('已下載 labels.prn');
+    };
+    document.getElementById('tspl-btn').onclick=async()=>{
+      try{
+        if(!navigator.usb){msg('這個瀏覽器不支援WebUSB，請用電腦版Chrome或Edge');return;}
+        msg('請在彈出視窗選擇印表機…');
+        const dev=await navigator.usb.requestDevice({filters:[{vendorId:0x1203},{classCode:7}]});
+        await dev.open();
+        if(dev.configuration===null) await dev.selectConfiguration(1);
+        let ifc=null,ep=null;
+        for(const i of dev.configuration.interfaces){for(const a of i.alternates){
+          const e=a.endpoints.find(e=>e.direction==='out');if(e&&!ep){ifc=i;ep=e;}}}
+        if(!ep){msg('找不到可用的傳輸埠，可能還是用Windows原廠驅動（請看設定說明）');return;}
+        await dev.claimInterface(ifc.interfaceNumber);
+        const data=buildTSPL();
+        for(let p=0;p<data.length;p+=16384){ await dev.transferOut(ep.endpointNumber,data.slice(p,p+16384)); }
+        await dev.close();msg('✅ 已送出 '+items.length+' 張');
+      }catch(e){console.error(e);msg('失敗：'+(e&&e.message?e.message:e));}
+    };
     window.onload=()=>setTimeout(()=>window.print(),400);
   </scr`+`ipt>
   </body></html>`;
