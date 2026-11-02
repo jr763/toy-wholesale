@@ -204,6 +204,47 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
   .btn{padding:8px 13px;font-size:12px}
   .modal-body{padding:13px 16px 18px}
 }
+
+/* ── 銷售分析 ── */
+.an-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.an-filter select{width:auto}
+.an-note{font-size:11px;color:var(--text3)}
+.an-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.an-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}
+.an-kpi .k{font-size:11px;color:var(--text2)}
+.an-kpi .v{font-size:20px;font-weight:700;margin-top:3px;color:var(--text)}
+.an-kpi.main .v{color:var(--accent)}
+.an-card{margin-bottom:14px}
+.an-title{font-weight:700;font-size:15px;margin-bottom:12px;color:var(--brown-dark)}
+.an-sub{font-weight:400;font-size:11px;color:var(--text3);margin-left:6px}
+.an-empty{color:var(--text3);font-size:13px;padding:14px 0;text-align:center}
+.an-bar-row{display:flex;align-items:center;gap:10px;padding:7px 0}
+.an-bar-label{flex:0 0 96px;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-bar-track{flex:1;background:var(--surface2);border-radius:6px;height:20px;overflow:hidden}
+.an-bar-fill{height:100%;background:var(--brown-light);border-radius:6px;min-width:2px}
+.an-bar-fill.accent{background:var(--accent)}
+.an-bar-val{flex:0 0 auto;min-width:78px;text-align:right;font-size:13px;font-weight:700}
+.an-bar-val small{display:block;font-size:10px;font-weight:400;color:var(--text3)}
+.an-months{display:flex;align-items:flex-end;gap:6px;height:150px;padding-top:8px}
+.an-mcol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.an-mbar{width:100%;max-width:34px;background:var(--brown-light);border-radius:6px 6px 0 0;min-height:2px}
+.an-mbar.cur{background:var(--accent)}
+.an-mval{font-size:10px;color:var(--text2);margin-bottom:3px;white-space:nowrap}
+.an-mlab{font-size:11px;color:var(--text2);margin-top:5px}
+.an-route{border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.an-route-head{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;background:var(--surface)}
+.an-route-head:hover{background:var(--surface2)}
+.an-route-date{flex:0 0 auto;font-weight:700;font-size:14px}
+.an-route-date small{display:block;font-weight:400;font-size:11px;color:var(--text3)}
+.an-route-mid{flex:1;min-width:0}
+.an-route-total{font-weight:700;font-size:15px;color:var(--accent);flex:0 0 auto}
+.an-route-body{display:none;padding:4px 12px 10px;background:var(--surface2);border-top:1px solid var(--border)}
+.an-route.open .an-route-body{display:block}
+.an-arrow{color:var(--text3);font-size:12px;transition:transform .15s}
+.an-route.open .an-arrow{transform:rotate(90deg)}
+.an-seg{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.an-seg button{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:20px;padding:5px 14px;font-size:13px;cursor:pointer}
+.an-seg button.on{background:var(--brown);border-color:var(--brown);color:#fff}
 </style>
 </head>
 <body>
@@ -520,55 +561,51 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 
 <div id="tab-analytics" class="page">
   <div class="page-header"><div><h2>銷售分析</h2></div></div>
-  <div id="analytics-loading-note" style="display:none;font-size:12px;color:var(--text3);margin-bottom:8px;">📊 正在載入完整歷史資料（銷售分析需要全部資料，跟其他頁面只載最近1個月不同）…</div>
+  <div id="analytics-loading-note" style="display:none;font-size:12px;color:var(--text3);margin-bottom:8px;">📊 正在載入完整歷史資料…</div>
 
-  <!-- 📈 每月出貨金額趨勢 -->
-  <div class="card" style="margin-bottom:16px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">📈 每月出貨金額趨勢</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
-      <select id="monthly-year" onchange="renderMonthlyChart()" style="width:auto;"></select>
-      <select id="monthly-month" onchange="renderMonthlyChart()" style="width:auto;">
-        <option value="">全年</option>
-        <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
-        <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
-        <option value="07">7月</option><option value="08">8月</option><option value="09">9月</option>
-        <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
-      </select>
-      <select id="monthly-cust" onchange="renderMonthlyChart()" style="width:auto;flex:1;min-width:120px;">
-        <option value="">全部客戶</option>
-      </select>
-    </div>
-    <canvas id="chart-monthly-revenue" height="120"></canvas>
+  <!-- 篩選列 -->
+  <div class="an-filter">
+    <select id="an-year" onchange="renderAnalyticsAll()"></select>
+    <select id="an-month" onchange="renderAnalyticsAll()">
+      <option value="">全年</option>
+      <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
+      <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
+      <option value="07">7月</option><option value="08">8月</option><option value="09">9月</option>
+      <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+    </select>
+    <span class="an-note">金額為出貨金額扣掉退貨後的實收</span>
   </div>
 
-  <!-- 🏆 熱銷商品排行 -->
-  <div class="card" style="margin-bottom:16px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">🏆 熱銷商品排行（前10名）</div>
-    <canvas id="chart-top-products" height="160"></canvas>
+  <!-- 總覽 -->
+  <div class="an-kpis" id="an-kpis"></div>
+
+  <!-- 每月趨勢 -->
+  <div class="card an-card">
+    <div class="an-title">每月出貨金額</div>
+    <div id="an-monthly"></div>
   </div>
 
-  <!-- 🥧 商品銷售分布 -->
-  <div class="card" style="margin-bottom:16px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">🥧 商品銷售分布</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
-      <select id="pie-year" onchange="renderSalesPie()" style="width:auto;"></select>
-      <select id="pie-month" onchange="renderSalesPie()" style="width:auto;">
-        <option value="">全年</option>
-        <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
-        <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
-        <option value="07">7月</option><option value="08">8月</option><option value="09">9月</option>
-        <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
-      </select>
-      <select id="pie-cust" onchange="renderSalesPie()" style="width:auto;flex:1;min-width:120px;">
-        <option value="">全部客戶</option>
-      </select>
+  <!-- 路線 -->
+  <div class="card an-card">
+    <div class="an-title">路線總額 <span class="an-sub">同一天的抄貨單算同一條路線，點開看每間店</span></div>
+    <div id="an-routes"></div>
+  </div>
+
+  <!-- 價格級距 -->
+  <div class="card an-card">
+    <div class="an-title">價格級距 <span class="an-sub">客人最常買哪個價位</span></div>
+    <div class="an-seg">
+      <button id="an-band-qty" class="on" onclick="setBandMode('qty')">看件數</button>
+      <button id="an-band-amt" onclick="setBandMode('amt')">看金額</button>
+      <select id="an-band-cust" onchange="renderPriceBands()" style="width:auto;flex:1;min-width:120px;"><option value="">全部客戶</option></select>
     </div>
-    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-      <div style="flex:1;min-width:200px;max-width:300px;">
-        <canvas id="chart-cust-pie"></canvas>
-      </div>
-      <div id="pie-legend" style="flex:1;min-width:150px;font-size:13px;"></div>
-    </div>
+    <div id="an-bands"></div>
+  </div>
+
+  <!-- 熱銷商品 -->
+  <div class="card an-card">
+    <div class="an-title">熱銷商品 <span class="an-sub">依件數，前 10 名</span></div>
+    <div id="an-top"></div>
   </div>
 </div>
 
@@ -4468,43 +4505,6 @@ function printBarcodePrintList(){
 // ── END 條碼列印頁面 ──────────────────────────
 
 // ── 銷售分析 ──────────────────────────────────
-let _chartMonthly=null, _chartTopProducts=null, _chartCustPie=null;
-const CHART_COLORS=['#c8401a','#1a5c8a','#2a7a4f','#e07020','#9e9890','#e8956d','#4a90d9','#7a4f2a','#50c878','#ff6b6b','#9b59b6','#f39c12'];
-
-function getAnalyticsYears(){
-  const years=new Set();
-  _analyticsShipments.forEach(s=>{ if(s.date) years.add(s.date.slice(0,4)); });
-  if(!years.size) years.add(new Date().getFullYear().toString());
-  return [...years].sort().reverse();
-}
-
-function initYearSelect(selId){
-  const sel=G(selId);if(!sel)return;
-  const years=getAnalyticsYears();
-  const cur=sel.value||years[0];
-  sel.innerHTML=years.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y}</option>`).join('');
-}
-
-function initCustSelect(selId){
-  const sel=G(selId);if(!sel)return;
-  const cur=sel.value;
-  sel.innerHTML='<option value="">全部客戶</option>'+
-    db.customers.map(c=>`<option value="${c.id}" ${c.id===cur?'selected':''}>${c.name}</option>`).join('');
-}
-
-function filterShipments(year, month, custId){
-  return _analyticsShipments.filter(s=>{
-    if(!s.date)return false;
-    if(year&&!s.date.startsWith(year))return false;
-    if(month&&s.date.slice(5,7)!==month)return false;
-    if(custId){
-      const o=_analyticsOrders.find(x=>x.id===s.orderId);
-      if(!o||o.customerId!==custId)return false;
-    }
-    return true;
-  });
-}
-
 // 銷售分析需要完整歷史資料（其他頁面只載最近1個月），用獨立的變數存，
 // 不合併進 db.orders/db.shipments，避免看過分析頁之後，訂單/出貨單列表也跟著變成顯示全部歷史資料
 let _analyticsDataLoaded=false;
@@ -4530,165 +4530,167 @@ async function ensureAnalyticsDataLoaded(){
   if(note)note.style.display='none';
 }
 
+let _bandMode='qty';
+const BANDS=[
+  {l:'29 元以下',min:0,max:29},{l:'30–49 元',min:30,max:49},{l:'50–79 元',min:50,max:79},
+  {l:'80–119 元',min:80,max:119},{l:'120–199 元',min:120,max:199},{l:'200–399 元',min:200,max:399},{l:'400 元以上',min:400,max:Infinity}
+];
+const _wk=['日','一','二','三','四','五','六'];
+
+function anCustName(id){const c=db.customers.find(x=>x.id===id);return c?c.name:'（已刪除客戶）';}
+function anShipTotal(sh){
+  const g=(sh.items||[]).reduce((n,i)=>n+i.qty*i.price,0);
+  const r=(sh.returnItems||[]).reduce((n,i)=>n+i.qty*i.price,0);
+  return {gross:g,ret:r,net:g-r};
+}
+// 取出符合年月的出貨單；路線日期 = 該出貨單所屬抄貨單的日期（沒有就用出貨日）
+function anShipments(year,month){
+  return _analyticsShipments.map(sh=>{
+    const o=_analyticsOrders.find(x=>x.id===sh.orderId);
+    return {sh,custId:o?o.customerId:'',routeDate:(o&&o.date)||sh.date||''};
+  }).filter(x=>{
+    if(!x.routeDate)return false;
+    if(year&&!x.routeDate.startsWith(year))return false;
+    if(month&&x.routeDate.slice(5,7)!==month)return false;
+    return true;
+  });
+}
+function anYears(){
+  const y=new Set();
+  _analyticsShipments.forEach(sh=>{const o=_analyticsOrders.find(x=>x.id===sh.orderId);const d=(o&&o.date)||sh.date;if(d)y.add(d.slice(0,4));});
+  if(!y.size)y.add(String(new Date().getFullYear()));
+  return [...y].sort().reverse();
+}
+function anMoney(n){return '$'+fmt(Math.round(n));}
+
 async function renderAnalytics(){
   await ensureAnalyticsDataLoaded();
-  initYearSelect('monthly-year');
-  initYearSelect('pie-year');
-  initCustSelect('monthly-cust');
-  initCustSelect('pie-cust');
-  renderMonthlyChart();
-  renderTopProductsChart();
-  renderSalesPie();
+  const ys=anYears();
+  const ysel=G('an-year');
+  if(ysel){
+    const cur=ysel.value||ys[0];
+    ysel.innerHTML=ys.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y} 年</option>`).join('');
+    const msel=G('an-month');
+    if(msel&&!msel.dataset.init){msel.value=String(new Date().getMonth()+1).padStart(2,'0');msel.dataset.init='1';}
+  }
+  const cs=G('an-band-cust');
+  if(cs){const cur=cs.value;cs.innerHTML='<option value="">全部客戶</option>'+db.customers.map(c=>`<option value="${c.id}" ${c.id===cur?'selected':''}>${c.name}</option>`).join('');}
+  renderAnalyticsAll();
 }
 
-function renderMonthlyChart(){
-  const year=G('monthly-year')?.value||getAnalyticsYears()[0];
-  const month=G('monthly-month')?.value||'';
-  const custId=G('monthly-cust')?.value||'';
-  const filtered=filterShipments(year,month,custId);
-
-  let labels, dataRevenue, dataCount;
-  if(month){
-    // 選了月份：顯示該月每天
-    const daysInMonth=new Date(parseInt(year),parseInt(month),0).getDate();
-    labels=Array.from({length:daysInMonth},(_,i)=>`${i+1}日`);
-    dataRevenue=Array(daysInMonth).fill(0);
-    dataCount=Array(daysInMonth).fill(0);
-    filtered.forEach(s=>{
-      const day=parseInt(s.date.slice(8,10))-1;
-      const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
-      dataRevenue[day]+=total;
-      dataCount[day]++;
-    });
-  } else {
-    // 全年：顯示每月
-    labels=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-    dataRevenue=Array(12).fill(0);
-    dataCount=Array(12).fill(0);
-    filtered.forEach(s=>{
-      const m=parseInt(s.date.slice(5,7))-1;
-      const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
-      dataRevenue[m]+=total;
-      dataCount[m]++;
-    });
-  }
-
-  const ctx=G('chart-monthly-revenue');if(!ctx)return;
-  if(_chartMonthly)_chartMonthly.destroy();
-  _chartMonthly=new Chart(ctx,{
-    type:'line',
-    data:{
-      labels,
-      datasets:[
-        {
-          label:'出貨金額',
-          data:dataRevenue,
-          borderColor:'#c8401a',
-          backgroundColor:'rgba(200,64,26,0.1)',
-          tension:0.3,fill:true,
-          pointBackgroundColor:'#c8401a',
-          yAxisID:'y',
-        },
-        {
-          label:'出貨次數',
-          data:dataCount,
-          borderColor:'#1a5c8a',
-          backgroundColor:'rgba(26,92,138,0.1)',
-          tension:0.3,fill:false,
-          pointBackgroundColor:'#1a5c8a',
-          yAxisID:'y1',
-          borderDash:[5,5],
-        }
-      ]
-    },
-    options:{
-      responsive:true,
-      plugins:{legend:{position:'right',labels:{font:{size:12}}}},
-      scales:{
-        y:{position:'left',ticks:{callback:v=>'$'+v.toLocaleString()}},
-        y1:{position:'right',grid:{drawOnChartArea:false},ticks:{stepSize:1,callback:v=>v+'次'}}
-      }
-    }
-  });
+function renderAnalyticsAll(){
+  renderAnKpis();renderAnMonthly();renderAnRoutes();renderPriceBands();renderAnTop();
 }
 
-function renderTopProductsChart(){
-  const priceMap={};
-  _analyticsShipments.forEach(s=>{
-    (s.items||[]).forEach(item=>{
-      const p=db.products.find(x=>x.id===item.productId);
-      const key=p?p.name:('$'+item.price+'元');
-      priceMap[key]=(priceMap[key]||0)+item.qty;
-    });
-  });
-  const sorted=Object.entries(priceMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const ctx=G('chart-top-products');if(!ctx)return;
-  if(_chartTopProducts)_chartTopProducts.destroy();
-  _chartTopProducts=new Chart(ctx,{
-    type:'bar',
-    data:{
-      labels:sorted.map(x=>x[0]),
-      datasets:[{
-        label:'銷售數量',
-        data:sorted.map(x=>x[1]),
-        backgroundColor:CHART_COLORS.slice(0,sorted.length),
-        borderRadius:4,
-      }]
-    },
-    options:{
-      responsive:true,
-      plugins:{legend:{display:false}},
-      scales:{y:{ticks:{stepSize:1}}}
-    }
-  });
+function renderAnKpis(){
+  const list=anShipments(G('an-year')?.value,G('an-month')?.value);
+  let net=0,ret=0;const routes=new Set(),custs=new Set();
+  list.forEach(x=>{const t=anShipTotal(x.sh);net+=t.net;ret+=t.ret;routes.add(x.routeDate);custs.add(x.custId);});
+  const n=routes.size;
+  G('an-kpis').innerHTML=`
+    <div class="an-kpi main"><div class="k">實收總額</div><div class="v">${anMoney(net)}</div></div>
+    <div class="an-kpi"><div class="k">路線數</div><div class="v">${n}</div></div>
+    <div class="an-kpi"><div class="k">平均每條路線</div><div class="v">${n?anMoney(net/n):'—'}</div></div>
+    <div class="an-kpi"><div class="k">有出貨的店</div><div class="v">${custs.size}</div></div>
+    <div class="an-kpi"><div class="k">退貨扣除</div><div class="v" style="color:var(--red);">${ret?'-'+anMoney(ret):'$0'}</div></div>`;
 }
 
-function renderSalesPie(){
-  const year=G('pie-year')?.value||getAnalyticsYears()[0];
-  const month=G('pie-month')?.value||'';
-  const custId=G('pie-cust')?.value||'';
-  const filtered=filterShipments(year,month,custId);
+function renderAnMonthly(){
+  const year=G('an-year')?.value;
+  const list=anShipments(year,'');
+  const m=Array(12).fill(0);
+  list.forEach(x=>{m[parseInt(x.routeDate.slice(5,7))-1]+=anShipTotal(x.sh).net;});
+  const mx=Math.max(...m,1);
+  const sel=G('an-month')?.value;
+  G('an-monthly').innerHTML=list.length?`<div class="an-months">${m.map((v,i)=>`
+    <div class="an-mcol">
+      <div class="an-mval">${v?(v>=10000?(v/10000).toFixed(1)+'萬':fmt(Math.round(v))):''}</div>
+      <div class="an-mbar ${sel&&parseInt(sel)===i+1?'cur':''}" style="height:${Math.max(2,v/mx*100)}%"></div>
+      <div class="an-mlab">${i+1}月</div>
+    </div>`).join('')}</div>`:'<div class="an-empty">這一年還沒有出貨資料</div>';
+}
 
-  const priceMap={};
-  filtered.forEach(s=>{
-    (s.items||[]).forEach(item=>{
-      const p=db.products.find(x=>x.id===item.productId);
-      const key=p?p.name:('$'+item.price+'元');
-      priceMap[key]=(priceMap[key]||0)+item.qty;
+function renderAnRoutes(){
+  const list=anShipments(G('an-year')?.value,G('an-month')?.value);
+  if(!list.length){G('an-routes').innerHTML='<div class="an-empty">這段期間沒有出貨資料</div>';return;}
+  const routes={};
+  list.forEach(x=>{
+    const r=routes[x.routeDate]=routes[x.routeDate]||{date:x.routeDate,net:0,stores:{}};
+    const t=anShipTotal(x.sh);
+    r.net+=t.net;
+    r.stores[x.custId]=(r.stores[x.custId]||0)+t.net;
+  });
+  const arr=Object.values(routes).sort((a,b)=>b.date.localeCompare(a.date));
+  const mx=Math.max(...arr.map(r=>r.net),1);
+  G('an-routes').innerHTML=arr.map((r,ri)=>{
+    const d=new Date(r.date+'T00:00:00');
+    const stores=Object.entries(r.stores).sort((a,b)=>b[1]-a[1]);
+    const smx=Math.max(...stores.map(x=>x[1]),1);
+    return `<div class="an-route" id="an-route-${ri}">
+      <div class="an-route-head" onclick="document.getElementById('an-route-${ri}').classList.toggle('open')">
+        <span class="an-arrow">▶</span>
+        <div class="an-route-date">${r.date.slice(5).replace('-','/')}<small>週${_wk[d.getDay()]}・${stores.length} 間店</small></div>
+        <div class="an-route-mid"><div class="an-bar-track"><div class="an-bar-fill accent" style="width:${r.net/mx*100}%"></div></div></div>
+        <div class="an-route-total">${anMoney(r.net)}</div>
+      </div>
+      <div class="an-route-body">${stores.map(([cid,v])=>`
+        <div class="an-bar-row">
+          <div class="an-bar-label" style="flex-basis:110px;">${anCustName(cid)}</div>
+          <div class="an-bar-track"><div class="an-bar-fill" style="width:${v/smx*100}%"></div></div>
+          <div class="an-bar-val">${anMoney(v)}<small>${r.net?Math.round(v/r.net*100):0}%</small></div>
+        </div>`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function setBandMode(m){
+  _bandMode=m;
+  G('an-band-qty').classList.toggle('on',m==='qty');
+  G('an-band-amt').classList.toggle('on',m==='amt');
+  renderPriceBands();
+}
+function renderPriceBands(){
+  const list=anShipments(G('an-year')?.value,G('an-month')?.value);
+  const custId=G('an-band-cust')?.value||'';
+  const qty=BANDS.map(()=>0),amt=BANDS.map(()=>0);
+  const put=(price,n)=>{const i=BANDS.findIndex(b=>price>=b.min&&price<=b.max);if(i>=0){qty[i]+=n;amt[i]+=n*price;}};
+  list.forEach(x=>{
+    if(custId&&x.custId!==custId)return;
+    (x.sh.items||[]).forEach(i=>put(i.price,i.qty));
+    (x.sh.returnItems||[]).forEach(i=>put(i.price,-i.qty));
+  });
+  const vals=_bandMode==='qty'?qty:amt;
+  const total=vals.reduce((a,b)=>a+b,0);
+  if(total<=0){G('an-bands').innerHTML='<div class="an-empty">這段期間沒有資料</div>';return;}
+  const mx=Math.max(...vals,1);
+  const top=vals.indexOf(mx);
+  G('an-bands').innerHTML=BANDS.map((b,i)=>`
+    <div class="an-bar-row">
+      <div class="an-bar-label" style="flex-basis:90px;">${b.l}</div>
+      <div class="an-bar-track"><div class="an-bar-fill ${i===top?'accent':''}" style="width:${Math.max(0,vals[i])/mx*100}%"></div></div>
+      <div class="an-bar-val">${_bandMode==='qty'?fmt(qty[i])+' 件':anMoney(amt[i])}<small>${Math.round(vals[i]/total*100)}%</small></div>
+    </div>`).join('')+`<div style="font-size:12px;color:var(--text2);margin-top:8px;">最常買的是 <strong>${BANDS[top].l}</strong>，佔 ${Math.round(vals[top]/total*100)}%</div>`;
+}
+
+function renderAnTop(){
+  const list=anShipments(G('an-year')?.value,G('an-month')?.value);
+  const m={};
+  list.forEach(x=>{
+    (x.sh.items||[]).forEach(i=>{
+      const p=db.products.find(y=>y.id===i.productId);
+      const k=p?p.name:(i.name||('$'+i.price+' 商品'));
+      const r=m[k]=m[k]||{qty:0,amt:0};r.qty+=i.qty;r.amt+=i.qty*i.price;
     });
   });
-  const entries=Object.entries(priceMap).sort((a,b)=>b[1]-a[1]);
-  const ctx=G('chart-cust-pie');if(!ctx)return;
-  if(_chartCustPie){_chartCustPie.destroy();_chartCustPie=null;}
-  if(!entries.length){
-    G('pie-legend').innerHTML='<div style="color:var(--text3);font-size:13px;">無資料</div>';
-    return;
-  }
-  const total=entries.reduce((s,x)=>s+x[1],0);
-  _chartCustPie=new Chart(ctx,{
-    type:'pie',
-    data:{
-      labels:entries.map(x=>x[0]),
-      datasets:[{data:entries.map(x=>x[1]),backgroundColor:CHART_COLORS.slice(0,entries.length)}]
-    },
-    options:{
-      responsive:true,
-      plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{label:c=>`${c.label}：${c.raw} 個（${Math.round(c.raw/total*100)}%）`}}
-      }
-    }
-  });
-  // 自訂圖例在右邊
-  const legend=G('pie-legend');
-  if(legend){
-    legend.innerHTML=entries.map((e,i)=>`
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
-        <span style="width:12px;height:12px;border-radius:50%;background:${CHART_COLORS[i%CHART_COLORS.length]};flex-shrink:0;display:inline-block;"></span>
-        <span style="font-size:12px;">${e[0]}</span>
-        <span style="font-size:12px;color:var(--text2);margin-left:auto;">${e[1]}個 (${Math.round(e[1]/total*100)}%)</span>
-      </div>`).join('');
-  }
+  const arr=Object.entries(m).sort((a,b)=>b[1].qty-a[1].qty).slice(0,10);
+  if(!arr.length){G('an-top').innerHTML='<div class="an-empty">這段期間沒有資料</div>';return;}
+  const mx=arr[0][1].qty;
+  G('an-top').innerHTML=arr.map(([k,v],i)=>`
+    <div class="an-bar-row">
+      <div class="an-bar-label" style="flex-basis:130px;">${i+1}. ${k}</div>
+      <div class="an-bar-track"><div class="an-bar-fill ${i===0?'accent':''}" style="width:${v.qty/mx*100}%"></div></div>
+      <div class="an-bar-val">${fmt(v.qty)} 件<small>${anMoney(v.amt)}</small></div>
+    </div>`).join('');
 }
 // ── END 銷售分析 ──────────────────────────────
 
