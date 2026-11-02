@@ -2941,6 +2941,8 @@ async function saveOrder(status){
     await ensureOrderStateLoaded(editOrderId); // 撿貨記錄用到才抓，編輯前一定要先確保載入，不然會誤判成「都還沒撿」
     const oldItems=oldItemsForStock;
     const savedState=(db.pickingState||{})[editOrderId]||{};
+    // 撿貨記錄的位置是「排序後清單」的位置，所以新舊清單都要先照撿貨畫面的順序排好再對應
+    const sOld=getPickSortedItems(oldItems), sNew=getPickSortedItems(orderItems);
     const inPickFlow=['picking','picked','boxing','packed','mod_picking','mod_picked','mod_boxing'].includes(oldOrder.status);
     const isCompleted=oldOrder.status==='completed';
 
@@ -2962,14 +2964,31 @@ async function saveOrder(status){
     // 撿貨紀錄一律改用「商品本身」對應到新清單位置，避免編輯後位置錯位
     if(hasAdd||hasDel){
       const remapped={};
-      oldItems.forEach((oi,oldIdx)=>{
+      const usedNew=new Set();
+      sOld.forEach((oi,oldIdx)=>{
         if(!savedState[oldIdx])return;
-        const newIdx=orderItems.findIndex(n=>n.productId===oi.productId&&(n.variant||'')===(oi.variant||''));
+        const newIdx=sNew.findIndex((n,ni)=>!usedNew.has(ni)&&n.productId===oi.productId&&(n.variant||'')===(oi.variant||''));
         if(newIdx<0)return;
-        if(orderItems[newIdx].qty<=oi.qty) remapped[newIdx]=true;
+        usedNew.add(newIdx);
+        if(sNew[newIdx].qty<=oi.qty) remapped[newIdx]=true; // 數量沒增加才保留已撿；增加的要重新撿
+      });
+      // 裝箱紀錄是依「已撿商品的售價分組」排序後的位置存的，撿貨紀錄變了就要一起重新對應
+      const boxRows=(items,pk)=>{
+        const m={};
+        items.forEach((it,i)=>{ if(pk[i]){ const k='$'+fmt(it.price); m[k]=(m[k]||0)+it.qty; } });
+        return Object.entries(m).sort((x,y)=>parseFloat(x[0].replace('$',''))-parseFloat(y[0].replace('$',''))).map(([p,q])=>({price:p,qty:q}));
+      };
+      const oldBox=(db.boxingState||{})[editOrderId]||{};
+      const oldRows=boxRows(sOld,savedState), newRows=boxRows(sNew,remapped);
+      const newBox={};
+      newRows.forEach((nr,ni)=>{
+        const oi=oldRows.findIndex(r=>r.price===nr.price);
+        if(oi>=0&&oldBox[oi]&&nr.qty<=oldRows[oi].qty) newBox[ni]=true; // 同價格且數量沒增加才保留已裝箱
       });
       if(!db.pickingState)db.pickingState={};
       db.pickingState[editOrderId]=remapped;
+      if(!db.boxingState)db.boxingState={};
+      db.boxingState[editOrderId]=newBox;
     }
 
     const isShipped=oldOrder.status==='shipped';
@@ -2999,7 +3018,7 @@ async function saveOrder(status){
       const changedPicked=[];
       const allChanges=[...added.map(x=>'新增：'+x),...increased.map(x=>'增加：'+x),...decreased.map(x=>'減少：'+x),...deleted.map(x=>'刪除：'+x)];
       // 找已勾選但被變動的項目
-      oldItems.forEach((oi,i)=>{
+      sOld.forEach((oi,i)=>{
         if(!savedState[i]) return; // 未勾選，不需通知
         const ni=orderItems.find(n=>n.productId===oi.productId&&(n.variant||'')===(oi.variant||''));
         if(!ni) changedPicked.push('刪除：'+oi.name+(oi.variant?' ('+oi.variant+')':''));
@@ -3236,20 +3255,29 @@ function filterPickReadonlyByPrice(){
     row.style.display=(row.dataset.price===q)?'':'none';
   });
 }
+// 撿貨/裝箱記錄(pickingState)是用「排序後的商品清單位置」當key存的。
+// 所有用到這份記錄的地方（撿貨畫面、唯讀畫面、撿貨完成、裝箱、編輯抄貨單）都必須用這同一個排序，位置才會對得上。
+function getPickSortedItems(items){
+  const locOrder=['地下室','一樓','樓梯間','二樓','其他',''];
+  return [...(items||[])].map(i=>{
+    const p=db.products.find(x=>x.id===i.productId);
+    return {...i,location:i.location||p?.location||'',
+      hasInspMark:p?p.hasInspectionMark!==false:true,
+      batchNo:p?.inspectionBatchNo||''};
+  }).sort((a,b)=>{
+    const la=locOrder.indexOf(a.location);const lb=locOrder.indexOf(b.location);
+    if(la!==lb)return (la<0?99:la)-(lb<0?99:lb);
+    if(a.productId!==b.productId)return (a.productId||'').localeCompare(b.productId||'');
+    return (a.variant||'').localeCompare(b.variant||'');
+  });
+}
 async function viewOrderReadonly(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
   await ensureOrderStateLoaded(id); // 撿貨記錄用到才抓
   const cust=db.customers.find(x=>x.id===o.customerId);
   const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
   G('od-title').textContent=cust?cust.name:'撿貨單';
-  const locOrder=['地下室','一樓','樓梯間','二樓','其他',''];
-  const items=[...(o.items||[])].map(i=>{
-    const p=db.products.find(x=>x.id===i.productId);
-    return {...i,location:i.location||p?.location||'',hasInspMark:p?p.hasInspectionMark!==false:true,batchNo:p?.inspectionBatchNo||''};
-  }).sort((a,b)=>{
-    const la=locOrder.indexOf(a.location);const lb=locOrder.indexOf(b.location);
-    return (la<0?99:la)-(lb<0?99:lb);
-  });
+  const items=getPickSortedItems(o.items);
   const savedState=(db.pickingState||{})[id]||{};
   G('od-body').innerHTML=`
     <div style="margin-bottom:12px;">
@@ -3285,19 +3313,7 @@ async function viewOrder(id){
   const cust=db.customers.find(x=>x.id===o.customerId);
   const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
   G('od-title').textContent=cust?cust.name:'撿貨單';
-  const locOrder=['地下室','一樓','樓梯間','二樓','其他',''];
-  const items=[...(o.items||[])].map(i=>{
-    const p=db.products.find(x=>x.id===i.productId);
-    return {...i,location:i.location||p?.location||'',
-      hasInspMark:p?p.hasInspectionMark!==false:true,
-      batchNo:p?.inspectionBatchNo||''};
-  }).sort((a,b)=>{
-    const la=locOrder.indexOf(a.location);const lb=locOrder.indexOf(b.location);
-    if(la!==lb)return (la<0?99:la)-(lb<0?99:lb);
-    // Same location - group same product together (variants stay adjacent)
-    if(a.productId!==b.productId)return (a.productId||'').localeCompare(b.productId||'');
-    return (a.variant||'').localeCompare(b.variant||'');
-  });
+  const items=getPickSortedItems(o.items);
   window._pickItems=items;
   window._pickOrderId=id;
   // 商品永遠都顯示在清單上，已撿的用淡化+劃線表示，不再把已撿的隱藏掉（之前隱藏的設計會讓人誤以為東西不見了）
@@ -3419,7 +3435,7 @@ async function markPacked(orderId){
     return;
   }
   const savedState=(db.pickingState||{})[orderId]||{};
-  const items=o.items||[];
+  const items=getPickSortedItems(o.items);
   const missing=items.filter((_,i)=>!savedState[i]);
   const allDone=missing.length===0;
   const msg=allDone?'所有商品已撿齊，確認撿貨完成？':`有 ${missing.length} 項商品未撿（${missing.map(i=>i.name).join('、')}），確認撿貨完成？`;
@@ -5004,7 +5020,7 @@ async function openBoxingModal(orderId){
   await ensureOrderStateLoaded(orderId); // 撿貨/裝箱記錄用到才抓，不整包常駐
   const cust=db.customers.find(x=>x.id===o.customerId);
   const savedState=(db.pickingState||{})[orderId]||{};
-  const pickedItems=(o.items||[]).filter((_,i)=>savedState[i]);
+  const pickedItems=getPickSortedItems(o.items).filter((_,i)=>savedState[i]);
   const priceMap={};
   pickedItems.forEach(item=>{const k='$'+fmt(item.price);priceMap[k]=(priceMap[k]||0)+item.qty;});
   const rows=Object.entries(priceMap).sort((a,b)=>parseFloat(a[0].replace('$',''))-parseFloat(b[0].replace('$','')));
@@ -5080,7 +5096,7 @@ async function confirmBoxing(){
     return;
   }
   const savedState=(db.pickingState||{})[_boxingOrderId]||{};
-  const missing=(o.items||[]).filter((_,i)=>!savedState[i]);
+  const missing=getPickSortedItems(o.items).filter((_,i)=>!savedState[i]);
   const idx=db.orders.findIndex(x=>x.id===_boxingOrderId);
   const wasRe=['re_boxing','re_picking'].includes(db.orders[idx]?.status);
   const isMod=['mod_boxing','mod_picked'].includes(db.orders[idx]?.status);
