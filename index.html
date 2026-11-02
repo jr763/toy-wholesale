@@ -111,10 +111,10 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(2px)}
 .modal-overlay.open{display:flex}
 .modal{background:var(--surface);border-radius:16px;width:100%;max-width:560px;max-height:93vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.22)}
-.modal-header{padding:18px 22px 0;display:flex;justify-content:space-between;align-items:center}
-.modal-header h3{font-size:16px;font-weight:700}
-.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2);line-height:1;padding:2px 6px;border-radius:6px;transition:background .15s}
-.modal-close:hover{background:var(--surface2)}
+.modal-header{position:sticky;top:0;z-index:20;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--brown);color:#fff;border-radius:16px 16px 0 0}
+.modal-header h3{font-size:16px;font-weight:700;color:#fff}
+.modal-close{background:rgba(255,255,255,.95);border:none;font-size:20px;cursor:pointer;color:var(--brown);line-height:1;width:30px;height:30px;padding:0;border-radius:50%;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;transition:background .15s}
+.modal-close:hover{background:#fff}
 .modal-body{padding:16px 22px 22px}
 
 /* ── 標籤選擇 ── */
@@ -617,16 +617,27 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
         <div style="font-size:13px;font-weight:700;margin-bottom:8px;">↩️ 退貨明細</div>
         <div id="edit-ship-returns"></div>
         <div style="display:flex;gap:7px;margin-top:8px;flex-wrap:wrap;align-items:flex-end;">
-          <div class="form-group" style="flex:0 0 90px;">
-            <label style="font-size:12px;">售價</label>
-            <input id="ret-price" type="number" placeholder="0" min="0" style="width:100%;">
+          <div class="form-group" style="flex:1 1 200px;">
+            <label style="font-size:12px;">退貨商品（出貨單內）</label>
+            <select id="ret-item" style="width:100%;"></select>
           </div>
           <div class="form-group" style="flex:0 0 70px;">
             <label style="font-size:12px;">數量</label>
-            <input id="ret-qty" type="number" placeholder="0" min="1" value="1" style="width:100%;">
+            <input id="ret-qty" type="number" placeholder="1" min="1" value="1" style="width:100%;">
+          </div>
+          <div class="form-group" style="flex:1 1 120px;">
+            <label style="font-size:12px;">原因</label>
+            <select id="ret-reason" style="width:100%;">
+              <option value="故障">故障</option><option value="外包裝破損">外包裝破損</option><option value="商品缺件">商品缺件</option><option value="尺寸/顏色不符">尺寸/顏色不符</option><option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1 1 100px;">
+            <label style="font-size:12px;">處置</label>
+            <select id="ret-disp" style="width:100%;"><option value="退庫">退庫</option><option value="報廢">報廢</option><option value="待修理">待修理</option></select>
           </div>
           <button class="btn btn-sm btn-secondary" onclick="addReturnToShipment()" style="align-self:flex-end;">＋ 加入退貨</button>
         </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px;">加入後會同步記錄到「退貨」頁，並扣除這張出貨單的應收金額；處置選「退庫」才會加回庫存。</div>
       </div>
 
       <!-- 金額總計 -->
@@ -1093,8 +1104,13 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     <div class="modal-body">
       <div class="form-grid">
         <div id="o-sched-hint" style="display:none;background:var(--blue-bg);border-radius:6px;padding:7px 10px;font-size:12px;margin-bottom:8px;grid-column:1/-1;"></div>
-        <div class="form-group"><label>客戶 <span class="req">*</span></label><select id="r-cust"><option value="">-- 選擇客戶 --</option></select></div>
+        <div class="form-group"><label>客戶 <span class="req">*</span></label><select id="r-cust" onchange="fillReturnShipOptions()"><option value="">-- 選擇客戶 --</option></select></div>
         <div class="form-group"><label>日期</label><input id="r-date" type="date"></div>
+        <div class="form-group full">
+          <label>對應出貨單（選填）</label>
+          <select id="r-ship"><option value="">-- 不對應（只記退貨，不扣應收）--</option></select>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">選了出貨單，儲存後會自動扣除該出貨單的應收金額。</div>
+        </div>
         <div class="form-group full">
           <label>退貨原因 <span class="req">*</span></label>
           <select id="r-reason" onchange="onReasonChange()">
@@ -3631,10 +3647,12 @@ function openReturnModal(editId){
   if(G('r-search-results'))G('r-search-results').innerHTML='';
   const defRadio=document.querySelector('input[name="r-disp"][value="退庫"]');if(defRadio)defRadio.checked=true;
   G('r-items').innerHTML='';
+  fillReturnShipOptions();
   if(editId){
     const r=db.returns.find(x=>x.id===editId);
     if(r){
       G('r-cust').value=r.customerId;
+      fillReturnShipOptions(r.shipmentId||'');
       G('r-date').value=r.date;
       if(G('r-reason'))G('r-reason').value=r.reason||'';
       onReasonChange();
@@ -3646,6 +3664,16 @@ function openReturnModal(editId){
     }
   }
   openModal('modal-return');
+}
+function fillReturnShipOptions(selId){
+  const el=G('r-ship');if(!el)return;
+  const cid=G('r-cust')?.value;
+  const ships=cid?db.shipments.filter(sh=>{const od=db.orders.find(x=>x.id===sh.orderId);return od&&od.customerId===cid;}).sort((a,b)=>(b.date||'').localeCompare(a.date||'')):[];
+  el.innerHTML='<option value="">-- 不對應（只記退貨，不扣應收）--</option>'+ships.map(sh=>{
+    const total=(sh.items||[]).reduce((n,i)=>n+i.qty*i.price,0);
+    return `<option value="${sh.id}">${sh.date||''}　出貨 $${fmt(total)}</option>`;
+  }).join('');
+  if(selId)el.value=selId;
 }
 function onReturnSearch(){
   const q=(G('r-search')?.value||'').toLowerCase().trim();
@@ -3719,8 +3747,31 @@ async function saveReturn(){
       });
     }
   }
-  await saveMultiple(['returns','products','meta']);
-  closeModal('modal-return');renderReturns();renderProducts();renderDashboard();
+  // 連動出貨單：把這筆退貨同步成出貨單的退貨扣款（先清掉這筆舊的連動，再依目前內容重建）
+  const savedRet=editReturnId?db.returns.find(x=>x.id===editReturnId):db.returns[db.returns.length-1];
+  const shipSel=G('r-ship')?G('r-ship').value:'';
+  let shipChanged=false;
+  if(savedRet){
+    db.shipments.forEach(sh=>{
+      if(sh.returnItems&&sh.returnItems.some(x=>x.retId===savedRet.id)){
+        sh.returnItems=sh.returnItems.filter(x=>x.retId!==savedRet.id);shipChanged=true;
+      }
+    });
+    if(shipSel){
+      const sh=db.shipments.find(x=>x.id===shipSel);
+      if(sh){
+        sh.returnItems=sh.returnItems||[];
+        savedRet.shipmentId=shipSel;
+        savedRet.items.forEach(it=>{
+          const si=(sh.items||[]).find(x=>x.productId===it.productId);
+          sh.returnItems.push({price:si?si.price:0,qty:it.qty,productId:it.productId,name:it.name,reason:savedRet.reason,disposition:savedRet.disposition,retId:savedRet.id});
+        });
+        shipChanged=true;
+      }
+    } else { delete savedRet.shipmentId; }
+  }
+  await saveMultiple(shipChanged?['returns','products','shipments','meta']:['returns','products','meta']);
+  closeModal('modal-return');renderReturns();renderProducts();renderDashboard();if(shipChanged&&typeof renderShipments==='function')renderShipments();
   btn.disabled=false;btn.textContent='儲存退貨';
   setTimeout(()=>{ isSaving=false; },2000);
 }
@@ -3739,7 +3790,7 @@ function renderReturns(){
           <div style="font-size:12px;color:var(--text3);">${r.date}</div>
           <div style="font-size:15px;font-weight:700;margin:3px 0;">${cust?cust.name:'—'}</div>
           <span class="badge ${dispBadge[r.disposition]||'badge-red'}">${r.disposition}</span>
-          <span class="badge badge-blue" style="margin-left:4px;">${r.reason||'—'}</span>${r.detail?`<div style='font-size:12px;color:var(--text2);margin-top:4px;'>📝 ${r.detail}</div>`:''}
+          <span class="badge badge-blue" style="margin-left:4px;">${r.reason||'—'}</span>${r.shipmentId?'<span class="badge badge-orange" style="margin-left:4px;">已對應出貨單</span>':''}${r.detail?`<div style='font-size:12px;color:var(--text2);margin-top:4px;'>📝 ${r.detail}</div>`:''}
         </div>
       </div>
       <div class="table-wrap" style="margin-top:9px;"><table>
@@ -3876,8 +3927,8 @@ function openEditShipmentModal(shipId){
   _editShipItems=(s.items||[]).map(i=>({...i}));
   _editShipReturnItems=(s.returnItems||[]).map(i=>({...i}));
   G('edit-ship-title').textContent=`編輯出貨單 - ${c?c.name:'未知客戶'} ${s.date}`;
-  if(G('ret-price'))G('ret-price').value='';
   if(G('ret-qty'))G('ret-qty').value='1';
+  fillShipReturnSelect();
   renderEditShipOriginal();
   renderEditShipReturns();
   renderEditShipTotal();
@@ -3901,6 +3952,16 @@ function renderEditShipOriginal(){
   <div style="text-align:right;padding:6px 10px;font-size:13px;font-weight:700;">出貨合計：$${fmt(total)}</div>`;
 }
 
+function fillShipReturnSelect(){
+  const el=G('ret-item');if(!el)return;
+  // 同商品同售價合併成一個選項
+  const seen={};
+  _editShipItems.forEach(i=>{const k=i.productId+'|'+i.price;if(!seen[k])seen[k]={productId:i.productId,name:i.name,price:i.price,qty:0};seen[k].qty+=i.qty;});
+  const opts=Object.values(seen);
+  el.innerHTML=opts.map((o,idx)=>`<option value="${idx}">${o.name}（$${fmt(o.price)}，出貨${o.qty}）</option>`).join('');
+  el._opts=opts;
+}
+
 function renderEditShipReturns(){
   const el=G('edit-ship-returns');if(!el)return;
   if(!_editShipReturnItems.length){
@@ -3908,8 +3969,9 @@ function renderEditShipReturns(){
     return;
   }
   el.innerHTML=`<div class="table-wrap"><table>
-    <thead><tr><th>售價</th><th>數量</th><th>小計</th><th></th></tr></thead>
+    <thead><tr><th>商品</th><th>售價</th><th>數量</th><th>小計</th><th></th></tr></thead>
     <tbody>${_editShipReturnItems.map((item,idx)=>`<tr>
+      <td>${item.name||'（只記金額）'}${item.reason?`<div style="font-size:11px;color:var(--text3);">${item.reason}・${item.disposition||''}</div>`:''}</td>
       <td style="font-weight:700;">$${fmt(item.price)}元</td>
       <td>${item.qty}</td>
       <td style="color:var(--red);">-$${fmt(item.qty*item.price)}</td>
@@ -3919,11 +3981,14 @@ function renderEditShipReturns(){
 }
 
 function addReturnToShipment(){
-  const price=parseFloat(G('ret-price')?.value);
+  const sel=G('ret-item');
+  const opt=sel&&sel._opts?sel._opts[parseInt(sel.value)]:null;
   const qty=parseInt(G('ret-qty')?.value)||1;
-  if(!price||price<=0){toastAlert('請輸入退貨售價','warn');return;}
-  _editShipReturnItems.push({price,qty});
-  if(G('ret-price'))G('ret-price').value='';
+  if(!opt){toastAlert('請選擇退貨商品','warn');return;}
+  if(qty<=0){toastAlert('請輸入數量','warn');return;}
+  const already=_editShipReturnItems.filter(r=>r.productId===opt.productId&&r.price===opt.price).reduce((n,r)=>n+r.qty,0);
+  if(already+qty>opt.qty){toastAlert('退貨數量超過出貨數量（已退'+already+'，出貨'+opt.qty+'）','warn');return;}
+  _editShipReturnItems.push({price:opt.price,qty,productId:opt.productId,name:opt.name,reason:G('ret-reason').value,disposition:G('ret-disp').value});
   if(G('ret-qty'))G('ret-qty').value='1';
   renderEditShipReturns();
   renderEditShipTotal();
@@ -3953,63 +4018,58 @@ function renderEditShipTotal(){
 
 async function saveEditShipment(){
   const s=db.shipments.find(x=>x.id===_editShipId);if(!s)return;
-  const oldRetItems=s.returnItems||[];
+  const oldRet=s.returnItems||[];
+  const o=db.orders.find(x=>x.id===s.orderId);
+  const custId=o?o.customerId:'';
+  const addStock=(pid,n)=>{const pi=db.products.findIndex(x=>x.id===pid);if(pi>=0)db.products[pi].currentStock=Math.max(0,(db.products[pi].currentStock||0)+n);};
 
-  // 退貨加回庫存：新退貨 - 舊退貨 = 額外退回的數量
-  const oldRetMap={};
-  oldRetItems.forEach(i=>{oldRetMap[i.price]=(oldRetMap[i.price]||0)+i.qty;});
-  const newRetMap={};
-  _editShipReturnItems.forEach(i=>{newRetMap[i.price]=(newRetMap[i.price]||0)+i.qty;});
+  // 舊的、有連到退貨頁的項目，被移除了 → 從退貨頁拿掉，退庫的要把庫存扣回
+  const keptKeys=new Set(_editShipReturnItems.filter(r=>r.retId).map(r=>r.retId+'|'+r.productId+'|'+r.qty));
+  oldRet.filter(r=>r.retId).forEach(r=>{
+    if(keptKeys.has(r.retId+'|'+r.productId+'|'+r.qty))return;
+    const ri=db.returns.findIndex(x=>x.id===r.retId);
+    if(ri<0)return;
+    const rec=db.returns[ri];
+    const ii=(rec.items||[]).findIndex(x=>x.productId===r.productId&&x.qty===r.qty);
+    if(ii>=0){
+      if(rec.disposition==='退庫')addStock(r.productId,-r.qty);
+      rec.items.splice(ii,1);
+    }
+    if(!rec.items.length)db.returns.splice(ri,1);
+  });
 
-  // 找對應商品加回庫存
-  _editShipReturnItems.forEach(retItem=>{
-    const oldQty=oldRetMap[retItem.price]||0;
-    const newQty=newRetMap[retItem.price]||0;
-    const diff=newQty-oldQty; // 新增的退貨數量
-    if(diff<=0)return;
-    // 找出貨單裡對應售價的商品
-    const matchItems=_editShipItems.filter(i=>i.price===retItem.price);
-    let remaining=diff;
-    matchItems.forEach(i=>{
+  // 舊資料（只記售價、沒連商品）被移除 → 照舊邏輯依售價扣回庫存
+  const keptLegacy={};_editShipReturnItems.filter(r=>!r.retId&&!r.productId).forEach(r=>{keptLegacy[r.price]=(keptLegacy[r.price]||0)+r.qty;});
+  const oldLegacy={};oldRet.filter(r=>!r.retId&&!r.productId).forEach(r=>{oldLegacy[r.price]=(oldLegacy[r.price]||0)+r.qty;});
+  Object.entries(oldLegacy).forEach(([price,oldQty])=>{
+    let remaining=oldQty-(keptLegacy[price]||0);
+    _editShipItems.filter(i=>i.price===Number(price)).forEach(i=>{
       if(remaining<=0)return;
-      const pi=db.products.findIndex(x=>x.id===i.productId);
-      if(pi>=0){
-        const add=Math.min(remaining,i.qty);
-        db.products[pi].currentStock=(db.products[pi].currentStock||0)+add;
-        remaining-=add;
-      }
+      const sub=Math.min(remaining,i.qty);addStock(i.productId,-sub);remaining-=sub;
     });
   });
 
-  // 舊退貨多於新退貨的部分（取消退貨），要從庫存扣回
-  Object.entries(oldRetMap).forEach(([price,oldQty])=>{
-    const newQty=newRetMap[price]||0;
-    const diff=oldQty-newQty;
-    if(diff<=0)return;
-    const matchItems=_editShipItems.filter(i=>i.price===Number(price));
-    let remaining=diff;
-    matchItems.forEach(i=>{
-      if(remaining<=0)return;
-      const pi=db.products.findIndex(x=>x.id===i.productId);
-      if(pi>=0){
-        const sub=Math.min(remaining,i.qty);
-        db.products[pi].currentStock=Math.max(0,(db.products[pi].currentStock||0)-sub);
-        remaining-=sub;
-      }
-    });
+  // 新加入的退貨 → 同步建立一筆退貨頁紀錄，退庫的加回庫存
+  const date=today();
+  _editShipReturnItems.forEach(r=>{
+    if(r.retId||!r.productId)return;
+    const p=db.products.find(x=>x.id===r.productId);
+    const rec={id:uid(),customerId:custId,date,reason:r.reason||'其他',detail:'',disposition:r.disposition||'退庫',shipmentId:s.id,
+      items:[{productId:r.productId,name:r.name||(p?p.name:''),barcode:p?p.barcode||'':'',qty:r.qty}]};
+    db.returns.push(rec);
+    if(rec.disposition==='退庫')addStock(r.productId,r.qty);
+    r.retId=rec.id;
   });
 
-  // 更新出貨單
   const si=db.shipments.findIndex(x=>x.id===_editShipId);
-  if(si>=0){
-    db.shipments[si].returnItems=_editShipReturnItems.map(i=>({...i}));
-  }
+  if(si>=0)db.shipments[si].returnItems=_editShipReturnItems.map(i=>({...i}));
 
-  await saveMultiple(['shipments','products','meta']);
+  await saveMultiple(['shipments','products','returns','meta']);
   closeModal('modal-edit-shipment');
   renderShipments();
   renderProducts();
-  toastAlert('已儲存，庫存已調整','success');
+  renderReturns();
+  toastAlert('已儲存，退貨已同步到退貨頁，庫存已調整','success');
 }
 // ── END 編輯出貨單 ────────────────────────────
 
@@ -5146,12 +5206,12 @@ function exportShipmentCSV(){
   const sel=rows.map(r=>`<option value="${r.id}">${r.label}</option>`).join('');
   const div=document.createElement('div');
   div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;display:flex;align-items:center;justify-content:center;';
-  div.innerHTML=`<div style="background:#fff;border-radius:12px;padding:20px;width:340px;">
+  div.innerHTML=`<div style="background:var(--surface);border-radius:16px;padding:20px;width:340px;box-shadow:0 24px 64px rgba(0,0,0,.22);">
     <div style="font-weight:700;margin-bottom:10px;">選擇出貨單</div>
-    <select id="csv-sel" style="width:100%;margin-bottom:12px;padding:8px;border:1px solid #ddd;border-radius:6px;">${sel}</select>
+    <select id="csv-sel" style="width:100%;margin-bottom:12px;padding:8px;border:1px solid var(--border);border-radius:6px;">${sel}</select>
     <div style="display:flex;gap:8px;">
-      <button onclick="doExportCSV(document.getElementById('csv-sel').value);this.closest('div').parentElement.remove();" style="flex:1;padding:8px;background:#c8401a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">匯出</button>
-      <button onclick="this.closest('div').parentElement.remove();" style="flex:1;padding:8px;background:#f0ece6;border:none;border-radius:6px;cursor:pointer;">取消</button>
+      <button onclick="doExportCSV(document.getElementById('csv-sel').value);this.closest('div').parentElement.remove();" style="flex:1;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">匯出</button>
+      <button onclick="this.closest('div').parentElement.remove();" style="flex:1;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;">取消</button>
     </div>
   </div>`;
   document.body.appendChild(div);
