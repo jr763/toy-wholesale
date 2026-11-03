@@ -566,6 +566,12 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     <div id="an-routes"></div>
   </div>
 
+  <!-- 客戶 -->
+  <div class="card an-card">
+    <div class="an-title">客戶 <span class="an-sub">跟上期比，和多久沒進貨</span></div>
+    <div id="an-custs"></div>
+  </div>
+
   <!-- 價格級距 -->
   <div class="card an-card">
     <div class="an-title">價格級距 <span class="an-sub">客人最常買哪個價位</span></div>
@@ -3498,7 +3504,8 @@ function showBCSummary(){
   const _pf=custBarcode!=='—'?custBarcode:'';
   const bcRows=priceList.map(price=>{
     const need=priceMap[price];
-    const have=bcStockGet(price,_pf);
+    const _ob=db.orders.find(o=>o.id===window._pickOrderId);
+    const have=bcStockGet(price,_pf)+(((_ob&&_ob.bcStockUsed)||{})[getPriceBarcode(price,_pf).slice(0,7)+'|'+price]||0);
     const use=Math.min(have,need);
     const pk=getPriceBarcode(price,_pf).slice(0,7);
     return `<tr><td style="font-weight:700;color:var(--accent);">$${fmt(price)}<div style="font-size:10px;font-weight:400;color:var(--text3);">${pk}</div></td>
@@ -3516,7 +3523,7 @@ function showBCSummary(){
       <thead><tr><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">售價</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">需要</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">已印好的</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">還要印</th></tr></thead>
       <tbody>${bcRows}</tbody>
     </table>
-    <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="openLabelPrintWindow(window._bcPriceList||[],'${custBarcode!=='—'?custBarcode:''}')">🏷️ 用庫存並列印不足的</button>
+    <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="openLabelPrintWindow(window._bcPriceList||[],'${custBarcode!=='—'?custBarcode:''}',window._pickOrderId)">🏷️ 用庫存並列印不足的</button>
   </div>`;
 }
 
@@ -3757,14 +3764,17 @@ async function saveReturn(){
     const old=db.returns.find(x=>x.id===editReturnId);
     const oldDisp=old?.disposition;
     const idx=db.returns.findIndex(x=>x.id===editReturnId);
+    // 庫存依「退庫」的差額重算：舊紀錄若是退庫就先扣回，新紀錄若是退庫再加上，改數量、改商品、改處置都會正確
+    const countsStock=d=>d==='退庫'||d==='繼續賣';
+    const stockDiff={};
+    if(old&&countsStock(oldDisp))(old.items||[]).forEach(i=>{stockDiff[i.productId]=(stockDiff[i.productId]||0)-i.qty;});
+    if(countsStock(disp))retItems.forEach(i=>{stockDiff[i.productId]=(stockDiff[i.productId]||0)+i.qty;});
+    Object.entries(stockDiff).forEach(([pid,d])=>{
+      if(!d)return;
+      const pi=db.products.findIndex(x=>x.id===pid);
+      if(pi>=0)db.products[pi].currentStock=Math.max(0,(db.products[pi].currentStock||0)+d);
+    });
     db.returns[idx]={...db.returns[idx],customerId:G('r-cust').value,date:G('r-date').value,reason,detail:faultDetail,disposition:disp,items:retItems.map(i=>({...i}))};
-    // If changed from 待修理 to 退庫, add back to inventory
-    if(oldDisp==='待修理'&&disp==='退庫'){
-      retItems.forEach(item=>{
-        const pi=db.products.findIndex(x=>x.id===item.productId);
-        if(pi>=0)db.products[pi].currentStock=(db.products[pi].currentStock||0)+item.qty;
-      });
-    }
   } else {
     const ret={id:uid(),customerId:G('r-cust').value,date:G('r-date').value,reason,detail:faultDetail,disposition:disp,items:retItems.map(i=>({...i}))};
     db.returns.push(ret);
@@ -3825,7 +3835,7 @@ function renderReturns(){
         <thead><tr><th>商品</th><th>數量</th></tr></thead>
         <tbody>${(r.items||[]).map(i=>`<tr><td>${i.name}</td><td>${i.qty}</td></tr>`).join('')}</tbody>
       </table></div>
-      ${r.disposition==='待修理'?`<div style="margin-top:8px;"><button class="btn btn-sm btn-orange" onclick="openReturnModal('${r.id}')">✏️ 編輯（修好了）</button></div>`:''}
+      <div style="margin-top:8px;"><button class="btn btn-sm ${r.disposition==='待修理'?'btn-orange':'btn-secondary'}" onclick="openReturnModal('${r.id}')">${r.disposition==='待修理'?'✏️ 編輯（修好了）':'✏️ 編輯'}</button></div>
     </div>`;
   }).join(''):'<div class="empty-state"><div class="empty-icon">↩️</div>尚無退貨記錄</div>';
 
@@ -4603,6 +4613,7 @@ async function ensureAnalyticsDataLoaded(){
   if(note)note.style.display='none';
 }
 
+const AN_GP_RATE=0.3; // 毛利 = 實收總額 × 30%
 let _bandMode='qty';
 const BANDS=[
   {l:'29 元以下',min:0,max:29},{l:'30–49 元',min:30,max:49},{l:'50–79 元',min:50,max:79},
@@ -4635,6 +4646,22 @@ function anYears(){
   return [...y].sort().reverse();
 }
 function anMoney(n){return '$'+fmt(Math.round(n));}
+// 上期：選了月份 → 上個月；全年 → 去年
+function anPrevPeriod(year,month){
+  if(month){
+    const y=parseInt(year),m=parseInt(month);
+    const py=m===1?y-1:y,pm=m===1?12:m-1;
+    return {year:String(py),month:String(pm).padStart(2,'0'),label:'上個月'};
+  }
+  return {year:String(parseInt(year)-1),month:'',label:'去年'};
+}
+function anNetTotal(year,month){return anShipments(year,month).reduce((n,x)=>n+anShipTotal(x.sh).net,0);}
+function anDelta(cur,prev,label){
+  if(!prev)return cur?`<div style="font-size:11px;color:var(--text3);margin-top:2px;">${label}沒有資料</div>`:'';
+  const p=Math.round((cur-prev)/prev*100);
+  const c=p>=0?'var(--green)':'var(--red)';
+  return `<div style="font-size:11px;margin-top:2px;color:${c};">較${label} ${p>=0?'▲':'▼'} ${Math.abs(p)}%</div>`;
+}
 
 async function renderAnalytics(){
   await ensureAnalyticsDataLoaded();
@@ -4652,16 +4679,20 @@ async function renderAnalytics(){
 }
 
 function renderAnalyticsAll(){
-  renderAnKpis();renderAnMonthly();renderAnRoutes();renderPriceBands();renderAnTop();
+  renderAnKpis();renderAnMonthly();renderAnRoutes();renderAnCusts();renderPriceBands();renderAnTop();
 }
 
 function renderAnKpis(){
-  const list=anShipments(G('an-year')?.value,G('an-month')?.value);
+  const year=G('an-year')?.value,month=G('an-month')?.value;
+  const list=anShipments(year,month);
   let net=0,ret=0;const routes=new Set(),custs=new Set();
   list.forEach(x=>{const t=anShipTotal(x.sh);net+=t.net;ret+=t.ret;routes.add(x.routeDate);custs.add(x.custId);});
   const n=routes.size;
+  const pp=anPrevPeriod(year,month);
+  const prevNet=anNetTotal(pp.year,pp.month);
   G('an-kpis').innerHTML=`
-    <div class="an-kpi main"><div class="k">實收總額</div><div class="v">${anMoney(net)}</div></div>
+    <div class="an-kpi main"><div class="k">實收總額</div><div class="v">${anMoney(net)}</div>${anDelta(net,prevNet,pp.label)}</div>
+    <div class="an-kpi"><div class="k">毛利（${Math.round(AN_GP_RATE*100)}%）</div><div class="v" style="color:var(--green);">${anMoney(net*AN_GP_RATE)}</div>${anDelta(net*AN_GP_RATE,prevNet*AN_GP_RATE,pp.label)}</div>
     <div class="an-kpi"><div class="k">路線數</div><div class="v">${n}</div></div>
     <div class="an-kpi"><div class="k">平均每條路線</div><div class="v">${n?anMoney(net/n):'—'}</div></div>
     <div class="an-kpi"><div class="k">有出貨的店</div><div class="v">${custs.size}</div></div>
@@ -4704,7 +4735,7 @@ function renderAnRoutes(){
         <span class="an-arrow">▶</span>
         <div class="an-route-date">${r.date.slice(5).replace('-','/')}<small>週${_wk[d.getDay()]}・${stores.length} 間店</small></div>
         <div class="an-route-mid"><div class="an-bar-track"><div class="an-bar-fill accent" style="width:${r.net/mx*100}%"></div></div></div>
-        <div class="an-route-total">${anMoney(r.net)}</div>
+        <div class="an-route-total">${anMoney(r.net)}<small style="display:block;font-size:10px;font-weight:400;color:var(--green);text-align:right;">毛利 ${anMoney(r.net*AN_GP_RATE)}</small></div>
       </div>
       <div class="an-route-body">${stores.map(([cid,v])=>`
         <div class="an-bar-row">
@@ -4714,6 +4745,37 @@ function renderAnRoutes(){
         </div>`).join('')}</div>
     </div>`;
   }).join('');
+}
+
+function renderAnCusts(){
+  const year=G('an-year')?.value,month=G('an-month')?.value;
+  const cur={},prev={},last={};
+  anShipments(year,month).forEach(x=>{cur[x.custId]=(cur[x.custId]||0)+anShipTotal(x.sh).net;});
+  const pp=anPrevPeriod(year,month);
+  anShipments(pp.year,pp.month).forEach(x=>{prev[x.custId]=(prev[x.custId]||0)+anShipTotal(x.sh).net;});
+  // 最後進貨日：用全部歷史資料
+  _analyticsShipments.forEach(sh=>{
+    const o=_analyticsOrders.find(x=>x.id===sh.orderId);if(!o)return;
+    const d=o.date||sh.date||'';if(d&&(!last[o.customerId]||d>last[o.customerId]))last[o.customerId]=d;
+  });
+  const ids=[...new Set([...Object.keys(cur),...Object.keys(prev)])];
+  if(!ids.length){G('an-custs').innerHTML='<div class="an-empty">這段期間沒有資料</div>';return;}
+  const todayMs=new Date(today()+'T00:00:00').getTime();
+  const rows=ids.map(id=>{
+    const days=last[id]?Math.round((todayMs-new Date(last[id]+'T00:00:00').getTime())/86400000):null;
+    return {id,cur:cur[id]||0,prev:prev[id]||0,last:last[id]||'',days};
+  }).sort((a,b)=>b.cur-a.cur||b.prev-a.prev);
+  const mx=Math.max(...rows.map(r=>r.cur),1);
+  G('an-custs').innerHTML=rows.map(r=>{
+    const ch=r.prev?Math.round((r.cur-r.prev)/r.prev*100):null;
+    const chTxt=r.prev?`<span style="color:${ch>=0?'var(--green)':'var(--red)'};">${ch>=0?'▲':'▼'} ${Math.abs(ch)}%</span>`:(r.cur?'<span style="color:var(--text3);">上期沒進貨</span>':'<span style="color:var(--red);">本期沒進貨</span>');
+    const dTxt=r.days===null?'':`<span style="${r.days>60?'color:var(--red);font-weight:700;':r.days>30?'color:var(--orange);font-weight:700;':'color:var(--text3);'}">${r.days===0?'今天':r.days+' 天前'}進貨</span>`;
+    return `<div class="an-bar-row">
+      <div class="an-bar-label" style="flex-basis:110px;">${anCustName(r.id)}<div style="font-size:10px;">${dTxt}</div></div>
+      <div class="an-bar-track"><div class="an-bar-fill" style="width:${r.cur/mx*100}%"></div></div>
+      <div class="an-bar-val">${anMoney(r.cur)}<small>${chTxt}</small></div>
+    </div>`;
+  }).join('')+`<div style="font-size:11px;color:var(--text3);margin-top:6px;">比較的是${pp.label}；超過 30 天沒進貨標橘色，超過 60 天標紅色。</div>`;
 }
 
 function setBandMode(m){
@@ -6133,7 +6195,7 @@ document.addEventListener('click',function(e){
 let _labelPrintBusy=false;
 // 按「列印條碼」：直接交給店裡電腦的 LabelView 小程式自動列印（不再跳出網頁列印視窗；小程式沒開會提示）
 let _lvBusy=false;
-async function openLabelPrintWindow(priceQtyList,prefix){
+async function openLabelPrintWindow(priceQtyList,prefix,orderId){
   if(!priceQtyList.length){toastAlert('沒有售價可列印','warn');return;}
   if(_lvBusy) return;
   let jobs=priceQtyList.filter(it=>it&&typeof it==='object'&&typeof it.qty==='number'&&it.qty>0).map(it=>{
@@ -6141,20 +6203,24 @@ async function openLabelPrintWindow(priceQtyList,prefix){
   });
   // ── 先用已印好的庫存，只印不足的 ──
   const useMap={}; // key -> 從庫存用掉的張數
-  if(jobs.some(j=>(db.barcodeStock||{})[j._key]>0)){
+  // 這張抄貨單之前如果已經用過庫存，先當作「還沒用」來算，成功後再以差額調整，避免重複扣
+  const ordObj=orderId?db.orders.find(x=>x.id===orderId):null;
+  const prevUse=(ordObj&&ordObj.bcStockUsed)||{};
+  const stockOf=k=>((db.barcodeStock||{})[k]||0)+(prevUse[k]||0);
+  if(jobs.some(j=>stockOf(j._key)>0)){
     const lines=jobs.map(j=>{
-      const have=(db.barcodeStock||{})[j._key]||0;
+      const have=stockOf(j._key);
       const use=Math.min(have,j.qty);
       return j.prefix+'　$'+j.price+'　需要 '+j.qty+' 張，庫存 '+have+' 張'+(use>=j.qty?' → 庫存夠，不用印':(use>0?' → 庫存用 '+use+'，只印 '+(j.qty-use):' → 要印 '+j.qty));
     });
-    const pick=await toastSelect('已印好的條碼庫存：\n\n'+lines.join('\n'),[
+    const pick=await toastSelect((Object.keys(prevUse).length?'（這張單之前已經處理過一次，庫存已把上次用掉的算回來，不會重複扣）\n':'')+'已印好的條碼庫存：\n\n'+lines.join('\n'),[
       {label:'先用庫存，只印不足的',value:'use'},
       {label:'不用庫存，全部重印',value:'all'}
     ]);
     if(!pick)return;
     if(pick==='use'){
       jobs=jobs.map(j=>{
-        const have=(db.barcodeStock||{})[j._key]||0;
+        const have=stockOf(j._key);
         const use=Math.min(have,j.qty);
         if(use>0)useMap[j._key]=use;
         return {...j,qty:j.qty-use};
@@ -6162,10 +6228,16 @@ async function openLabelPrintWindow(priceQtyList,prefix){
     }
   }
   const deductStock=async()=>{
-    const ks=Object.keys(useMap);
-    if(!ks.length)return;
-    ks.forEach(k=>bcStockAdjust(k,-useMap[k],'列印時使用庫存'));
-    try{await saveData('meta');}catch(e){console.warn('庫存扣除存檔失敗',e);}
+    // 以「這次要用」減「這張單上次已扣」的差額調整庫存
+    const allKeys=new Set([...Object.keys(useMap),...Object.keys(prevUse)]);
+    let changed=false;
+    allKeys.forEach(k=>{
+      const delta=(prevUse[k]||0)-(useMap[k]||0); // 正=把上次用掉的還回來
+      if(delta){bcStockAdjust(k,delta,delta<0?'列印時使用庫存':'重新處理，退回上次扣的庫存');changed=true;}
+    });
+    if(ordObj){ordObj.bcStockUsed=Object.keys(useMap).length?{...useMap}:undefined;if(!ordObj.bcStockUsed)delete ordObj.bcStockUsed;}
+    if(!changed&&!ordObj)return;
+    try{await saveMultiple(ordObj?['orders','meta']:['meta']);}catch(e){console.warn('庫存扣除存檔失敗',e);}
     if(typeof renderBcStock==='function')renderBcStock();
   };
   const toPrint=jobs.filter(j=>j.qty>0).map(({_key,...rest})=>rest);
