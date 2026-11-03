@@ -3130,14 +3130,14 @@ async function deleteShipment(id){
   if(!await toastConfirm('確定刪除此出貨單？\n\n刪除後可在「☰ → 最近刪除」找回，7天內可恢復。\n（庫存已於確認抄貨單時扣除，刪除出貨單不影響庫存，對應抄貨單會改回「已完成」可重新建立出貨單）'))return;
   isSaving=true;
   const item=db.shipments.find(x=>x.id===id);
-  if(item)moveToTrash('shipment',item);
+  if(item){moveToTrash('shipment',item);_unlinkShipmentReturns(item);}
   db.shipments=db.shipments.filter(x=>x.id!==id);
   // 把對應抄貨單狀態改回已完成，才能重新建立出貨單
   if(item){
     const oi=db.orders.findIndex(x=>x.id===item.orderId);
     if(oi>=0&&db.orders[oi].status==='shipped') db.orders[oi].status='completed';
   }
-  await saveMultiple(['shipments','orders','meta']);renderShipments();renderOrders();renderDashboard();
+  await saveMultiple(['shipments','orders','returns','meta']);renderShipments();renderOrders();renderDashboard();
   if(item){const c=db.customers.find(x=>x.id===item.customerId);logActivity('刪除出貨單',c?c.name:'');}
   setTimeout(()=>{ isSaving=false; },2000);
 }
@@ -3290,6 +3290,7 @@ function renderOrders(){
         ${['picked','boxing','re_boxing','mod_picked','mod_boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">${o.status.startsWith('mod_')?'裝箱(修改)':'裝箱確認'}</button>`:''}
         ${hasUnpicked&&!['confirmed','picking','re_picking','pending_edit','mod_pending','mod_picking','packed'].includes(o.status)?`<button class="btn btn-sm btn-orange" onclick="viewOrder('${o.id}')" style="background:var(--orange);color:#fff;">⚠ 撿貨(補)</button>`:''}
         ${(o.status==='completed'||(o.status==='shipped'&&!db.shipments.some(s=>s.orderId===o.id)))?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
+        ${db.shipments.some(s=>s.orderId===o.id)?`<button class="btn btn-sm btn-secondary" onclick="withdrawShipment('${o.id}')">↩ 撤回出貨</button>`:''}
         <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>
       </div>
     </div>`;
@@ -3595,9 +3596,33 @@ function togglePicked(idx,cb){
 }
 
 // ── SHIPMENTS 出貨單 ──────────────────────────
-function openShipModal(orderId){
+// 建立出貨單前先檢查：同一張抄貨單已經有出貨單、或同一間店今天已有相似的出貨單（商品6成以上相同）
+// → 讓使用者選「撤回舊的，用新的取代」或「仍要另外建立」，避免變成兩筆重複的出貨單
+window._shipReplaceIds=[];
+async function openShipModal(orderId){
   const o=db.orders.find(x=>x.id===orderId);if(!o)return;
   const c=db.customers.find(x=>x.id===o.customerId);
+  window._shipReplaceIds=[];
+  {
+    const newKeys=new Set((o.items||[]).map(i=>i.productId+'|'+i.price));
+    const conflicts=db.shipments.filter(sh=>{
+      if(sh.orderId===orderId)return true; // 同一張單已經出過貨
+      const od=db.orders.find(x=>x.id===sh.orderId);
+      if(!od||od.customerId!==o.customerId||sh.date!==today())return false;
+      const keys=(sh.items||[]).map(i=>i.productId+'|'+i.price);
+      if(!keys.length)return false;
+      return keys.filter(k=>newKeys.has(k)).length/keys.length>=0.6; // 同客戶、同一天、商品相似
+    });
+    if(conflicts.length){
+      const lines=conflicts.map(sh=>'・'+sh.date+'　$'+fmt((sh.items||[]).reduce((n,i)=>n+i.qty*i.price,0))+(sh.orderId===orderId?'（同一張抄貨單）':'（同客戶、商品相似）'));
+      const pick=await toastSelect('已經有出貨單：\n'+lines.join('\n')+'\n\n要怎麼處理？',[
+        {label:'撤回舊的，用新的取代（推薦）',value:'replace'},
+        {label:'仍要另外建立（兩筆都計）',value:'both'}
+      ]);
+      if(!pick)return;
+      if(pick==='replace')window._shipReplaceIds=conflicts.map(x=>x.id);
+    }
+  }
   shipmentItems=(o.items||[]).map(i=>({...i})).sort((a,b)=>a.price-b.price);
   const calcTotal=()=>shipmentItems.reduce((s,i)=>s+i.qty*i.price,0);
   G('ship-body').innerHTML=`
@@ -3628,13 +3653,48 @@ function updShipTotal(){
   shipmentItems.forEach((_,i)=>{const e=G('ss-'+i);if(e)e.textContent='$'+fmt(shipmentItems[i].qty*shipmentItems[i].price);});
   const t=G('s-total');if(t)t.textContent='總計：$'+fmt(shipmentItems.reduce((s,i)=>s+i.qty*i.price,0));
 }
+let _shipSaving=false;
 async function saveShipment(orderId){
-  const s={id:uid(),orderId,date:V('s-date')||today(),note:'',items:shipmentItems.map(i=>({...i}))};
-  db.shipments.push(s);
-  const oi=db.orders.findIndex(x=>x.id===orderId);if(oi>=0)db.orders[oi].status='shipped';
-  // 庫存已於確認抄貨單時扣除，此處不再重複扣庫存
-  await saveMultiple(['shipments','orders','meta']);
-  closeModal('modal-shipment');renderOrders();renderShipments();renderProducts();renderRestock();renderDashboard();
+  if(_shipSaving)return; // 防止連點兩次建立兩筆
+  _shipSaving=true;
+  try{
+    const s={id:uid(),orderId,date:V('s-date')||today(),note:'',items:shipmentItems.map(i=>({...i}))};
+    // 要取代舊出貨單：舊的移到「最近刪除」（7天內可找回），退貨明細帶到新的出貨單
+    const replaceIds=window._shipReplaceIds||[];
+    let carry=[];
+    replaceIds.forEach(id=>{
+      const old=db.shipments.find(x=>x.id===id);if(!old)return;
+      moveToTrash('shipment',old);
+      carry=carry.concat((old.returnItems||[]).map(r=>({...r})));
+      (db.returns||[]).forEach(r=>{if(r.shipmentId===id)r.shipmentId=s.id;});
+      db.shipments=db.shipments.filter(x=>x.id!==id);
+    });
+    if(carry.length)s.returnItems=carry;
+    window._shipReplaceIds=[];
+    db.shipments.push(s);
+    const oi=db.orders.findIndex(x=>x.id===orderId);if(oi>=0)db.orders[oi].status='shipped';
+    // 庫存已於確認抄貨單時扣除，此處不再重複扣庫存
+    await saveMultiple(replaceIds.length&&carry.length?['shipments','orders','returns','meta']:['shipments','orders','meta']);
+    closeModal('modal-shipment');renderOrders();renderShipments();renderProducts();renderRestock();renderDashboard();
+  }finally{ _shipSaving=false; }
+}
+// 撤回出貨：把這張抄貨單的出貨單收回（移到最近刪除，7天內可找回），抄貨單回到「已完成」，可重新建立出貨單
+function _unlinkShipmentReturns(sh){
+  (db.returns||[]).forEach(r=>{if(r.shipmentId===sh.id)delete r.shipmentId;});
+}
+async function withdrawShipment(orderId){
+  const list=db.shipments.filter(x=>x.orderId===orderId);
+  if(!list.length){toastAlert('這張抄貨單沒有出貨單','warn');return;}
+  const hasRet=list.some(x=>(x.returnItems||[]).length);
+  if(!await toastConfirm('確定撤回這張抄貨單的出貨單？\n\n撤回後抄貨單會回到「已完成」，可以重新建立出貨單；舊出貨單可在「☰ → 最近刪除」7天內找回。'+(hasRet?'\n\n注意：舊出貨單上的退貨扣款會一起撤回，退貨頁的紀錄與庫存不變。':'')))return;
+  list.forEach(sh=>{moveToTrash('shipment',sh);_unlinkShipmentReturns(sh);});
+  db.shipments=db.shipments.filter(x=>x.orderId!==orderId);
+  const oi=db.orders.findIndex(x=>x.id===orderId);
+  if(oi>=0&&db.orders[oi].status==='shipped')db.orders[oi].status='completed';
+  await saveMultiple(['shipments','orders','returns','meta']);
+  renderOrders();renderShipments();renderDashboard();
+  if(G('tab-accounting')?.classList.contains('active')&&typeof renderAccounting==='function')renderAccounting();
+  showToast('已撤回出貨單','success',3000);
 }
 function renderShipments(){
   const list=G('shipments-list');if(!list)return;
@@ -4137,7 +4197,34 @@ function getPaymentKey(custId, year, month){
   return `${custId}_${year}_${month}`;
 }
 
+// 同一間店「同一天」或「同一張抄貨單」有多筆出貨單時，核對商品是否相似：
+// 前面那筆的商品（商品＋售價）有 60% 以上出現在後面那筆 → 視為被取代（重複），只算最後一筆；不相似就都算。
+function findSupersededShipments(ships,orders){
+  const ordMap={};(orders||[]).forEach(o=>{ordMap[o.id]=o;});
+  const byCust={};
+  ships.forEach((sh,idx)=>{
+    const o=ordMap[sh.orderId];const cid=o?o.customerId:'';
+    if(!cid)return;
+    (byCust[cid]=byCust[cid]||[]).push({sh,idx,order:sh.orderId,date:sh.date||'',keys:new Set((sh.items||[]).map(i=>i.productId+'|'+i.price))});
+  });
+  const sup=new Set();
+  Object.values(byCust).forEach(list=>{
+    list.sort((a,b)=>a.date.localeCompare(b.date)||a.idx-b.idx);
+    for(let i=0;i<list.length;i++){
+      const A=list[i];if(!A.keys.size)continue;
+      for(let j=i+1;j<list.length;j++){
+        const B=list[j];
+        if(!(B.date===A.date||B.order===A.order))continue;
+        let hit=0;A.keys.forEach(k=>{if(B.keys.has(k))hit++;});
+        if(hit/A.keys.size>=0.6){sup.add(A.sh.id);break;}
+      }
+    }
+  });
+  return sup;
+}
+
 function calcAccountingData(year, month, custId){
+  const _sup=findSupersededShipments(db.shipments,db.orders);
   // 取出貨單
   const ships=db.shipments.filter(s=>{
     if(!s.date)return false;
@@ -4159,8 +4246,9 @@ function calcAccountingData(year, month, custId){
     const cid=cust.id;
     if(!custMap[cid])custMap[cid]={cust,shipments:[],total:0};
     const total=(s.items||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
-    custMap[cid].shipments.push({...s,total});
-    custMap[cid].total+=total;
+    const isSup=_sup.has(s.id);
+    custMap[cid].shipments.push({...s,total,superseded:isSup});
+    if(!isSup)custMap[cid].total+=total;
   });
 
   // 扣除退貨（從出貨單的 returnItems 讀取）
@@ -4245,7 +4333,8 @@ function renderAccounting(){
 
     // 計算勾選的出貨單總額
     const checkedShips=db.accountingChecked||{};
-    const checkedTotal=d.shipments.filter(s=>checkedShips[s.id]!==false)
+    const _isOn=s=>checkedShips[s.id]!==undefined?checkedShips[s.id]:!s.superseded;
+    const checkedTotal=d.shipments.filter(s=>_isOn(s))
       .reduce((sum,s)=>{
         const retTotal=(s.returnItems||[]).reduce((r,i)=>r+i.qty*i.price,0);
         return sum+(s.total-retTotal);
@@ -4271,10 +4360,10 @@ function renderAccounting(){
     const shipRows=d.shipments.map(s=>{
       const retTotal=(s.returnItems||[]).reduce((sum,i)=>sum+i.qty*i.price,0);
       const shipActual=s.total-retTotal;
-      const isChecked=checkedShips[s.id]!==false;
+      const isChecked=_isOn(s);
       return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
         <input type="checkbox" ${isChecked?'checked':''} ${bill?'disabled':''} onchange="toggleAccountingShip('${s.id}','${d.cust.id}','${year}','${month||'all'}',${finalAmount})" style="width:16px;height:16px;cursor:${bill?'not-allowed':'pointer'};flex-shrink:0;opacity:${bill?0.6:1};">
-        <div style="color:var(--text2);flex:1;">${s.date}</div>
+        <div style="color:var(--text2);flex:1;">${s.date}${s.superseded?'<span style="margin-left:6px;font-size:11px;color:var(--orange);">疑似重複，已預設不計（後面有相似的出貨單）</span>':''}</div>
         <div style="font-weight:600;">
           $${fmt(s.total)}
           ${retTotal>0?`<span style="color:var(--red);margin-left:4px;">-$${fmt(retTotal)}</span><span style="color:var(--accent);margin-left:4px;">=$${fmt(shipActual)}</span>`:''}
@@ -4356,7 +4445,8 @@ function toggleAccDetail(custKey){
 function toggleAccountingShip(shipId, custId, year, month, receivable){
   if(!db.accountingChecked)db.accountingChecked={};
   const cur=db.accountingChecked[shipId];
-  db.accountingChecked[shipId]=cur===false?true:false;
+  const eff=cur!==undefined?cur:!findSupersededShipments(db.shipments,db.orders).has(shipId);
+  db.accountingChecked[shipId]=!eff;
   renderAccounting();
 }
 
@@ -4636,8 +4726,15 @@ function anShipTotal(sh){
   return {gross:g,ret:r,net:g-r};
 }
 // 取出符合年月的出貨單；路線日期 = 該出貨單所屬抄貨單的日期（沒有就用出貨日）
+let _anSupCache=null;
+function anSuperseded(){
+  if(!_anSupCache||_anSupCache.n!==_analyticsShipments.length||_anSupCache.m!==_analyticsOrders.length)
+    _anSupCache={n:_analyticsShipments.length,m:_analyticsOrders.length,set:findSupersededShipments(_analyticsShipments,_analyticsOrders)};
+  return _anSupCache.set;
+}
 function anShipments(year,month){
-  return _analyticsShipments.map(sh=>{
+  const _sup=anSuperseded();
+  return _analyticsShipments.filter(sh=>!_sup.has(sh.id)).map(sh=>{
     const o=_analyticsOrders.find(x=>x.id===sh.orderId);
     return {sh,custId:o?o.customerId:'',routeDate:(o&&o.date)||sh.date||''};
   }).filter(x=>{
@@ -4806,8 +4903,16 @@ async function anRouteName(date){
 
 function renderAnCusts(){
   const year=G('an-year')?.value,month=G('an-month')?.value;
-  const cur={},prev={},last={};
-  anShipments(year,month).forEach(x=>{cur[x.custId]=(cur[x.custId]||0)+anShipTotal(x.sh).net;});
+  const cur={},prev={},last={},mg={}; // mg：用商品成本算的真實毛利（只算有填成本的商品）
+  anShipments(year,month).forEach(x=>{
+    cur[x.custId]=(cur[x.custId]||0)+anShipTotal(x.sh).net;
+    const m=mg[x.custId]=mg[x.custId]||{all:0,known:0,profit:0};
+    (x.sh.items||[]).forEach(i=>{
+      const p=db.products.find(y=>y.id===i.productId);
+      const amt=i.qty*i.price;m.all+=amt;
+      if(p&&p.cost>0){m.known+=amt;m.profit+=amt-i.qty*p.cost;}
+    });
+  });
   const pp=anPrevPeriod(year,month);
   anShipments(pp.year,pp.month).forEach(x=>{prev[x.custId]=(prev[x.custId]||0)+anShipTotal(x.sh).net;});
   // 最後進貨日：用全部歷史資料
@@ -4821,7 +4926,7 @@ function renderAnCusts(){
   const todayMs=new Date(today()+'T00:00:00').getTime();
   const rows=ids.map(id=>{
     const days=last[id]?Math.round((todayMs-new Date(last[id]+'T00:00:00').getTime())/86400000):null;
-    return {id,cur:cur[id]||0,prev:prev[id]||0,last:last[id]||'',days};
+    return {id,cur:cur[id]||0,prev:prev[id]||0,last:last[id]||'',days,mg:mg[id]};
   }).sort((a,b)=>b.cur-a.cur||b.prev-a.prev);
   const mx=Math.max(...rows.map(r=>r.cur),1);
   G('an-custs').innerHTML=rows.map(r=>{
@@ -4831,9 +4936,13 @@ function renderAnCusts(){
     return `<div class="an-bar-row">
       <div class="an-bar-label" style="flex-basis:150px;">${anCustName(r.id)}<div style="font-size:10px;">${dTxt}</div></div>
       <div class="an-bar-track"><div class="an-bar-fill" style="width:${r.cur/mx*100}%"></div></div>
-      <div class="an-bar-val">${anMoney(r.cur)}<small>${chTxt}</small></div>
+      <div class="an-bar-val">${anMoney(r.cur)}<small>${chTxt}</small>${(()=>{
+        const m=r.mg;if(!m||!m.all)return '';
+        if(m.known/m.all<0.8)return '<small style="color:var(--text3);">成本資料不足</small>';
+        return `<small style="color:var(--green);">毛利 ${anMoney(m.profit)}（${Math.round(m.profit/m.known*100)}%）</small>`;
+      })()}</div>
     </div>`;
-  }).join('')+`<div style="font-size:11px;color:var(--text3);margin-top:6px;">比較的是${pp.label}；超過 30 天沒進貨標橘色，超過 60 天標紅色。</div>`;
+  }).join('')+`<div style="font-size:11px;color:var(--text3);margin-top:6px;">比較的是${pp.label}；超過 30 天沒進貨標橘色，超過 60 天標紅色。客戶下方的毛利是用商品成本算的真實毛利（至少 8 成金額的商品有填成本才顯示）。</div>`;
 }
 
 function setBandMode(m){
