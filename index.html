@@ -110,12 +110,16 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 /* ── Modal ── */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(2px)}
 .modal-overlay.open{display:flex}
-.modal{background:var(--surface);border-radius:16px;width:100%;max-width:560px;max-height:93vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.22)}
-.modal-header{position:sticky;top:0;z-index:20;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--brown);color:#fff;border-radius:16px 16px 0 0}
+.modal{background:var(--surface);border-radius:16px;width:100%;max-width:560px;max-height:93vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.22)}
+.modal-header{flex-shrink:0;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--brown);color:#fff;border-radius:16px 16px 0 0}
 .modal-header h3{font-size:16px;font-weight:700;color:#fff}
 .modal-close{background:rgba(255,255,255,.95);border:none;font-size:20px;cursor:pointer;color:var(--brown);line-height:1;width:30px;height:30px;padding:0;border-radius:50%;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;transition:background .15s}
 .modal-close:hover{background:#fff}
-.modal-body{padding:16px 22px 22px}
+.modal-body{padding:16px 22px 22px;flex:1 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--brown-light) transparent}
+.modal-body::-webkit-scrollbar{width:8px}
+.modal-body::-webkit-scrollbar-track{background:transparent}
+.modal-body::-webkit-scrollbar-thumb{background:var(--brown-light);border-radius:8px;border:2px solid var(--surface)}
+.modal-body::-webkit-scrollbar-thumb:hover{background:var(--brown)}
 
 /* ── 標籤選擇 ── */
 .variant-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
