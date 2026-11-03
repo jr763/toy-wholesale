@@ -517,9 +517,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     <div style="font-size:14px;font-weight:700;margin-bottom:4px;">已印好的條碼庫存</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">之後列印時會先用這裡的庫存，只印不足的張數；用掉的會自動扣除。</div>
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-      <div class="form-group" style="flex:0 0 120px;">
+      <div class="form-group" style="flex:0 0 230px;max-width:100%;">
         <label>條碼開頭</label>
-        <select id="bs-prefix"><option value="7990341">7990340 / 7990341</option><option value="2003751">2003750 / 2003751</option></select>
+        <select id="bs-prefix" style="width:100%;"><option value="7990341">7990340 / 7990341</option><option value="2003751">2003750 / 2003751</option></select>
       </div>
       <div class="form-group" style="flex:0 0 90px;"><label>售價（元）</label><input id="bs-price" type="number" min="0" placeholder="0"></div>
       <div class="form-group" style="flex:0 0 90px;"><label>張數</label><input id="bs-qty" type="number" min="1" value="1"></div>
