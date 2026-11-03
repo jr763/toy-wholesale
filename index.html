@@ -483,7 +483,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 
 <!-- SHIPMENTS 出貨單 -->
 <div id="tab-shipments" class="page">
-  <div class="page-header"><div><h2>出貨單</h2></div><button class="btn btn-primary btn-sm" onclick="printVisibleShipments()">🖨️ 一鍵列印（目前清單）</button></div>
+  <div class="page-header"><div><h2>出貨單</h2></div><div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-secondary btn-sm" onclick="cleanupDuplicateShipments()">🔍 檢查重複出貨單</button><button class="btn btn-primary btn-sm" onclick="printVisibleShipments()">🖨️ 一鍵列印（目前清單）</button></div></div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
     <div style="flex:1;min-width:130px;position:relative;">
       <input id="ship-filter-cust-input" placeholder="搜尋客戶名稱…" oninput="onShipCustSearch()" autocomplete="off" style="width:100%;">
@@ -3289,7 +3289,7 @@ function renderOrders(){
         ${o.status==='packed'?`<button class="btn btn-sm btn-primary" onclick="viewOrder('${o.id}')">撿貨(補)</button>`:''}
         ${['picked','boxing','re_boxing','mod_picked','mod_boxing'].includes(o.status)?`<button class="btn btn-sm btn-primary" onclick="openBoxingModal('${o.id}')">${o.status.startsWith('mod_')?'裝箱(修改)':'裝箱確認'}</button>`:''}
         ${hasUnpicked&&!['confirmed','picking','re_picking','pending_edit','mod_pending','mod_picking','packed'].includes(o.status)?`<button class="btn btn-sm btn-orange" onclick="viewOrder('${o.id}')" style="background:var(--orange);color:#fff;">⚠ 撿貨(補)</button>`:''}
-        ${(o.status==='completed'||(o.status==='shipped'&&!db.shipments.some(s=>s.orderId===o.id)))?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ 建立出貨單</button>`:''}
+        ${(o.status==='completed'||(o.status==='shipped'&&!db.shipments.some(s=>s.orderId===o.id)))?`<button class="btn btn-sm btn-green" onclick="openShipModal('${o.id}')">→ ${db.shipments.some(s=>s.orderId===o.id)?'更新出貨單':'建立出貨單'}</button>`:''}
         ${db.shipments.some(s=>s.orderId===o.id)?`<button class="btn btn-sm btn-secondary" onclick="withdrawShipment('${o.id}')">↩ 撤回出貨</button>`:''}
         <button class="btn btn-sm btn-danger" onclick="deleteOrder('${o.id}')">刪除</button>
       </div>
@@ -3613,14 +3613,21 @@ async function openShipModal(orderId){
       if(!keys.length)return false;
       return keys.filter(k=>newKeys.has(k)).length/keys.length>=0.6; // 同客戶、同一天、商品相似
     });
-    if(conflicts.length){
-      const lines=conflicts.map(sh=>'・'+sh.date+'　$'+fmt((sh.items||[]).reduce((n,i)=>n+i.qty*i.price,0))+(sh.orderId===orderId?'（同一張抄貨單）':'（同客戶、商品相似）'));
-      const pick=await toastSelect('已經有出貨單：\n'+lines.join('\n')+'\n\n要怎麼處理？',[
-        {label:'撤回舊的，用新的取代（推薦）',value:'replace'},
-        {label:'仍要另外建立（兩筆都計）',value:'both'}
+    const sameOrder=conflicts.filter(sh=>sh.orderId===orderId);
+    const similar=conflicts.filter(sh=>sh.orderId!==orderId);
+    const desc=sh=>'・'+sh.date+'　$'+fmt((sh.items||[]).reduce((n,i)=>n+i.qty*i.price,0));
+    if(sameOrder.length){
+      // 同一張抄貨單只能有一張出貨單：一律用新的取代舊的（舊的放最近刪除，退貨扣款帶過去），不提供「再多建一張」
+      if(!await toastConfirm('這張抄貨單已經有出貨單：\n'+sameOrder.map(desc).join('\n')+'\n\n同一張抄貨單只會有一張出貨單。\n按「確定」會用目前的抄貨單內容更新出貨單（舊的放到最近刪除，7天內可找回，退貨扣款會帶到新的）。','確定更新','取消'))return;
+      window._shipReplaceIds=sameOrder.map(x=>x.id);
+    }
+    if(similar.length){
+      const pick=await toastSelect('這間店今天已經有商品相似的出貨單（可能是另一張抄貨單）：\n'+similar.map(desc).join('\n')+'\n\n要怎麼處理？',[
+        {label:'撤回舊的，用新的取代',value:'replace'},
+        {label:'兩張是不同的單，另外建立',value:'both'}
       ]);
       if(!pick)return;
-      if(pick==='replace')window._shipReplaceIds=conflicts.map(x=>x.id);
+      if(pick==='replace')window._shipReplaceIds=window._shipReplaceIds.concat(similar.map(x=>x.id));
     }
   }
   shipmentItems=(o.items||[]).map(i=>({...i})).sort((a,b)=>a.price-b.price);
@@ -3677,6 +3684,46 @@ async function saveShipment(orderId){
     await saveMultiple(replaceIds.length&&carry.length?['shipments','orders','returns','meta']:['shipments','orders','meta']);
     closeModal('modal-shipment');renderOrders();renderShipments();renderProducts();renderRestock();renderDashboard();
   }finally{ _shipSaving=false; }
+}
+// 掃描全部歷史出貨單，找出「同客戶、同一天或同一張抄貨單、商品6成以上相同」的重複，只保留最後一筆，舊的移到最近刪除
+async function cleanupDuplicateShipments(){
+  showToast('正在檢查全部歷史出貨單…','success',8000);
+  let ships=[],orders=[];
+  try{
+    const [oSnap,sSnap]=await Promise.all([fsdb.collection('orders').get({source:'server'}),fsdb.collection('shipments').get({source:'server'})]);
+    oSnap.forEach(d=>orders.push({...d.data(),id:d.id}));
+    sSnap.forEach(d=>ships.push({...d.data(),id:d.id}));
+  }catch(e){toastAlert('讀取失敗：'+e.message,'error');return;}
+  const sup=findSupersededShipments(ships,orders);
+  if(!sup.size){toastAlert('檢查完成：沒有發現重複的出貨單','success');return;}
+  const byId=new Map(ships.map(x=>[x.id,x]));
+  const amt=sh=>(sh.items||[]).reduce((n,i)=>n+i.qty*i.price,0);
+  const custOf=sh=>{const o=orders.find(x=>x.id===sh.orderId);const c=o?db.customers.find(x=>x.id===o.customerId):null;return c?c.name:'未知客戶';};
+  const list=[...sup].map(id=>{const a=byId.get(id),b=byId.get(sup.by.get(id));return {a,b};}).sort((x,y)=>(y.a.date||'').localeCompare(x.a.date||''));
+  const lines=list.slice(0,12).map(({a,b})=>'・'+custOf(a)+'　'+a.date+'　刪 $'+fmt(amt(a))+' → 留 $'+fmt(amt(b)));
+  if(!await toastConfirm('找到 '+list.length+' 筆重複的舊出貨單：\n\n'+lines.join('\n')+(list.length>12?'\n…還有 '+(list.length-12)+' 筆':'')+'\n\n按「確定」會把這些舊的移到「最近刪除」（7天內可找回），只保留最後一筆。舊的上面如果有退貨扣款，會帶到保留的那一筆。','確定清理','先不要'))return;
+  const touched={ships:false,returns:false};
+  for(const {a,b} of list){
+    // 退貨扣款帶到保留的那一筆（已經在保留那筆上的不重複帶）
+    const keptRet=(b.returnItems||[]).map(r=>r.retId||'legacy|'+r.price+'|'+r.qty);
+    const carry=(a.returnItems||[]).filter(r=>!keptRet.includes(r.retId||'legacy|'+r.price+'|'+r.qty));
+    moveToTrash('shipment',a);
+    (db.returns||[]).forEach(r=>{if(r.shipmentId===a.id){r.shipmentId=b.id;touched.returns=true;}});
+    const inDbKept=db.shipments.find(x=>x.id===b.id);
+    if(carry.length){
+      if(inDbKept){inDbKept.returnItems=(inDbKept.returnItems||[]).concat(carry);touched.ships=true;}
+      else{try{await fsdb.collection('shipments').doc(b.id).update({returnItems:(b.returnItems||[]).concat(carry),updatedAt:Date.now()});}catch(e){console.warn('帶退貨失敗',e);}}
+      b.returnItems=(b.returnItems||[]).concat(carry);
+    }
+    if(db.shipments.some(x=>x.id===a.id)){db.shipments=db.shipments.filter(x=>x.id!==a.id);touched.ships=true;}
+    else{try{await fsdb.collection('shipments').doc(a.id).delete();}catch(e){console.warn('刪除失敗',e);}}
+  }
+  const sections=['meta'];if(touched.ships)sections.push('shipments');if(touched.returns)sections.push('returns');
+  await saveMultiple(sections);
+  _analyticsDataLoaded=false;_anSupCache=null; // 銷售分析下次重新抓
+  renderShipments();renderOrders();renderDashboard();
+  if(G('tab-accounting')?.classList.contains('active')&&typeof renderAccounting==='function')renderAccounting();
+  toastAlert('已清理 '+list.length+' 筆重複的舊出貨單，可在「☰ → 最近刪除」找回','success');
 }
 // 撤回出貨：把這張抄貨單的出貨單收回（移到最近刪除，7天內可找回），抄貨單回到「已完成」，可重新建立出貨單
 function _unlinkShipmentReturns(sh){
@@ -4207,7 +4254,7 @@ function findSupersededShipments(ships,orders){
     if(!cid)return;
     (byCust[cid]=byCust[cid]||[]).push({sh,idx,order:sh.orderId,date:sh.date||'',keys:new Set((sh.items||[]).map(i=>i.productId+'|'+i.price))});
   });
-  const sup=new Set();
+  const sup=new Set();sup.by=new Map(); // by：被取代的出貨單 → 保留的那一筆
   Object.values(byCust).forEach(list=>{
     list.sort((a,b)=>a.date.localeCompare(b.date)||a.idx-b.idx);
     for(let i=0;i<list.length;i++){
@@ -4216,7 +4263,7 @@ function findSupersededShipments(ships,orders){
         const B=list[j];
         if(!(B.date===A.date||B.order===A.order))continue;
         let hit=0;A.keys.forEach(k=>{if(B.keys.has(k))hit++;});
-        if(hit/A.keys.size>=0.6){sup.add(A.sh.id);break;}
+        if(hit/A.keys.size>=0.6){sup.add(A.sh.id);sup.by.set(A.sh.id,B.sh.id);break;}
       }
     }
   });
@@ -6424,9 +6471,11 @@ async function openLabelPrintWindow(priceQtyList,prefix,orderId){
     }catch(e){ alive=false; /* 小程式沒開 */ }
     if(alive){
       _lvBusy=true;
-      showToast('LabelView 列印中，請勿操作電腦…','success',60000);
+      // 逾時依價格種類數調整：每種價格約 15 秒，至少 90 秒、最多 10 分鐘（種類多的抄貨單 90 秒根本印不完）
+      const tmoMs=Math.min(600000,Math.max(90000,30000+toPrint.length*15000));
+      showToast('LabelView 列印中，共 '+toPrint.length+' 種價格，請勿操作電腦…','success',tmoMs);
       try{
-        const ctl2=new AbortController();const t2=setTimeout(()=>ctl2.abort(),90000); // 最多等90秒，避免畫面一直卡在列印中
+        const ctl2=new AbortController();const t2=setTimeout(()=>ctl2.abort(),tmoMs);
         const r=await fetch('http://127.0.0.1:8765/print',{method:'POST',body:JSON.stringify(toPrint),signal:ctl2.signal});
         clearTimeout(t2);
         const d=await r.json();
@@ -6435,7 +6484,7 @@ async function openLabelPrintWindow(priceQtyList,prefix,orderId){
           showToast('LabelView 已完成 '+d.count+' 種價格的列印指令'+(Object.keys(useMap).length?'，並已扣除庫存':''),'success',4000);
         } else toastAlert('沒有列印（庫存未扣）：'+(d.error||'未知錯誤'),'error',9000);
       }catch(e){
-        toastAlert('小程式超過90秒沒有回應（庫存未扣），請看電腦上的黑視窗訊息','error',9000);
+        toastAlert('等了 '+Math.round(tmoMs/1000)+' 秒小程式還沒回應（庫存未扣）。印表機可能還在印，請先看印表機和電腦上的黑視窗，確認印完了再繼續。','error',12000);
       }
       _lvBusy=false;
       return;
