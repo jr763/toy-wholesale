@@ -314,7 +314,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     <div class="side-menu-item" onclick="switchTab('customers',this);closeMenu()"><span class="smi-icon">👥</span>客戶</div>
     <div class="side-menu-item" id="nav-restock" onclick="switchTab('restock',this);closeMenu()"><span class="smi-icon">🔔</span>補貨</div>
     <div class="side-menu-item" onclick="switchTab('returns',this);closeMenu()"><span class="smi-icon">↩️</span>退貨</div>
-    <div class="side-menu-item" onclick="switchTab('barcode-print',this);closeMenu()"><span class="smi-icon">🏷️</span>條碼列印</div>
+    <div class="side-menu-item" onclick="switchTab('barcode-print',this);closeMenu()"><span class="smi-icon">🏷️</span>條碼庫存</div>
 
     <div class="side-menu-group">分析與設定</div>
     <div class="side-menu-item" onclick="switchTab('analytics',this);closeMenu()"><span class="smi-icon">📊</span>銷售分析</div>
@@ -510,53 +510,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 </div>
 
 <div id="tab-barcode-print" class="page">
-  <div class="page-header"><div><h2>條碼列印</h2></div></div>
-
-  <div class="card" style="margin-bottom:12px;">
-    <div style="font-size:14px;font-weight:700;margin-bottom:12px;">設定</div>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>客戶條碼</label>
-        <select id="bp-barcode-prefix">
-          <option value="7990341">7990341</option>
-          <option value="2003751">2003751</option>
-        </select>
-      </div>
-
-    </div>
-  </div>
-
-  <div class="card" style="margin-bottom:12px;">
-    <div style="font-size:14px;font-weight:700;margin-bottom:12px;">新增售價</div>
-    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-      <div class="form-group" style="flex:0 0 100px;">
-        <label>售價（元）</label>
-        <input id="bp-price" type="number" placeholder="0" min="0">
-      </div>
-      <div class="form-group" style="flex:0 0 70px;">
-        <label>數量</label>
-        <input id="bp-qty" type="number" placeholder="1" min="1" value="1">
-      </div>
-      <div class="form-group" style="flex:1;min-width:120px;">
-        <label>格式</label>
-        <select id="bp-format">
-          <option value="standard">標準（含奧斯卡）</option>
-        </select>
-      </div>
-      <button class="btn btn-primary" onclick="addBarcodePrintItem()" style="align-self:flex-end;">＋ 加入</button>
-    </div>
-  </div>
-
-  <div class="card" style="margin-bottom:12px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <div style="font-size:14px;font-weight:700;">列印清單</div>
-      <button class="btn btn-sm btn-danger" onclick="clearBarcodePrintList()">清除全部</button>
-    </div>
-    <div id="bp-list"></div>
-    <div class="btn-row" style="margin-top:12px;">
-      <button class="btn btn-primary" onclick="printBarcodePrintList()">🏷️ 列印</button>
-    </div>
-  </div>
+  <div class="page-header"><div><h2>條碼庫存</h2><p>已印好、還沒用完的條碼</p></div></div>
 
   <!-- 已印好的條碼庫存 -->
   <div class="card" style="margin-bottom:12px;">
