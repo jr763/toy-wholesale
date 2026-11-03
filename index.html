@@ -557,6 +557,27 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
       <button class="btn btn-primary" onclick="printBarcodePrintList()">🏷️ 列印</button>
     </div>
   </div>
+
+  <!-- 已印好的條碼庫存 -->
+  <div class="card" style="margin-bottom:12px;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px;">已印好的條碼庫存</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">之後列印時會先用這裡的庫存，只印不足的張數；用掉的會自動扣除。</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="flex:0 0 120px;">
+        <label>條碼開頭</label>
+        <select id="bs-prefix"><option value="7990341">7990340 / 7990341</option><option value="2003751">2003750 / 2003751</option></select>
+      </div>
+      <div class="form-group" style="flex:0 0 90px;"><label>售價（元）</label><input id="bs-price" type="number" min="0" placeholder="0"></div>
+      <div class="form-group" style="flex:0 0 90px;"><label>張數</label><input id="bs-qty" type="number" min="1" value="1"></div>
+      <button class="btn btn-primary" onclick="addBarcodeStock()" style="align-self:flex-end;">＋ 加入庫存</button>
+    </div>
+    <details style="margin-top:10px;">
+      <summary style="font-size:13px;cursor:pointer;color:var(--blue);">一次貼上多筆</summary>
+      <textarea id="bs-paste" placeholder="每行一筆「售價 張數」，用上面選的條碼開頭&#10;例：&#10;50 120&#10;59 80&#10;80 60" style="width:100%;height:90px;margin-top:8px;font-family:monospace;font-size:13px;"></textarea>
+      <button class="btn btn-sm btn-secondary" onclick="pasteBarcodeStock()" style="margin-top:6px;">加入貼上的內容</button>
+    </details>
+    <div id="bs-list" style="margin-top:12px;"></div>
+  </div>
 </div>
 
 <div id="tab-analytics" class="page">
@@ -1340,7 +1361,7 @@ async function backupToDrive(){
 setInterval(backupToDrive, 60*60*1000);
 // ── STATE ─────────────────────────────────────
 let db = { products:[], customers:[], orders:[], shipments:[], returns:[],
-  variantOptions:[], payments:{}, accountingChecked:{}, accountingBills:{} };
+  variantOptions:[], payments:{}, accountingChecked:{}, accountingBills:{}, barcodeStock:{}, barcodeLog:[] };
 let orderItems=[], returnItemsArr=[], shipmentItems=[];
 let orderFilter='all';
 let editProdId=null, editCustId=null, editOrderId=null;
@@ -1464,6 +1485,8 @@ async function loadData(btn=false){
       db.payments=m.payments||{};
       db.accountingChecked=m.accountingChecked||{};
       db.accountingBills=m.accountingBills||{};
+      db.barcodeStock=m.barcodeStock||{};
+      db.barcodeLog=m.barcodeLog||[];
     }
     setSyncStatus('ok','雲端同步・所有人共用');
     G('loading-overlay').style.display='none';
@@ -1695,7 +1718,9 @@ async function saveMeta(){
     trash:db.trash||[],
     payments:db.payments||{},
     accountingChecked:db.accountingChecked||{},
-    accountingBills:db.accountingBills||{}
+    accountingBills:db.accountingBills||{},
+    barcodeStock:db.barcodeStock||{},
+    barcodeLog:(db.barcodeLog||[]).slice(-200)
   };
   _logPayloadSize('meta',metaData);
   await fsdb.collection('sections').doc('meta').set({data:metaData, updatedAt:Date.now()});
@@ -2064,7 +2089,7 @@ function queuePendingBackup(section){
   else if(section==='returns') savePendingQueue('returns',{data:db.returns, updatedAt:Date.now()});
   else if(section==='pickingState') savePendingQueue('pickingState',{data:db.pickingState||{}, updatedAt:Date.now()});
   else if(section==='boxingState') savePendingQueue('boxingState',{data:db.boxingState||{}, updatedAt:Date.now()});
-  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},trash:db.trash||[],payments:db.payments||{},accountingChecked:db.accountingChecked||{},accountingBills:db.accountingBills||{}}, updatedAt:Date.now()});
+  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},trash:db.trash||[],payments:db.payments||{},accountingChecked:db.accountingChecked||{},accountingBills:db.accountingBills||{},barcodeStock:db.barcodeStock||{},barcodeLog:(db.barcodeLog||[]).slice(-200)}, updatedAt:Date.now()});
 }
 const _sectionLabels={orders:'抄貨單',products:'商品/庫存',customers:'客戶',shipments:'出貨單',returns:'退貨單',meta:'其他設定',pickingState:'撿貨記錄',boxingState:'裝箱記錄'};
 // 一次存多個區塊（例如確認抄貨單同時要存 orders/products/meta）
@@ -2182,6 +2207,8 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
       db.payments=m.payments||{};
       db.accountingChecked=m.accountingChecked||{};
       db.accountingBills=m.accountingBills||{};
+      db.barcodeStock=m.barcodeStock||{};
+      db.barcodeLog=m.barcodeLog||[];
       _lastUpdatedAt['meta']=ts;
     } else {
       console.warn('略過較舊的快取資料（meta），保留目前較新的資料');
@@ -3514,7 +3541,17 @@ function showBCSummary(){
   const priceMap={};
   selected.forEach(i=>{const k=i.price;priceMap[k]=(priceMap[k]||0)+i.qty;});
   const priceList=Object.keys(priceMap).map(Number).sort((a,b)=>a-b);
-  const bcRows=priceList.map(price=>`<tr><td style="font-weight:700;color:var(--accent);">$${fmt(price)}</td><td style="font-size:15px;font-weight:700;">${priceMap[price]} 張</td></tr>`).join('');
+  const _pf=custBarcode!=='—'?custBarcode:'';
+  const bcRows=priceList.map(price=>{
+    const need=priceMap[price];
+    const have=bcStockGet(price,_pf);
+    const use=Math.min(have,need);
+    const pk=getPriceBarcode(price,_pf).slice(0,7);
+    return `<tr><td style="font-weight:700;color:var(--accent);">$${fmt(price)}<div style="font-size:10px;font-weight:400;color:var(--text3);">${pk}</div></td>
+      <td style="font-size:15px;font-weight:700;">${need} 張</td>
+      <td style="font-size:13px;">${have?`<span style="color:var(--green);font-weight:700;">用庫存 ${use}</span>`:'<span style="color:var(--text3);">無庫存</span>'}</td>
+      <td style="font-size:13px;font-weight:700;">${need-use>0?'印 '+(need-use):'<span style="color:var(--green);">不用印</span>'}</td></tr>`;
+  }).join('');
   const el=G('bc-summary-inline');
   el.style.display='block';
   if(!selected.length){el.innerHTML='<div style="color:var(--text3);font-size:13px;padding:8px;">請先勾選要列印的商品</div>';return;}
@@ -3522,10 +3559,10 @@ function showBCSummary(){
   el.innerHTML=`<div style="background:var(--blue-bg);border:1px solid #b3d4f0;border-radius:8px;padding:10px 13px;">
     <div style="font-size:12px;color:var(--blue);margin-bottom:7px;">條碼：<strong>${custBarcode}</strong>（已勾選商品）</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;">
-      <thead><tr><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">售價</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">數量</th></tr></thead>
+      <thead><tr><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">售價</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">需要</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">已印好的</th><th style="text-align:left;padding:3px 8px;font-size:11px;color:var(--text2);">還要印</th></tr></thead>
       <tbody>${bcRows}</tbody>
     </table>
-    <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="openLabelPrintWindow(window._bcPriceList||[],'${custBarcode!=='—'?custBarcode:''}')">🏷️ 列印這些條碼</button>
+    <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="openLabelPrintWindow(window._bcPriceList||[],'${custBarcode!=='—'?custBarcode:''}')">🏷️ 用庫存並列印不足的</button>
   </div>`;
 }
 
@@ -4454,6 +4491,88 @@ let _bpItems = []; // [{price, qty}]
 
 function renderBarcodePrint(){
   renderBpList();
+  renderBcStock();
+}
+
+// ── 已印好的條碼庫存 ──────────────────────────
+// 庫存的 key = 「實際會印出來的7碼開頭|售價」，跟 getPriceBarcode 的規則一致（9結尾→1結尾開頭，其他→0結尾開頭）
+function bcStockKey(price,prefix){
+  const eff=getPriceBarcode(price,prefix).slice(0,7);
+  return eff+'|'+price;
+}
+function bcStockGet(price,prefix){ return (db.barcodeStock||{})[bcStockKey(price,prefix)]||0; }
+function bcStockAdjust(key,delta,reason){
+  if(!db.barcodeStock)db.barcodeStock={};
+  const n=Math.max(0,(db.barcodeStock[key]||0)+delta);
+  if(n>0)db.barcodeStock[key]=n; else delete db.barcodeStock[key];
+  if(!db.barcodeLog)db.barcodeLog=[];
+  db.barcodeLog.push({t:new Date().toISOString().slice(0,16).replace('T',' '),key,delta,reason:reason||''});
+  if(db.barcodeLog.length>200)db.barcodeLog=db.barcodeLog.slice(-200);
+}
+function renderBcStock(){
+  const el=G('bs-list');if(!el)return;
+  const stock=db.barcodeStock||{};
+  const groups={};
+  Object.entries(stock).forEach(([k,q])=>{
+    const [p,price]=k.split('|');
+    (groups[p]=groups[p]||[]).push({key:k,price:Number(price),qty:q});
+  });
+  const prefixes=['7990340','7990341','2003750','2003751'];
+  const html=prefixes.map(p=>{
+    const rows=(groups[p]||[]).sort((a,b)=>a.price-b.price);
+    const total=rows.reduce((n,r)=>n+r.qty,0);
+    return `<div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--border);padding-bottom:4px;margin-bottom:4px;">
+        <span style="font-weight:700;color:var(--brown-dark);">${p}</span>
+        <span style="font-size:12px;color:var(--text2);">${rows.length?rows.length+' 種價格・共 '+fmt(total)+' 張':'無庫存'}</span>
+      </div>
+      ${rows.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+        <span style="flex:0 0 80px;font-weight:700;">$${fmt(r.price)}</span>
+        <input type="number" min="0" value="${r.qty}" style="width:90px;" onchange="setBarcodeStock('${r.key}',this.value)">
+        <span style="font-size:12px;color:var(--text3);">張</span>
+        <button class="btn btn-xs btn-danger" style="margin-left:auto;" onclick="setBarcodeStock('${r.key}',0)">✕</button>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+  const log=(db.barcodeLog||[]).slice(-8).reverse();
+  el.innerHTML=html+(log.length?`<details><summary style="font-size:12px;color:var(--text2);cursor:pointer;">最近異動紀錄</summary>
+    <div style="font-size:12px;color:var(--text2);margin-top:6px;">${log.map(l=>`<div>${l.t}　${l.key.replace('|',' / $')}　<strong style="color:${l.delta>=0?'var(--green)':'var(--red)'};">${l.delta>=0?'+':''}${l.delta}</strong>　${l.reason||''}</div>`).join('')}</div></details>`:'');
+}
+async function addBarcodeStock(){
+  const price=parseFloat(G('bs-price').value);
+  const qty=parseInt(G('bs-qty').value)||0;
+  if(!price||price<=0){toastAlert('請輸入售價','warn');return;}
+  if(qty<=0){toastAlert('請輸入張數','warn');return;}
+  const prefix=G('bs-prefix').value;
+  const key=bcStockKey(price,prefix);
+  bcStockAdjust(key,qty,'手動加入');
+  await saveData('meta');
+  G('bs-price').value='';G('bs-qty').value='1';
+  renderBcStock();
+  toastAlert('已加入：'+key.replace('|',' / $')+'　+'+qty+' 張','success');
+}
+async function pasteBarcodeStock(){
+  const prefix=G('bs-prefix').value;
+  const lines=(G('bs-paste').value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  let ok=0,bad=[];
+  lines.forEach(l=>{
+    const m=l.split(/[\s,，\t]+/);
+    const price=parseFloat(m[0]),qty=parseInt(m[1]);
+    if(!price||price<=0||!qty||qty<=0){bad.push(l);return;}
+    bcStockAdjust(bcStockKey(price,prefix),qty,'貼上加入');ok++;
+  });
+  if(ok)await saveData('meta');
+  G('bs-paste').value=bad.join('\n');
+  renderBcStock();
+  toastAlert('已加入 '+ok+' 筆'+(bad.length?'；有 '+bad.length+' 行格式不對，留在輸入框，請修正':''),bad.length?'warn':'success');
+}
+async function setBarcodeStock(key,val){
+  const n=Math.max(0,parseInt(val)||0);
+  const cur=(db.barcodeStock||{})[key]||0;
+  if(n===cur)return;
+  bcStockAdjust(key,n-cur,'手動調整');
+  await saveData('meta');
+  renderBcStock();
 }
 
 function addBarcodePrintItem(){
@@ -6063,33 +6182,70 @@ let _lvBusy=false;
 async function openLabelPrintWindow(priceQtyList,prefix){
   if(!priceQtyList.length){toastAlert('沒有售價可列印','warn');return;}
   if(_lvBusy) return;
-  const jobs=priceQtyList.filter(it=>it&&typeof it==='object'&&typeof it.qty==='number'&&it.qty>0).map(it=>{
-    const bc=getPriceBarcode(it.price,prefix);return {prefix:bc.slice(0,7),price:it.price,qty:it.qty};
+  let jobs=priceQtyList.filter(it=>it&&typeof it==='object'&&typeof it.qty==='number'&&it.qty>0).map(it=>{
+    const bc=getPriceBarcode(it.price,prefix);return {prefix:bc.slice(0,7),price:it.price,qty:it.qty,_key:bc.slice(0,7)+'|'+it.price};
   });
-  if(jobs.length){
+  // ── 先用已印好的庫存，只印不足的 ──
+  const useMap={}; // key -> 從庫存用掉的張數
+  if(jobs.some(j=>(db.barcodeStock||{})[j._key]>0)){
+    const lines=jobs.map(j=>{
+      const have=(db.barcodeStock||{})[j._key]||0;
+      const use=Math.min(have,j.qty);
+      return j.prefix+'　$'+j.price+'　需要 '+j.qty+' 張，庫存 '+have+' 張'+(use>=j.qty?' → 庫存夠，不用印':(use>0?' → 庫存用 '+use+'，只印 '+(j.qty-use):' → 要印 '+j.qty));
+    });
+    const pick=await toastSelect('已印好的條碼庫存：\n\n'+lines.join('\n'),[
+      {label:'先用庫存，只印不足的',value:'use'},
+      {label:'不用庫存，全部重印',value:'all'}
+    ]);
+    if(!pick)return;
+    if(pick==='use'){
+      jobs=jobs.map(j=>{
+        const have=(db.barcodeStock||{})[j._key]||0;
+        const use=Math.min(have,j.qty);
+        if(use>0)useMap[j._key]=use;
+        return {...j,qty:j.qty-use};
+      });
+    }
+  }
+  const deductStock=async()=>{
+    const ks=Object.keys(useMap);
+    if(!ks.length)return;
+    ks.forEach(k=>bcStockAdjust(k,-useMap[k],'列印時使用庫存'));
+    try{await saveData('meta');}catch(e){console.warn('庫存扣除存檔失敗',e);}
+    if(typeof renderBcStock==='function')renderBcStock();
+  };
+  const toPrint=jobs.filter(j=>j.qty>0).map(({_key,...rest})=>rest);
+  if(!toPrint.length){
+    await deductStock();
+    showToast('庫存夠用，不用列印，已從庫存扣除','success',4000);
+    return;
+  }
+  {
     let alive=false;
     try{
       const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),1500);
       const pr=await fetch('http://127.0.0.1:8765/ping',{signal:ctl.signal});clearTimeout(t);alive=pr.ok;
-    }catch(e){ alive=false; /* 小程式沒開 → 退回網頁列印 */ }
+    }catch(e){ alive=false; /* 小程式沒開 */ }
     if(alive){
       _lvBusy=true;
       showToast('LabelView 列印中，請勿操作電腦…','success',60000);
       try{
         const ctl2=new AbortController();const t2=setTimeout(()=>ctl2.abort(),90000); // 最多等90秒，避免畫面一直卡在列印中
-        const r=await fetch('http://127.0.0.1:8765/print',{method:'POST',body:JSON.stringify(jobs),signal:ctl2.signal});
+        const r=await fetch('http://127.0.0.1:8765/print',{method:'POST',body:JSON.stringify(toPrint),signal:ctl2.signal});
         clearTimeout(t2);
         const d=await r.json();
-        if(d.ok) showToast('LabelView 已完成 '+d.count+' 種價格的列印指令','success',4000);
-        else toastAlert('沒有列印：'+(d.error||'未知錯誤'),'error',9000);
+        if(d.ok){
+          await deductStock(); // 確定印出去了才扣庫存
+          showToast('LabelView 已完成 '+d.count+' 種價格的列印指令'+(Object.keys(useMap).length?'，並已扣除庫存':''),'success',4000);
+        } else toastAlert('沒有列印（庫存未扣）：'+(d.error||'未知錯誤'),'error',9000);
       }catch(e){
-        toastAlert('小程式超過90秒沒有回應，請看電腦上的黑視窗訊息','error',9000);
+        toastAlert('小程式超過90秒沒有回應（庫存未扣），請看電腦上的黑視窗訊息','error',9000);
       }
       _lvBusy=false;
       return;
     }
   }
-  toastAlert('找不到 LabelView 小程式：請先雙擊「啟動小程式.bat」，黑視窗開著再按列印','warn',7000);
+  toastAlert('找不到 LabelView 小程式：請先雙擊「啟動小程式.bat」，黑視窗開著再按列印（庫存未扣）','warn',7000);
 }
 function _openLabelPopup(priceQtyList,prefix){
   if(!priceQtyList.length){toastAlert('沒有售價可列印','warn');return;}
