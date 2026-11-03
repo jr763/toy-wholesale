@@ -571,7 +571,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 
   <!-- 路線 -->
   <div class="card an-card">
-    <div class="an-title">路線總額 <span class="an-sub">同一天的抄貨單算同一條路線，點開看每間店</span></div>
+    <div class="an-title">路線總額 <span class="an-sub">同一天算一趟；幫每天「命名」，同名的就合併成一條路線</span></div>
     <div id="an-routes"></div>
   </div>
 
@@ -1326,7 +1326,7 @@ async function backupToDrive(){
 setInterval(backupToDrive, 60*60*1000);
 // ── STATE ─────────────────────────────────────
 let db = { products:[], customers:[], orders:[], shipments:[], returns:[],
-  variantOptions:[], payments:{}, accountingChecked:{}, accountingBills:{}, barcodeStock:{}, barcodeLog:[] };
+  variantOptions:[], payments:{}, accountingChecked:{}, accountingBills:{}, barcodeStock:{}, barcodeLog:[], routeNames:{} };
 let orderItems=[], returnItemsArr=[], shipmentItems=[];
 let orderFilter='all';
 let editProdId=null, editCustId=null, editOrderId=null;
@@ -1452,6 +1452,7 @@ async function loadData(btn=false){
       db.accountingBills=m.accountingBills||{};
       db.barcodeStock=m.barcodeStock||{};
       db.barcodeLog=m.barcodeLog||[];
+      db.routeNames=m.routeNames||{};
     }
     setSyncStatus('ok','雲端同步・所有人共用');
     G('loading-overlay').style.display='none';
@@ -1685,7 +1686,8 @@ async function saveMeta(){
     accountingChecked:db.accountingChecked||{},
     accountingBills:db.accountingBills||{},
     barcodeStock:db.barcodeStock||{},
-    barcodeLog:(db.barcodeLog||[]).slice(-200)
+    barcodeLog:(db.barcodeLog||[]).slice(-200),
+    routeNames:db.routeNames||{}
   };
   _logPayloadSize('meta',metaData);
   await fsdb.collection('sections').doc('meta').set({data:metaData, updatedAt:Date.now()});
@@ -2054,7 +2056,7 @@ function queuePendingBackup(section){
   else if(section==='returns') savePendingQueue('returns',{data:db.returns, updatedAt:Date.now()});
   else if(section==='pickingState') savePendingQueue('pickingState',{data:db.pickingState||{}, updatedAt:Date.now()});
   else if(section==='boxingState') savePendingQueue('boxingState',{data:db.boxingState||{}, updatedAt:Date.now()});
-  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},trash:db.trash||[],payments:db.payments||{},accountingChecked:db.accountingChecked||{},accountingBills:db.accountingBills||{},barcodeStock:db.barcodeStock||{},barcodeLog:(db.barcodeLog||[]).slice(-200)}, updatedAt:Date.now()});
+  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},trash:db.trash||[],payments:db.payments||{},accountingChecked:db.accountingChecked||{},accountingBills:db.accountingBills||{},barcodeStock:db.barcodeStock||{},barcodeLog:(db.barcodeLog||[]).slice(-200),routeNames:db.routeNames||{}}, updatedAt:Date.now()});
 }
 const _sectionLabels={orders:'抄貨單',products:'商品/庫存',customers:'客戶',shipments:'出貨單',returns:'退貨單',meta:'其他設定',pickingState:'撿貨記錄',boxingState:'裝箱記錄'};
 // 一次存多個區塊（例如確認抄貨單同時要存 orders/products/meta）
@@ -2174,6 +2176,7 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
       db.accountingBills=m.accountingBills||{};
       db.barcodeStock=m.barcodeStock||{};
       db.barcodeLog=m.barcodeLog||[];
+      db.routeNames=m.routeNames||{};
       _lastUpdatedAt['meta']=ts;
     } else {
       console.warn('略過較舊的快取資料（meta），保留目前較新的資料');
@@ -4618,7 +4621,7 @@ async function ensureAnalyticsDataLoaded(){
   if(note)note.style.display='none';
 }
 
-const AN_GP_RATE=0.3; // 毛利 = 實收總額 × 30%
+const AN_GP_RATE=0.3; // 毛利 = 實收總額 × 43%
 let _bandMode='qty';
 const BANDS=[
   {l:'29 元以下',min:0,max:29},{l:'30–49 元',min:30,max:49},{l:'50–79 元',min:50,max:79},
@@ -4690,14 +4693,16 @@ function renderAnKpis(){
   const list=anShipments(year,month);
   let net=0,ret=0;const routes=new Set(),custs=new Set();
   list.forEach(x=>{const t=anShipTotal(x.sh);net+=t.net;ret+=t.ret;routes.add(x.routeDate);custs.add(x.custId);});
-  const n=routes.size;
+  // 路線數：同名路線算 1 條，沒命名的每一天各算 1 條；趟數 = 跑了幾天
+  const trips=routes.size;
+  const n=new Set([...routes].map(d=>(db.routeNames||{})[d]||('date:'+d))).size;
   const pp=anPrevPeriod(year,month);
   const prevNet=anNetTotal(pp.year,pp.month);
   G('an-kpis').innerHTML=`
     <div class="an-kpi main"><div class="k">實收總額</div><div class="v">${anMoney(net)}</div>${anDelta(net,prevNet,pp.label)}</div>
     <div class="an-kpi"><div class="k">毛利（${Math.round(AN_GP_RATE*100)}%）</div><div class="v" style="color:var(--green);">${anMoney(net*AN_GP_RATE)}</div>${anDelta(net*AN_GP_RATE,prevNet*AN_GP_RATE,pp.label)}</div>
-    <div class="an-kpi"><div class="k">路線數</div><div class="v">${n}</div></div>
-    <div class="an-kpi"><div class="k">平均每條路線</div><div class="v">${n?anMoney(net/n):'—'}</div></div>
+    <div class="an-kpi"><div class="k">路線數</div><div class="v">${n}</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">共跑 ${trips} 趟</div></div>
+    <div class="an-kpi"><div class="k">平均每趟</div><div class="v">${trips?anMoney(net/trips):'—'}</div></div>
     <div class="an-kpi"><div class="k">有出貨的店</div><div class="v">${custs.size}</div></div>
     <div class="an-kpi"><div class="k">退貨扣除</div><div class="v" style="color:var(--red);">${ret?'-'+anMoney(ret):'$0'}</div></div>`;
 }
@@ -4717,37 +4722,86 @@ function renderAnMonthly(){
     </div>`).join('')}</div>`:'<div class="an-empty">這一年還沒有出貨資料</div>';
 }
 
+function anEsc(t){return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function renderAnRoutes(){
   const list=anShipments(G('an-year')?.value,G('an-month')?.value);
   if(!list.length){G('an-routes').innerHTML='<div class="an-empty">這段期間沒有出貨資料</div>';return;}
-  const routes={};
+  const names=db.routeNames||{};
+  // 先依日期彙整，再依路線名稱合併（沒命名的每天自成一條）
+  const days={};
   list.forEach(x=>{
-    const r=routes[x.routeDate]=routes[x.routeDate]||{date:x.routeDate,net:0,stores:{}};
-    const t=anShipTotal(x.sh);
-    r.net+=t.net;
-    r.stores[x.custId]=(r.stores[x.custId]||0)+t.net;
+    const r=days[x.routeDate]=days[x.routeDate]||{date:x.routeDate,net:0,stores:{}};
+    r.net+=anShipTotal(x.sh).net;
+    r.stores[x.custId]=(r.stores[x.custId]||0)+anShipTotal(x.sh).net;
   });
-  const arr=Object.values(routes).sort((a,b)=>b.date.localeCompare(a.date));
-  const mx=Math.max(...arr.map(r=>r.net),1);
-  G('an-routes').innerHTML=arr.map((r,ri)=>{
-    const d=new Date(r.date+'T00:00:00');
-    const stores=Object.entries(r.stores).sort((a,b)=>b[1]-a[1]);
+  const groups={};
+  Object.values(days).forEach(d=>{
+    const nm=names[d.date]||'';
+    const key=nm||('date:'+d.date);
+    const g=groups[key]=groups[key]||{name:nm,net:0,stores:{},dates:[]};
+    g.net+=d.net;g.dates.push(d);
+    Object.entries(d.stores).forEach(([c,v])=>{g.stores[c]=(g.stores[c]||0)+v;});
+  });
+  const arr=Object.values(groups).sort((a,b)=>{
+    if(!!a.name!==!!b.name)return a.name?-1:1;            // 有命名的排前面
+    if(a.name)return b.net-a.net;                            // 命名路線依總額
+    return b.dates[0].date.localeCompare(a.dates[0].date);  // 沒命名的依日期新到舊
+  });
+  const mx=Math.max(...arr.map(g=>g.net),1);
+  G('an-routes').innerHTML=arr.map((g,gi)=>{
+    g.dates.sort((a,b)=>b.date.localeCompare(a.date));
+    const stores=Object.entries(g.stores).sort((a,b)=>b[1]-a[1]);
     const smx=Math.max(...stores.map(x=>x[1]),1);
-    return `<div class="an-route" id="an-route-${ri}">
-      <div class="an-route-head" onclick="document.getElementById('an-route-${ri}').classList.toggle('open')">
+    const one=g.dates[0];
+    const dd=new Date(one.date+'T00:00:00');
+    const title=g.name?anEsc(g.name):one.date.slice(5).replace('-','/');
+    const subtitle=g.name?`跑 ${g.dates.length} 趟・${stores.length} 間店`:`週${_wk[dd.getDay()]}・${stores.length} 間店`;
+    const nameBtn=g.name?'':`<button class="btn btn-xs btn-secondary" onclick="event.stopPropagation();anRouteName('${one.date}')">命名</button>`;
+    const tripRows=g.name?`<div style="font-size:12px;color:var(--text2);margin:10px 0 4px;">各趟</div>`+g.dates.map(d=>{
+      const w=new Date(d.date+'T00:00:00');
+      return `<div class="an-bar-row" style="padding:4px 0;">
+        <div class="an-bar-label" style="flex-basis:110px;">${d.date.slice(5).replace('-','/')}<span style="color:var(--text3);font-size:11px;"> 週${_wk[w.getDay()]}</span></div>
+        <div style="flex:1;font-size:12px;color:var(--text3);">${Object.keys(d.stores).length} 間店</div>
+        <div class="an-bar-val">${anMoney(d.net)}</div>
+        <button class="btn btn-xs btn-secondary" onclick="anRouteName('${d.date}')">改名</button>
+      </div>`;}).join(''):'';
+    return `<div class="an-route" id="an-route-${gi}">
+      <div class="an-route-head" onclick="document.getElementById('an-route-${gi}').classList.toggle('open')">
         <span class="an-arrow">▶</span>
-        <div class="an-route-date">${r.date.slice(5).replace('-','/')}<small>週${_wk[d.getDay()]}・${stores.length} 間店</small></div>
-        <div class="an-route-mid"><div class="an-bar-track"><div class="an-bar-fill accent" style="width:${r.net/mx*100}%"></div></div></div>
-        <div class="an-route-total">${anMoney(r.net)}<small style="display:block;font-size:10px;font-weight:400;color:var(--green);text-align:right;">毛利 ${anMoney(r.net*AN_GP_RATE)}</small></div>
+        <div class="an-route-date">${title}<small>${subtitle}</small></div>
+        <div class="an-route-mid"><div class="an-bar-track"><div class="an-bar-fill accent" style="width:${g.net/mx*100}%"></div></div></div>
+        <div class="an-route-total">${anMoney(g.net)}<small style="display:block;font-size:10px;font-weight:400;color:var(--green);text-align:right;">毛利 ${anMoney(g.net*AN_GP_RATE)}${g.name&&g.dates.length>1?'・平均每趟 '+anMoney(g.net/g.dates.length):''}</small></div>
+        ${nameBtn}
       </div>
       <div class="an-route-body">${stores.map(([cid,v])=>`
         <div class="an-bar-row">
           <div class="an-bar-label" style="flex-basis:150px;">${anCustName(cid)}</div>
           <div class="an-bar-track"><div class="an-bar-fill" style="width:${v/smx*100}%"></div></div>
-          <div class="an-bar-val">${anMoney(v)}<small>${r.net?Math.round(v/r.net*100):0}%</small></div>
-        </div>`).join('')}</div>
+          <div class="an-bar-val">${anMoney(v)}<small>${g.net?Math.round(v/g.net*100):0}%</small></div>
+        </div>`).join('')}${tripRows}</div>
     </div>`;
   }).join('');
+}
+// 幫某一天命名路線（同名的天會合併成一條路線）
+async function anRouteName(date){
+  if(!db.routeNames)db.routeNames={};
+  const existing=[...new Set(Object.values(db.routeNames).filter(Boolean))].sort();
+  const cur=db.routeNames[date]||'';
+  const choices=existing.filter(n=>n!==cur).map(n=>({label:n,value:'n:'+n}));
+  choices.push({label:'＋ 新增路線名稱…',value:'new'});
+  if(cur)choices.push({label:'移除這天的路線名稱',value:'clear'});
+  const pick=await toastSelect(date+'（'+(cur?'目前：'+cur:'尚未命名')+'）\n要歸到哪一條路線？',choices);
+  if(!pick)return;
+  let val;
+  if(pick==='clear')val='';
+  else if(pick==='new'){
+    const t=await toastPrompt('輸入路線名稱（例如：A路線、彰化線）',cur);
+    if(t===null||t===undefined)return;
+    val=String(t).trim();if(!val)return;
+  } else val=pick.slice(2);
+  if(val)db.routeNames[date]=val;else delete db.routeNames[date];
+  try{await saveData('meta');}catch(e){toastAlert('儲存失敗：'+e.message,'error');}
+  renderAnKpis();renderAnRoutes();
 }
 
 function renderAnCusts(){
