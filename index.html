@@ -223,7 +223,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 .an-sub{font-weight:400;font-size:11px;color:var(--text3);margin-left:6px}
 .an-empty{color:var(--text3);font-size:13px;padding:14px 0;text-align:center}
 .an-bar-row{display:flex;align-items:center;gap:10px;padding:7px 0}
-.an-bar-label{flex:0 0 96px;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-bar-label{flex:0 0 96px;font-size:13px;line-height:1.35;color:var(--text);white-space:normal;word-break:break-all}
 .an-bar-track{flex:1;background:var(--surface2);border-radius:6px;height:20px;overflow:hidden}
 .an-bar-fill{height:100%;background:var(--brown-light);border-radius:6px;min-width:2px}
 .an-bar-fill.accent{background:var(--accent)}
@@ -4742,7 +4742,7 @@ function renderAnRoutes(){
       </div>
       <div class="an-route-body">${stores.map(([cid,v])=>`
         <div class="an-bar-row">
-          <div class="an-bar-label" style="flex-basis:110px;">${anCustName(cid)}</div>
+          <div class="an-bar-label" style="flex-basis:150px;">${anCustName(cid)}</div>
           <div class="an-bar-track"><div class="an-bar-fill" style="width:${v/smx*100}%"></div></div>
           <div class="an-bar-val">${anMoney(v)}<small>${r.net?Math.round(v/r.net*100):0}%</small></div>
         </div>`).join('')}</div>
@@ -4775,7 +4775,7 @@ function renderAnCusts(){
     const chTxt=r.prev?`<span style="color:${ch>=0?'var(--green)':'var(--red)'};">${ch>=0?'▲':'▼'} ${Math.abs(ch)}%</span>`:(r.cur?'<span style="color:var(--text3);">上期沒進貨</span>':'<span style="color:var(--red);">本期沒進貨</span>');
     const dTxt=r.days===null?'':`<span style="${r.days>60?'color:var(--red);font-weight:700;':r.days>30?'color:var(--orange);font-weight:700;':'color:var(--text3);'}">${r.days===0?'今天':r.days+' 天前'}進貨</span>`;
     return `<div class="an-bar-row">
-      <div class="an-bar-label" style="flex-basis:110px;">${anCustName(r.id)}<div style="font-size:10px;">${dTxt}</div></div>
+      <div class="an-bar-label" style="flex-basis:150px;">${anCustName(r.id)}<div style="font-size:10px;">${dTxt}</div></div>
       <div class="an-bar-track"><div class="an-bar-fill" style="width:${r.cur/mx*100}%"></div></div>
       <div class="an-bar-val">${anMoney(r.cur)}<small>${chTxt}</small></div>
     </div>`;
