@@ -246,6 +246,11 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 .an-route.open .an-route-body{display:block}
 .an-arrow{color:var(--text3);font-size:12px;transition:transform .15s}
 .an-route.open .an-arrow{transform:rotate(90deg)}
+.an-ta{position:relative;margin-bottom:8px}
+.an-ta input[type=text],.an-ta input:not([type=hidden]){width:100%}
+.an-ta-res{display:none;position:absolute;top:100%;left:0;right:0;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:var(--shadow);margin-top:2px}
+.an-ta-res div{padding:9px 12px;font-size:13px;cursor:pointer}
+.an-ta-res div:hover{background:var(--surface2)}
 .an-seg{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
 .an-seg button{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:20px;padding:5px 14px;font-size:13px;cursor:pointer}
 .an-seg button.on{background:var(--brown);border-color:var(--brown);color:#fff}
@@ -573,6 +578,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
   <!-- 客戶 -->
   <div class="card an-card">
     <div class="an-title">客戶 <span class="an-sub">跟上期比，和多久沒進貨</span></div>
+    <div class="an-ta"><input id="an-cust-sel-input" placeholder="輸入客戶名稱，只看這間店（空白＝全部）" oninput="anTaSearch('an-cust-sel')" onfocus="anTaSearch('an-cust-sel')" autocomplete="off"><input type="hidden" id="an-cust-sel" value=""><div class="an-ta-res" id="an-cust-sel-res"></div></div>
     <div id="an-custs"></div>
   </div>
 
@@ -582,16 +588,11 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     <div class="an-seg">
       <button id="an-band-qty" class="on" onclick="setBandMode('qty')">看件數</button>
       <button id="an-band-amt" onclick="setBandMode('amt')">看金額</button>
-      <select id="an-band-cust" onchange="renderPriceBands()" style="width:auto;flex:1;min-width:120px;"><option value="">全部客戶</option></select>
     </div>
+    <div class="an-ta" style="margin-bottom:10px;"><input id="an-band-cust-input" placeholder="輸入客戶名稱，只看這間店（空白＝全部）" oninput="anTaSearch('an-band-cust')" onfocus="anTaSearch('an-band-cust')" autocomplete="off"><input type="hidden" id="an-band-cust" value=""><div class="an-ta-res" id="an-band-cust-res"></div></div>
     <div id="an-bands"></div>
   </div>
 
-  <!-- 熱銷商品 -->
-  <div class="card an-card">
-    <div class="an-title">熱銷商品 <span class="an-sub">依件數，前 10 名</span></div>
-    <div id="an-top"></div>
-  </div>
 </div>
 
 <div id="tab-accounting" class="page">
@@ -4677,13 +4678,11 @@ async function renderAnalytics(){
     const msel=G('an-month');
     if(msel&&!msel.dataset.init){msel.value=String(new Date().getMonth()+1).padStart(2,'0');msel.dataset.init='1';}
   }
-  const cs=G('an-band-cust');
-  if(cs){const cur=cs.value;cs.innerHTML='<option value="">全部客戶</option>'+db.customers.map(c=>`<option value="${c.id}" ${c.id===cur?'selected':''}>${c.name}</option>`).join('');}
   renderAnalyticsAll();
 }
 
 function renderAnalyticsAll(){
-  renderAnKpis();renderAnMonthly();renderAnRoutes();renderAnCusts();renderPriceBands();renderAnTop();
+  renderAnKpis();renderAnMonthly();renderAnRoutes();renderAnCusts();renderPriceBands();
 }
 
 function renderAnKpis(){
@@ -4762,7 +4761,8 @@ function renderAnCusts(){
     const o=_analyticsOrders.find(x=>x.id===sh.orderId);if(!o)return;
     const d=o.date||sh.date||'';if(d&&(!last[o.customerId]||d>last[o.customerId]))last[o.customerId]=d;
   });
-  const ids=[...new Set([...Object.keys(cur),...Object.keys(prev)])];
+  const selCust=G('an-cust-sel')?.value||'';
+  const ids=[...new Set([...Object.keys(cur),...Object.keys(prev)])].filter(id=>!selCust||id===selCust);
   if(!ids.length){G('an-custs').innerHTML='<div class="an-empty">這段期間沒有資料</div>';return;}
   const todayMs=new Date(today()+'T00:00:00').getTime();
   const rows=ids.map(id=>{
@@ -4811,26 +4811,29 @@ function renderPriceBands(){
     </div>`).join('')+`<div style="font-size:12px;color:var(--text2);margin-top:8px;">最常買的是 <strong>${BANDS[top].l}</strong>，佔 ${Math.round(vals[top]/total*100)}%</div>`;
 }
 
-function renderAnTop(){
-  const list=anShipments(G('an-year')?.value,G('an-month')?.value);
-  const m={};
-  list.forEach(x=>{
-    (x.sh.items||[]).forEach(i=>{
-      const p=db.products.find(y=>y.id===i.productId);
-      const k=p?p.name:(i.name||('$'+i.price+' 商品'));
-      const r=m[k]=m[k]||{qty:0,amt:0};r.qty+=i.qty;r.amt+=i.qty*i.price;
-    });
-  });
-  const arr=Object.entries(m).sort((a,b)=>b[1].qty-a[1].qty).slice(0,10);
-  if(!arr.length){G('an-top').innerHTML='<div class="an-empty">這段期間沒有資料</div>';return;}
-  const mx=arr[0][1].qty;
-  G('an-top').innerHTML=arr.map(([k,v],i)=>`
-    <div class="an-bar-row">
-      <div class="an-bar-label" style="flex-basis:130px;">${i+1}. ${k}</div>
-      <div class="an-bar-track"><div class="an-bar-fill ${i===0?'accent':''}" style="width:${v.qty/mx*100}%"></div></div>
-      <div class="an-bar-val">${fmt(v.qty)} 件<small>${anMoney(v.amt)}</small></div>
-    </div>`).join('');
+// 輸入客戶名稱的搜尋選擇（空白＝全部客戶）
+const _anTaCb={'an-cust-sel':()=>renderAnCusts(),'an-band-cust':()=>renderPriceBands()};
+function anTaSearch(id){
+  const inp=G(id+'-input'),res=G(id+'-res'),hid=G(id);
+  const q=(inp.value||'').trim().toLowerCase();
+  if(!q){ // 清空輸入 → 回到全部客戶
+    if(hid.value){hid.value='';_anTaCb[id]();}
+    res.style.display='none';return;
+  }
+  const hits=db.customers.filter(c=>c.name.toLowerCase().includes(q)).slice(0,8);
+  res.innerHTML=hits.length?hits.map(c=>`<div onclick="anTaPick('${id}','${c.id}')">${c.name}</div>`).join(''):'<div style="color:var(--text3);cursor:default;">找不到客戶</div>';
+  res.style.display='block';
 }
+function anTaPick(id,custId){
+  const c=db.customers.find(x=>x.id===custId);if(!c)return;
+  G(id).value=custId;G(id+'-input').value=c.name;G(id+'-res').style.display='none';
+  _anTaCb[id]();
+}
+document.addEventListener('click',e=>{
+  ['an-cust-sel','an-band-cust'].forEach(id=>{
+    const r=G(id+'-res');if(r&&!e.target.closest('.an-ta'))r.style.display='none';
+  });
+});
 // ── END 銷售分析 ──────────────────────────────
 
 // ── BARCODE PRINT ─────────────────────────────
