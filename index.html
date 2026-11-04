@@ -327,6 +327,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 
     <div class="side-menu-group">分析與設定</div>
     <div class="side-menu-item" onclick="switchTab('analytics',this);closeMenu()"><span class="smi-icon">📊</span>銷售分析</div>
+    <div class="side-menu-item" onclick="switchTab('gp',this);closeMenu()"><span class="smi-icon">💰</span>毛利試算</div>
     <div class="side-menu-item" onclick="openTrashModal();closeMenu()"><span class="smi-icon">🗑️</span>最近刪除</div>
     <div class="side-menu-item" onclick="openActivityLogModal();closeMenu()"><span class="smi-icon">📋</span>異動紀錄</div>
     <div class="side-menu-item" onclick="exportBackup();closeMenu()"><span class="smi-icon">📥</span>匯出備份</div>
@@ -516,6 +517,44 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 <div id="tab-restock" class="page">
   <div class="page-header"><div><h2>補貨通知</h2><p>庫存低於安全庫存量的商品</p></div><button class="btn btn-green" onclick="sendRestockNotify()">📢 發送補貨通知到Discord</button></div>
   <div id="restock-list"></div>
+</div>
+
+<div id="tab-gp" class="page">
+  <div class="page-header"><div><h2>毛利試算</h2><p>從標籤售價一路算到營業利益，看錢是從哪裡漏掉的</p></div></div>
+  <div class="an-filter">
+    <select id="gp-year" onchange="renderGp()"></select>
+    <select id="gp-month" onchange="renderGp()">
+      <option value="">全年</option>
+      <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
+      <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
+      <option value="07">7月</option><option value="08">8月</option><option value="09">9月</option>
+      <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+    </select>
+  </div>
+  <div id="gp-coverage"></div>
+  <div class="card an-card">
+    <div class="an-title">成本設定 <span class="an-sub">沒填成本的商品，用這裡的「成本率」估</span></div>
+    <details id="gp-settings-box"><summary style="font-size:13px;cursor:pointer;color:var(--blue);">展開設定</summary>
+      <div id="gp-settings" style="margin-top:10px;"></div>
+    </details>
+  </div>
+  <div class="card an-card"><div class="an-title">錢怎麼一路減下來</div><div id="gp-waterfall"></div></div>
+  <div class="card an-card"><div class="an-title">每月收支有沒有平衡 <span class="an-sub">營業利益 − 家中固定支出</span></div><div id="gp-balance"></div></div>
+  <div class="card an-card"><div class="an-title">哪裡可以改善</div><div id="gp-insights"></div></div>
+  <div class="card an-card">
+    <div class="an-title">明細</div>
+    <div class="an-seg" id="gp-dims">
+      <button class="on" onclick="setGpDim('cust')">依客戶</button>
+      <button onclick="setGpDim('route')">依路線</button>
+      <button onclick="setGpDim('band')">依價位</button>
+      <button onclick="setGpDim('prod')">依商品</button>
+    </div>
+    <div id="gp-table" style="overflow-x:auto;"></div>
+  </div>
+  <div class="card an-card">
+    <div class="an-title">待補成本的商品 <span class="an-sub">依營收由大到小，補了毛利才準</span></div>
+    <div id="gp-missing"></div>
+  </div>
 </div>
 
 <div id="tab-barcode-print" class="page">
@@ -1326,7 +1365,7 @@ async function backupToDrive(){
 setInterval(backupToDrive, 60*60*1000);
 // ── STATE ─────────────────────────────────────
 let db = { products:[], customers:[], orders:[], shipments:[], returns:[],
-  variantOptions:[], payments:{}, accountingChecked:{}, accountingBills:{}, barcodeStock:{}, barcodeLog:[], routeNames:{} };
+  variantOptions:[], payments:{}, accountingChecked:{}, accountingBills:{}, barcodeStock:{}, barcodeLog:[], routeNames:{}, gpSettings:{} };
 let orderItems=[], returnItemsArr=[], shipmentItems=[];
 let orderFilter='all';
 let editProdId=null, editCustId=null, editOrderId=null;
@@ -1358,9 +1397,9 @@ function switchTab(t,btn,pushState=true){
   document.querySelectorAll('.nav-tab').forEach(n=>n.classList.remove('active'));
   G('tab-'+t).classList.add('active');
   if(btn) btn.classList.add('active');
-  ({dashboard:renderDashboard,products:renderProducts,customers:renderCustomers,orders:renderOrders,shipments:renderShipments,returns:renderReturns,restock:renderRestock,analytics:renderAnalytics,accounting:renderAccounting,'barcode-print':renderBarcodePrint})[t]?.();
+  ({dashboard:renderDashboard,products:renderProducts,customers:renderCustomers,orders:renderOrders,shipments:renderShipments,returns:renderReturns,restock:renderRestock,analytics:renderAnalytics,accounting:renderAccounting,'barcode-print':renderBarcodePrint,gp:renderGp})[t]?.();
   if(pushState){
-    const hashMap={dashboard:'/',products:'/products',customers:'/customers',orders:'/orders',shipments:'/shipments',returns:'/returns',restock:'/restock',analytics:'/analytics',accounting:'/accounting','barcode-print':'/barcode-print'};
+    const hashMap={dashboard:'/',products:'/products',customers:'/customers',orders:'/orders',shipments:'/shipments',returns:'/returns',restock:'/restock',analytics:'/analytics',accounting:'/accounting','barcode-print':'/barcode-print',gp:'/gp'};
     const newHash='#'+(hashMap[t]||'/');
     if(location.hash!==newHash) history.pushState({tab:t},'',' '+newHash);
   }
@@ -1453,6 +1492,7 @@ async function loadData(btn=false){
       db.barcodeStock=m.barcodeStock||{};
       db.barcodeLog=m.barcodeLog||[];
       db.routeNames=m.routeNames||{};
+      db.gpSettings=m.gpSettings||{};
     }
     setSyncStatus('ok','雲端同步・所有人共用');
     G('loading-overlay').style.display='none';
@@ -1687,7 +1727,8 @@ async function saveMeta(){
     accountingBills:db.accountingBills||{},
     barcodeStock:db.barcodeStock||{},
     barcodeLog:(db.barcodeLog||[]).slice(-200),
-    routeNames:db.routeNames||{}
+    routeNames:db.routeNames||{},
+    gpSettings:db.gpSettings||{}
   };
   _logPayloadSize('meta',metaData);
   await fsdb.collection('sections').doc('meta').set({data:metaData, updatedAt:Date.now()});
@@ -2056,7 +2097,7 @@ function queuePendingBackup(section){
   else if(section==='returns') savePendingQueue('returns',{data:db.returns, updatedAt:Date.now()});
   else if(section==='pickingState') savePendingQueue('pickingState',{data:db.pickingState||{}, updatedAt:Date.now()});
   else if(section==='boxingState') savePendingQueue('boxingState',{data:db.boxingState||{}, updatedAt:Date.now()});
-  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},trash:db.trash||[],payments:db.payments||{},accountingChecked:db.accountingChecked||{},accountingBills:db.accountingBills||{},barcodeStock:db.barcodeStock||{},barcodeLog:(db.barcodeLog||[]).slice(-200),routeNames:db.routeNames||{}}, updatedAt:Date.now()});
+  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},trash:db.trash||[],payments:db.payments||{},accountingChecked:db.accountingChecked||{},accountingBills:db.accountingBills||{},barcodeStock:db.barcodeStock||{},barcodeLog:(db.barcodeLog||[]).slice(-200),routeNames:db.routeNames||{},gpSettings:db.gpSettings||{}}, updatedAt:Date.now()});
 }
 const _sectionLabels={orders:'抄貨單',products:'商品/庫存',customers:'客戶',shipments:'出貨單',returns:'退貨單',meta:'其他設定',pickingState:'撿貨記錄',boxingState:'裝箱記錄'};
 // 一次存多個區塊（例如確認抄貨單同時要存 orders/products/meta）
@@ -2177,6 +2218,7 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
       db.barcodeStock=m.barcodeStock||{};
       db.barcodeLog=m.barcodeLog||[];
       db.routeNames=m.routeNames||{};
+      db.gpSettings=m.gpSettings||{};
       _lastUpdatedAt['meta']=ts;
     } else {
       console.warn('略過較舊的快取資料（meta），保留目前較新的資料');
@@ -5044,6 +5086,256 @@ document.addEventListener('click',e=>{
     const r=G(id+'-res');if(r&&!e.target.closest('.an-ta'))r.style.display='none';
   });
 });
+// ── 毛利試算 ──────────────────────────────────
+const GP_DEFAULT_RATE=57; // 預設成本率：佔客戶進價的 57%（相當於毛利 43%）
+let _gpDim='cust';
+function gpSettings(){
+  const g=db.gpSettings||{};
+  return {rates:BANDS.map((_,i)=>(g.rates&&g.rates[i]!=null&&g.rates[i]!=='')?Number(g.rates[i]):GP_DEFAULT_RATE),tripCost:Number(g.tripCost)||0,fixed:(g.fixed!=null&&g.fixed!=='')?Number(g.fixed):180000};
+}
+// 客戶進價（出貨單上的單價）：跟出貨單列印用同一套計價規則
+function gpMakeDisc(cust){
+  const disc=cust?.discount||0,rule=cust?.pricingRule,costMap=cust?.customCostMap;
+  return price=>{
+    if(costMap&&costMap[price]!==undefined)return Number(costMap[price]);
+    if(rule&&rule.normalRate>0){
+      const isSp=rule.specialEnabled&&(price%10===9);
+      const rate=isSp?(rule.specialRate||rule.normalRate):rule.normalRate;
+      const base=(isSp&&rule.specialAdjust)?price+1:price;
+      let r=base*(rate/100);
+      const m=isSp?(rule.specialRoundMode||rule.roundMode):rule.roundMode;
+      return m==='floor'?Math.floor(r):m==='truncate1'?Math.floor(r*10)/10:m==='decimal2'?Math.round(r*100)/100:m==='truncate2'?Math.floor(r*100)/100:Math.round(r*10)/10;
+    }
+    return disc?Math.round(price*(1-disc/100)*10)/10:price;
+  };
+}
+function gpBandIdx(price){const i=BANDS.findIndex(b=>price>=b.min&&price<=b.max);return i<0?BANDS.length-1:i;}
+
+function gpCompute(year,month){
+  const st=gpSettings();
+  const T={label:0,billed:0,ret:0,cash:0,tax:0,cogs:0,estRev:0,realRev:0,scrap:0,trips:0};
+  const D={cust:{},route:{},band:{},prod:{}};
+  const names=db.routeNames||{};
+  const dates=new Set();
+  const add=(dim,key,label,rev,cost,lab,est)=>{
+    const o=D[dim][key]=D[dim][key]||{name:label,rev:0,cost:0,label:0,estRev:0,qty:0};
+    o.rev+=rev;o.cost+=cost;o.label+=lab;if(est)o.estRev+=Math.abs(rev);
+  };
+  anShipments(year,month).forEach(x=>{
+    const sh=x.sh;const cust=db.customers.find(c=>c.id===x.custId);
+    const invoiced=!!(cust&&String(cust.taxId||'').trim()); // 有統編＝開三聯式發票，收到的錢含 5% 營業稅
+    const disc=gpMakeDisc(cust);const cd=(cust?.paymentTerms?.cashDiscount||0)/100;
+    dates.add(x.routeDate);
+    const rk=names[x.routeDate]||x.routeDate;
+    const line=(it,sign,isReturn)=>{
+      const p=db.products.find(y=>y.id===it.productId);
+      const bi=gpBandIdx(it.price);
+      const unit=disc(it.price);
+      const real=!!(p&&p.cost>0);
+      const unitCost=real?p.cost:st.rates[bi]/100*unit;
+      const gross=sign*it.qty*unit;
+      const cashAmt=gross*cd;
+      let cost=sign*it.qty*unitCost;
+      if(isReturn&&(it.disposition==='報廢'||it.disposition==='待修理')){T.scrap+=it.qty*unitCost;cost=0;} // 報廢/待修理沒有把成本收回來
+      const afterCash=gross-cashAmt;
+      const taxAmt=invoiced?afterCash-afterCash/1.05:0;
+      const rev=afterCash-taxAmt;
+      T.tax+=taxAmt;
+      T.label+=sign*it.qty*it.price;
+      if(isReturn)T.ret+=it.qty*unit;else T.billed+=gross;
+      T.cash+=cashAmt;T.cogs+=cost;
+      if(real)T.realRev+=Math.abs(rev);else T.estRev+=Math.abs(rev);
+      const lab=sign*it.qty*it.price;
+      add('cust',x.custId,cust?cust.name:'（已刪除客戶）',rev,cost,lab,!real);
+      add('route',rk,names[x.routeDate]?names[x.routeDate]:x.routeDate.slice(5).replace('-','/'),rev,cost,lab,!real);
+      add('band',bi,BANDS[bi].l,rev,cost,lab,!real);
+      add('prod',it.productId||('p$'+it.price),p?p.name:(it.name||('$'+it.price+' 商品')),rev,cost,lab,!real);
+      if(!isReturn){const o=D.prod[it.productId||('p$'+it.price)];o.qty+=it.qty;o.hasCost=real;o.pid=it.productId;}
+    };
+    (sh.items||[]).forEach(it=>line(it,1,false));
+    (sh.returnItems||[]).forEach(it=>line({...it},-1,true));
+  });
+  T.trips=dates.size;T.tripCost=T.trips*st.tripCost;
+  T.net=T.billed-T.ret-T.cash-T.tax;T.gp=T.net-T.cogs;T.op=T.gp-T.tripCost;
+  // 路線：每一條路線的趟數（同名路線合併）
+  const tripsByRoute={};
+  dates.forEach(d=>{const k=names[d]||d;tripsByRoute[k]=(tripsByRoute[k]||0)+1;});
+  Object.keys(D.route).forEach(k=>{D.route[k].trips=tripsByRoute[k]||1;});
+  return {T,D,st};
+}
+
+function renderGp(){
+  const run=async()=>{
+    await ensureAnalyticsDataLoaded();
+    const ys=anYears();const ysel=G('gp-year');
+    const cur=ysel.value||ys[0];
+    ysel.innerHTML=ys.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y} 年</option>`).join('');
+    const msel=G('gp-month');
+    const r=gpCompute(G('gp-year').value,G('gp-month').value);
+    window._gp=r;
+    gpRenderCoverage(r);gpRenderSettings(r);gpRenderWaterfall(r);gpRenderBalance(r);gpRenderInsights(r);gpRenderTable(r);gpRenderMissing(r);
+  };
+  run();
+}
+const gpPct=(a,b)=>b?Math.round(a/b*1000)/10:0;
+
+function gpRenderCoverage(r){
+  const {T}=r;const tot=T.realRev+T.estRev;
+  const cov=tot?Math.round(T.realRev/tot*100):0;
+  G('gp-coverage').innerHTML=`<div class="card" style="margin-bottom:12px;padding:10px 14px;border-left:4px solid ${cov>=80?'var(--green)':cov>=40?'var(--orange)':'var(--red)'};">
+    <div style="font-size:13px;font-weight:700;">成本資料涵蓋率：${cov}%</div>
+    <div style="font-size:12px;color:var(--text2);margin-top:2px;">${cov}% 的營收用商品實際成本算，其餘 ${100-cov}% 用下面的「成本率」估算。到最下面補商品成本，涵蓋率越高毛利越準。</div></div>`;
+}
+function gpRenderSettings(r){
+  const {st}=r;
+  G('gp-settings').innerHTML=`
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">成本率＝成本佔「客戶進價」的百分比。預設 ${GP_DEFAULT_RATE}%（毛利約 ${100-GP_DEFAULT_RATE}%）。商品有填成本時，會直接用商品成本，不看這裡。</div>
+    ${BANDS.map((b,i)=>`<div class="an-bar-row"><div class="an-bar-label" style="flex-basis:110px;">${b.l}</div>
+      <input type="number" min="0" max="100" value="${st.rates[i]}" id="gp-rate-${i}" style="width:80px;"> <span style="font-size:12px;color:var(--text3);">%</span></div>`).join('')}
+    <div class="an-bar-row" style="margin-top:6px;"><div class="an-bar-label" style="flex-basis:110px;">每趟費用</div>
+      <input type="number" min="0" value="${st.tripCost}" id="gp-trip" style="width:100px;"> <span style="font-size:12px;color:var(--text3);">元（油錢、過路費、人力…）</span></div>
+    <div class="an-bar-row"><div class="an-bar-label" style="flex-basis:110px;">每月固定支出</div>
+      <input type="number" min="0" value="${st.fixed}" id="gp-fixed" style="width:110px;"> <span style="font-size:12px;color:var(--text3);">元（家中固定支出，用來看每月是否平衡）</span></div>
+    <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="gpSaveSettings()">儲存設定</button>`;
+}
+async function gpSaveSettings(){
+  db.gpSettings={rates:BANDS.map((_,i)=>Number(G('gp-rate-'+i).value)||0),tripCost:Number(G('gp-trip').value)||0,fixed:Number(G('gp-fixed').value)||0};
+  try{await saveData('meta');}catch(e){toastAlert('儲存失敗：'+e.message,'error');return;}
+  showToast('已儲存','success',2000);renderGp();
+}
+
+function gpRenderWaterfall(r){
+  const {T}=r;
+  if(!T.label){G('gp-waterfall').innerHTML='<div class="an-empty">這段期間沒有出貨資料</div>';G('gp-insights').innerHTML='';return;}
+  const rows=[
+    ['標籤售價合計',T.label,'',false],
+    ['客戶折數讓出',-(T.label-T.billed),'標籤售價 → 客戶進價',true],
+    ['出貨金額（出貨單總計）',T.billed,'',false],
+    ['退貨扣除',-T.ret,'',true],
+    ['現金折扣',-T.cash,'',true],
+    ['營業稅（有統編的客戶 5%）',-T.tax,'收的錢含稅，稅要繳出去',true],
+    ['實收營收',T.net,'',false],
+    ['商品成本',-T.cogs,'有成本用實際，沒有用成本率估',true],
+    ['毛利',T.gp,'毛利率 '+gpPct(T.gp,T.net)+'%',false],
+    ['每趟費用（'+T.trips+' 趟）',-T.tripCost,T.tripCost?'':'還沒設定，到上面「成本設定」填',true],
+    ['營業利益',T.op,'',false]
+  ];
+  const mx=Math.max(T.label,1);
+  G('gp-waterfall').innerHTML=rows.map(([n,v,note,neg])=>{
+    const strong=!neg;
+    return `<div class="an-bar-row" style="${strong?'background:var(--surface2);border-radius:8px;padding:8px 10px;margin:2px 0;':'padding:5px 10px;'}">
+      <div class="an-bar-label" style="flex-basis:150px;${strong?'font-weight:700;':'color:var(--text2);'}">${n}${note?`<div style="font-size:10px;color:var(--text3);font-weight:400;">${note}</div>`:''}</div>
+      <div class="an-bar-track"><div class="an-bar-fill ${neg?'':'accent'}" style="width:${Math.min(100,Math.abs(v)/mx*100)}%;${neg?'background:var(--red);opacity:.55;':''}"></div></div>
+      <div class="an-bar-val" style="${v<0?'color:var(--red);':strong?'':''}">${v<0?'-':''}${anMoney(Math.abs(v))}</div>
+    </div>`;}).join('');
+}
+
+function gpRenderBalance(r){
+  const st=r.st,year=G('gp-year').value;
+  const rows=[];
+  for(let m=1;m<=12;m++){
+    const mm=String(m).padStart(2,'0');
+    const x=gpCompute(year,mm).T;
+    if(!x.label)continue;
+    rows.push({m,rev:x.net,op:x.op,bal:x.op-st.fixed});
+  }
+  if(!rows.length){G('gp-balance').innerHTML='<div class="an-empty">這一年沒有出貨資料</div>';return;}
+  const okN=rows.filter(o=>o.bal>=0).length;
+  const sumOp=rows.reduce((n,o)=>n+o.op,0),sumRev=rows.reduce((n,o)=>n+o.rev,0);
+  const sumBal=sumOp-st.fixed*rows.length;
+  const opRate=sumRev?sumOp/sumRev:0;
+  const need=opRate>0?Math.round(st.fixed/opRate):0;
+  const mx=Math.max(...rows.map(o=>Math.abs(o.bal)),1);
+  const th=t=>`<th style="text-align:right;padding:6px 8px;font-size:11px;color:var(--text2);white-space:nowrap;">${t}</th>`;
+  G('gp-balance').innerHTML=`
+    <div style="font-size:13px;margin-bottom:10px;line-height:1.7;">${year} 年共 ${rows.length} 個月有出貨，其中 <b style="color:var(--green);">${okN} 個月平衡</b>、<b style="color:var(--red);">${rows.length-okN} 個月不夠</b>。合計${sumBal>=0?'多':'短'} <b style="color:${sumBal>=0?'var(--green)':'var(--red)'};">${anMoney(Math.abs(sumBal))}</b>。
+    ${need?`<br>以目前的營業利益率 ${gpPct(sumOp,sumRev)}% 算，<b>每月實收營收要達到約 ${anMoney(need)}</b> 才打平固定支出 ${anMoney(st.fixed)}。`:`<br>目前營業利益率不是正的，賣再多也打不平固定支出。`}</div>
+    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:420px;">
+    <thead><tr><th style="text-align:left;padding:6px 8px;font-size:11px;color:var(--text2);">月份</th>${th('實收營收')}${th('營業利益')}${th('固定支出')}${th('結餘')}<th style="width:28%;"></th></tr></thead>
+    <tbody>${rows.map(o=>`<tr style="border-top:1px solid var(--border);">
+      <td style="padding:7px 8px;">${o.m} 月</td>
+      <td style="text-align:right;padding:7px 8px;">${anMoney(o.rev)}</td>
+      <td style="text-align:right;padding:7px 8px;">${anMoney(o.op)}</td>
+      <td style="text-align:right;padding:7px 8px;color:var(--text2);">${anMoney(st.fixed)}</td>
+      <td style="text-align:right;padding:7px 8px;font-weight:700;color:${o.bal>=0?'var(--green)':'var(--red)'};">${o.bal<0?'-':'+'}${anMoney(Math.abs(o.bal))}</td>
+      <td style="padding:7px 8px;"><div style="height:8px;border-radius:4px;background:${o.bal>=0?'var(--green)':'var(--red)'};opacity:.6;width:${Math.max(3,Math.abs(o.bal)/mx*100)}%;"></div></td>
+    </tr>`).join('')}</tbody></table></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px;">月份依抄貨單日期（路線日期）歸屬。固定支出金額在上面「成本設定」可以改。沒填成本的商品是用成本率估的，所以結餘是估算值。</div>`;
+}
+function gpRenderInsights(r){
+  const {T,D,st}=r;if(!T.label){return;}
+  const out=[];
+  const give=T.label-T.billed;
+  out.push(`客戶折數讓出 <b>${anMoney(give)}</b>（標籤售價的 ${gpPct(give,T.label)}%），現金折扣 <b>${anMoney(T.cash)}</b>，營業稅 <b>${anMoney(T.tax)}</b>。這些都是賣價以外被扣掉的錢。`);
+  const custs=Object.values(D.cust).filter(c=>c.rev>=T.net*0.01&&c.rev>0).map(c=>({...c,m:gpPct(c.rev-c.cost,c.rev)})).sort((a,b)=>a.m-b.m);
+  if(custs.length>=3){
+    const low=custs.slice(0,3);
+    out.push(`毛利率最低的店：${low.map(c=>`<b>${c.name}</b>（${c.m}%，營收 ${anMoney(c.rev)}）`).join('、')}。折數、現金折扣或常買低價商品都會拉低毛利，可檢討這幾間。`);
+  }
+  const bands=Object.entries(D.band).map(([i,b])=>({...b,m:gpPct(b.rev-b.cost,b.rev)})).filter(b=>b.rev>0);
+  if(bands.length>=2){
+    const bigRev=[...bands].sort((a,b)=>b.rev-a.rev)[0];
+    const lowM=[...bands].sort((a,b)=>a.m-b.m)[0],hiM=[...bands].sort((a,b)=>b.m-a.m)[0];
+    out.push(`營收最大的價位是 <b>${bigRev.name}</b>（佔 ${gpPct(bigRev.rev,T.net)}%，毛利率 ${bigRev.m}%）；毛利率最高是 <b>${hiM.name}</b>（${hiM.m}%），最低是 <b>${lowM.name}</b>（${lowM.m}%）。`);
+  }
+  const routes=Object.values(D.route).map(o=>({...o,gp:o.rev-o.cost,op:o.rev-o.cost-o.trips*st.tripCost})).sort((a,b)=>a.op/a.trips-b.op/b.trips);
+  if(routes.length>=3){
+    const low=routes.slice(0,3);
+    out.push(`${st.tripCost?'每趟營業利益':'每趟毛利'}最低的路線：${low.map(o=>`<b>${o.name}</b>（每趟 ${anMoney((st.tripCost?o.op:o.gp)/o.trips)}）`).join('、')}。金額低又要跑，可考慮合併或減少趟數。`);
+  }
+  if(T.scrap>0)out.push(`報廢/待修理的退貨損失成本約 <b>${anMoney(T.scrap)}</b>。`);
+  G('gp-insights').innerHTML='<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;">'+out.map(t=>`<li>${t}</li>`).join('')+'</ul>';
+}
+
+function setGpDim(d){
+  _gpDim=d;
+  const keys=['cust','route','band','prod'];
+  [...G('gp-dims').children].forEach((b,i)=>b.classList.toggle('on',keys[i]===d));
+  if(window._gp)gpRenderTable(window._gp);
+}
+function gpRenderTable(r){
+  const {T,D,st}=r;
+  const rows=Object.entries(D[_gpDim]).map(([k,o])=>({k,...o,gp:o.rev-o.cost,m:gpPct(o.rev-o.cost,o.rev),est:o.rev?o.estRev/Math.abs(o.rev):1}));
+  if(!rows.length){G('gp-table').innerHTML='<div class="an-empty">沒有資料</div>';return;}
+  rows.sort(_gpDim==='band'?((a,b)=>a.k-b.k):((a,b)=>b.rev-a.rev));
+  const avg=gpPct(T.gp,T.net);
+  const isRoute=_gpDim==='route'&&st.tripCost>0;
+  const th=s=>`<th style="text-align:right;padding:6px 8px;font-size:11px;color:var(--text2);white-space:nowrap;">${s}</th>`;
+  G('gp-table').innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px;min-width:460px;">
+    <thead><tr><th style="text-align:left;padding:6px 8px;font-size:11px;color:var(--text2);">${{cust:'客戶',route:'路線',band:'價位',prod:'商品'}[_gpDim]}</th>${th('營收')}${th('成本')}${th('毛利')}${th('毛利率')}${isRoute?th('每趟費用')+th('營業利益'):''}</tr></thead>
+    <tbody>${rows.map(o=>{
+      const col=o.m<avg-5?'var(--red)':o.m>avg+5?'var(--green)':'var(--text)';
+      return `<tr style="border-top:1px solid var(--border);">
+        <td style="padding:7px 8px;">${anEsc(o.name)}${_gpDim==='route'&&o.trips>1?`<span style="font-size:11px;color:var(--text3);"> ×${o.trips}趟</span>`:''}${o.est>0.5?'<span title="多數用成本率估算" style="font-size:10px;color:var(--text3);margin-left:4px;">估</span>':''}</td>
+        <td style="text-align:right;padding:7px 8px;">${anMoney(o.rev)}</td>
+        <td style="text-align:right;padding:7px 8px;color:var(--text2);">${anMoney(o.cost)}</td>
+        <td style="text-align:right;padding:7px 8px;font-weight:700;">${anMoney(o.gp)}</td>
+        <td style="text-align:right;padding:7px 8px;font-weight:700;color:${col};">${o.m}%</td>
+        ${isRoute?`<td style="text-align:right;padding:7px 8px;color:var(--text2);">${anMoney(o.trips*st.tripCost)}</td><td style="text-align:right;padding:7px 8px;font-weight:700;">${anMoney(o.gp-o.trips*st.tripCost)}</td>`:''}
+      </tr>`;}).join('')}</tbody></table>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px;">整體毛利率 ${avg}%；比整體低 5 個百分點以上標紅，高 5 個百分點以上標綠。「估」代表這一列多數用成本率估算。</div>`;
+}
+
+function gpRenderMissing(r){
+  const list=Object.values(r.D.prod).filter(o=>o.pid&&!o.hasCost).sort((a,b)=>b.rev-a.rev).slice(0,15);
+  if(!list.length){G('gp-missing').innerHTML='<div class="an-empty" style="color:var(--green);">這段期間賣出的商品都有填成本 👍</div>';return;}
+  G('gp-missing').innerHTML=list.map(o=>`<div class="an-bar-row">
+    <div class="an-bar-label" style="flex-basis:150px;">${anEsc(o.name)}<div style="font-size:10px;color:var(--text3);">賣 ${fmt(o.qty)} 件・營收 ${anMoney(o.rev)}</div></div>
+    <div style="flex:1;"></div>
+    <input type="number" min="0" placeholder="成本" style="width:90px;" onchange="gpSetProductCost('${o.pid}',this.value)"> <span style="font-size:12px;color:var(--text3);">元</span>
+  </div>`).join('')+'<div style="font-size:11px;color:var(--text3);margin-top:6px;">輸入後離開欄位就會儲存。只列出最重要的 15 個，補完再重新整理會出現下一批。</div>';
+}
+async function gpSetProductCost(pid,val){
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  const v=Number(val);if(!(v>=0))return;
+  p.cost=v;
+  try{await saveData('products');}catch(e){toastAlert('儲存失敗：'+e.message,'error');return;}
+  showToast('已更新「'+p.name+'」成本 $'+v,'success',2000);
+  const r=gpCompute(G('gp-year').value,G('gp-month').value);window._gp=r;
+  gpRenderCoverage(r);gpRenderWaterfall(r);gpRenderBalance(r);gpRenderInsights(r);gpRenderTable(r);
+}
+// ── END 毛利試算 ──────────────────────────────
+
 // ── END 銷售分析 ──────────────────────────────
 
 // ── BARCODE PRINT ─────────────────────────────
