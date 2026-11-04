@@ -535,7 +535,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
   </div>
   <div id="gp-hero"></div>
   <div class="card an-card"><div class="an-title">每個月的結餘</div><div id="gp-balance"></div></div>
-  <details class="card an-card gp-fold"><summary>想知道錢怎麼減下來 ▸</summary><div id="gp-waterfall" style="margin-top:10px;"></div></details>
   <details class="card an-card gp-fold"><summary>哪裡可以改善 ▸</summary><div id="gp-insights" style="margin-top:10px;"></div></details>
   <details class="card an-card gp-fold"><summary>各客戶 / 路線 / 價位 / 商品的毛利 ▸</summary>
     <div class="an-seg" id="gp-dims" style="margin-top:10px;">
@@ -5187,7 +5186,23 @@ function gpRenderHero(r){
       <div><small>毛利（${gpPct(T.gp,T.net)}%）</small><b>${anMoney(T.op)}</b></div>
       <div><small>固定支出</small><b>${anMoney(fixed)}</b></div>
     </div>
-    <div style="font-size:11px;color:var(--text3);margin-top:8px;">實收營收＝扣掉折扣、退貨、5% 營業稅。毛利有 ${100-cov}% 是用成本率估的${cov<80?'，補商品成本會更準（最下面）':''}。</div></div>`;
+    <div style="margin-top:12px;border-top:1px dashed var(--border);padding-top:10px;font-size:13px;">
+      <div style="font-weight:700;margin-bottom:4px;">怎麼算的</div>
+      ${[
+        ['出貨金額','出貨單印出來的總額（客戶進價 × 件數）',T.billed,'',0],
+        ['退貨','退回的貨，用客戶進價沖掉',-T.ret,'−',0],
+        ['現金折扣','客戶設定的現金折扣 %',-T.cash,'−',0],
+        ['營業稅 5%','只扣有填統編的客戶，收的錢含稅',-T.tax,'−',0],
+        ['＝ 實收營收','真正屬於你的營收',T.net,'',1],
+        ['商品成本','有填成本用實際，沒填用成本率估（預設 57%）',-T.cogs,'−',0],
+        ['＝ 毛利','毛利率 '+gpPct(T.gp,T.net)+'% ＝ 毛利 ÷ 實收營收',T.op,'',1],
+        ['固定支出','每月 '+anMoney(st.fixed)+(months>1?' × '+months+' 個月':''),-fixed,'−',0],
+        ['＝ 結餘','毛利 − 固定支出',bal,'',1]
+      ].map(([n,note,v,sg,strong])=>`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px ${strong?'8px':'0'};${strong?'background:var(--surface2);border-radius:6px;font-weight:700;':''}">
+        <span>${n}<span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:6px;">${note}</span></span>
+        <span style="white-space:nowrap;${v<0&&!strong?'color:var(--text2);':''}${strong&&v<0?'color:var(--red);':''}">${v<0&&!strong?'− ':''}${strong&&v<0?'-':''}${anMoney(Math.abs(v))}</span></div>`).join('')}
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px;">毛利有 ${100-cov}% 是用成本率估的${cov<80?'，補商品成本會更準（最下面）':''}。</div></div>`;
 }
 function gpRenderSettings(r){
   const {st}=r;
@@ -5205,30 +5220,7 @@ async function gpSaveSettings(){
   showToast('已儲存','success',2000);renderGp();
 }
 
-function gpRenderWaterfall(r){
-  const {T}=r;
-  if(!T.label){G('gp-waterfall').innerHTML='<div class="an-empty">這段期間沒有出貨資料</div>';G('gp-insights').innerHTML='';return;}
-  const rows=[
-    ['標籤售價合計',T.label,'',false],
-    ['客戶折數讓出',-(T.label-T.billed),'標籤售價 → 客戶進價',true],
-    ['出貨金額（出貨單總計）',T.billed,'',false],
-    ['退貨扣除',-T.ret,'',true],
-    ['現金折扣',-T.cash,'',true],
-    ['營業稅（有統編的客戶 5%）',-T.tax,'收的錢含稅，稅要繳出去',true],
-    ['實收營收',T.net,'',false],
-    ['商品成本',-T.cogs,'有成本用實際，沒有用成本率估',true],
-    ['毛利',T.gp,'毛利率 '+gpPct(T.gp,T.net)+'%',false],
-  ];
-  const mx=Math.max(T.label,1);
-  G('gp-waterfall').innerHTML=rows.map(([n,v,note,neg])=>{
-    const strong=!neg;
-    return `<div class="an-bar-row" style="${strong?'background:var(--surface2);border-radius:8px;padding:8px 10px;margin:2px 0;':'padding:5px 10px;'}">
-      <div class="an-bar-label" style="flex-basis:150px;${strong?'font-weight:700;':'color:var(--text2);'}">${n}${note?`<div style="font-size:10px;color:var(--text3);font-weight:400;">${note}</div>`:''}</div>
-      <div class="an-bar-track"><div class="an-bar-fill ${neg?'':'accent'}" style="width:${Math.min(100,Math.abs(v)/mx*100)}%;${neg?'background:var(--red);opacity:.55;':''}"></div></div>
-      <div class="an-bar-val" style="${v<0?'color:var(--red);':strong?'':''}">${v<0?'-':''}${anMoney(Math.abs(v))}</div>
-    </div>`;}).join('');
-}
-
+function gpRenderWaterfall(r){}
 function gpRenderBalance(r){
   const st=r.st,year=G('gp-year').value;
   const rows=[];
