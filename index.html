@@ -251,6 +251,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 .an-ta-res{display:none;position:absolute;top:100%;left:0;right:0;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:var(--shadow);margin-top:2px}
 .an-ta-res div{padding:9px 12px;font-size:13px;cursor:pointer}
 .an-ta-res div:hover{background:var(--surface2)}
+.gp-fold>summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--text);list-style:none}.gp-fold>summary::-webkit-details-marker{display:none}
+.gp-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px}.gp-hero>div{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}.gp-hero small{display:block;font-size:11px;color:var(--text2);margin-bottom:2px}.gp-hero b{font-size:20px}
 .an-seg{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
 .an-seg button{border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:20px;padding:5px 14px;font-size:13px;cursor:pointer}
 .an-seg button.on{background:var(--brown);border-color:var(--brown);color:#fff}
@@ -520,7 +522,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 </div>
 
 <div id="tab-gp" class="page">
-  <div class="page-header"><div><h2>毛利試算</h2><p>從標籤售價一路算到營業利益，看錢是從哪裡漏掉的</p></div></div>
+  <div class="page-header"><div><h2>毛利試算</h2><p>每個月賺的錢，夠不夠付家裡的固定支出</p></div></div>
   <div class="an-filter">
     <select id="gp-year" onchange="renderGp()"></select>
     <select id="gp-month" onchange="renderGp()">
@@ -531,30 +533,21 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
       <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
     </select>
   </div>
-  <div id="gp-coverage"></div>
-  <div class="card an-card">
-    <div class="an-title">成本設定 <span class="an-sub">沒填成本的商品，用這裡的「成本率」估</span></div>
-    <details id="gp-settings-box"><summary style="font-size:13px;cursor:pointer;color:var(--blue);">展開設定</summary>
-      <div id="gp-settings" style="margin-top:10px;"></div>
-    </details>
-  </div>
-  <div class="card an-card"><div class="an-title">錢怎麼一路減下來</div><div id="gp-waterfall"></div></div>
-  <div class="card an-card"><div class="an-title">每月收支有沒有平衡 <span class="an-sub">毛利 − 家中固定支出</span></div><div id="gp-balance"></div></div>
-  <div class="card an-card"><div class="an-title">哪裡可以改善</div><div id="gp-insights"></div></div>
-  <div class="card an-card">
-    <div class="an-title">明細</div>
-    <div class="an-seg" id="gp-dims">
+  <div id="gp-hero"></div>
+  <div class="card an-card"><div class="an-title">每個月的結餘</div><div id="gp-balance"></div></div>
+  <details class="card an-card gp-fold"><summary>想知道錢怎麼減下來 ▸</summary><div id="gp-waterfall" style="margin-top:10px;"></div></details>
+  <details class="card an-card gp-fold"><summary>哪裡可以改善 ▸</summary><div id="gp-insights" style="margin-top:10px;"></div></details>
+  <details class="card an-card gp-fold"><summary>各客戶 / 路線 / 價位 / 商品的毛利 ▸</summary>
+    <div class="an-seg" id="gp-dims" style="margin-top:10px;">
       <button class="on" onclick="setGpDim('cust')">依客戶</button>
       <button onclick="setGpDim('route')">依路線</button>
       <button onclick="setGpDim('band')">依價位</button>
       <button onclick="setGpDim('prod')">依商品</button>
     </div>
     <div id="gp-table" style="overflow-x:auto;"></div>
-  </div>
-  <div class="card an-card">
-    <div class="an-title">待補成本的商品 <span class="an-sub">依營收由大到小，補了毛利才準</span></div>
-    <div id="gp-missing"></div>
-  </div>
+  </details>
+  <details class="card an-card gp-fold"><summary>補商品成本，讓數字更準 ▸</summary><div id="gp-missing" style="margin-top:10px;"></div></details>
+  <details class="card an-card gp-fold"><summary>設定（固定支出、成本率）▸</summary><div id="gp-settings" style="margin-top:10px;"></div></details>
 </div>
 
 <div id="tab-barcode-print" class="page">
@@ -5179,12 +5172,22 @@ function renderGp(){
 }
 const gpPct=(a,b)=>b?Math.round(a/b*1000)/10:0;
 
-function gpRenderCoverage(r){
-  const {T}=r;const tot=T.realRev+T.estRev;
-  const cov=tot?Math.round(T.realRev/tot*100):0;
-  G('gp-coverage').innerHTML=`<div class="card" style="margin-bottom:12px;padding:10px 14px;border-left:4px solid ${cov>=80?'var(--green)':cov>=40?'var(--orange)':'var(--red)'};">
-    <div style="font-size:13px;font-weight:700;">成本資料涵蓋率：${cov}%</div>
-    <div style="font-size:12px;color:var(--text2);margin-top:2px;">${cov}% 的營收用商品實際成本算，其餘 ${100-cov}% 用下面的「成本率」估算。到最下面補商品成本，涵蓋率越高毛利越準。</div></div>`;
+function gpRenderCoverage(r){gpRenderHero(r);}
+function gpRenderHero(r){
+  const {T,st}=r;const year=G('gp-year').value,month=G('gp-month').value;
+  if(!T.label){G('gp-hero').innerHTML='<div class="card" style="padding:14px;color:var(--text2);">這段期間沒有出貨資料</div>';return;}
+  let months=1;
+  if(!month){months=0;for(let m=1;m<=12;m++){if(gpCompute(year,String(m).padStart(2,'0')).T.label)months++;}}
+  const fixed=st.fixed*months,bal=T.op-fixed,ok=bal>=0;
+  const tot=T.realRev+T.estRev,cov=tot?Math.round(T.realRev/tot*100):0;
+  G('gp-hero').innerHTML=`<div class="card" style="padding:16px;margin-bottom:12px;border-left:5px solid ${ok?'var(--green)':'var(--red)'};">
+    <div style="font-size:15px;font-weight:700;">${month?month+' 月':year+' 年（'+months+' 個月）'}：<span style="color:${ok?'var(--green)':'var(--red)'};">${ok?'平衡，多':'不夠，短'} ${anMoney(Math.abs(bal))}</span></div>
+    <div class="gp-hero" style="margin:10px 0 0;">
+      <div><small>實收營收</small><b>${anMoney(T.net)}</b></div>
+      <div><small>毛利（${gpPct(T.gp,T.net)}%）</small><b>${anMoney(T.op)}</b></div>
+      <div><small>固定支出</small><b>${anMoney(fixed)}</b></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px;">實收營收＝扣掉折扣、退貨、5% 營業稅。毛利有 ${100-cov}% 是用成本率估的${cov<80?'，補商品成本會更準（最下面）':''}。</div></div>`;
 }
 function gpRenderSettings(r){
   const {st}=r;
@@ -5256,7 +5259,7 @@ function gpRenderBalance(r){
       <td style="text-align:right;padding:7px 8px;font-weight:700;color:${o.bal>=0?'var(--green)':'var(--red)'};">${o.bal<0?'-':'+'}${anMoney(Math.abs(o.bal))}</td>
       <td style="padding:7px 8px;"><div style="height:8px;border-radius:4px;background:${o.bal>=0?'var(--green)':'var(--red)'};opacity:.6;width:${Math.max(3,Math.abs(o.bal)/mx*100)}%;"></div></td>
     </tr>`).join('')}</tbody></table></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:6px;">月份依抄貨單日期（路線日期）歸屬。固定支出金額在上面「成本設定」可以改。沒填成本的商品是用成本率估的，所以結餘是估算值。</div>`;
+    <div style="font-size:11px;color:var(--text3);margin-top:6px;">月份依抄貨單日期（路線日期）歸屬。固定支出金額在最下面「設定」可以改。沒填成本的商品是用成本率估的，所以結餘是估算值。</div>`;
 }
 function gpRenderInsights(r){
   const {T,D,st}=r;if(!T.label){return;}
