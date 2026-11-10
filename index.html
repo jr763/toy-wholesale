@@ -572,6 +572,22 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     </details>
     <div id="bs-list" style="margin-top:12px;"></div>
   </div>
+
+  <!-- 各價位條碼使用量 -->
+  <div class="card" style="margin-bottom:12px;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px;">各價位條碼使用量</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">依出貨單的品項統計，每件商品用一張條碼。用量大的放好拿的地方，用量少的收起來。</div>
+    <div class="an-filter">
+      <select id="bu-period" onchange="renderBcUsage()">
+        <option value="1">近 1 個月</option><option value="3" selected>近 3 個月</option><option value="6">近 6 個月</option><option value="0">全部</option>
+      </select>
+      <select id="bu-range" onchange="renderBcUsage()">
+        <option value="0-99999">全部價位</option><option value="0-100">0–100 元</option><option value="101-200">101–200 元</option>
+        <option value="201-300">201–300 元</option><option value="301-400">301–400 元</option><option value="401-99999">401 元以上</option>
+      </select>
+    </div>
+    <div id="bu-list" style="overflow-x:auto;"></div>
+  </div>
 </div>
 
 <div id="tab-analytics" class="page">
@@ -1378,6 +1394,7 @@ window.addEventListener('online',()=>setSyncStatus('loading','🔄 連線恢復�
 function openModal(id){ G(id).classList.add('open'); }
 function closeModal(id){
   G(id).classList.remove('open');
+  if(id==='modal-order')clearOrderFormDraft();
   // If closing order detail, restore orders hash
   if(id==='modal-order-detail'&&location.hash.startsWith('#/orders/')){
     history.pushState({tab:'orders'},'','#/orders');
@@ -1400,7 +1417,7 @@ function switchTab(t,btn,pushState=true){
 // Hash router
 function handleHashChange(){
   const hash=location.hash.replace('#','').replace(/^\/+/,'/')||'/';
-  const reverseMap={'/':'dashboard','/products':'products','/customers':'customers','/orders':'orders','/shipments':'shipments','/returns':'returns','/restock':'restock'};
+  const reverseMap={'/':'dashboard','/products':'products','/customers':'customers','/orders':'orders','/shipments':'shipments','/returns':'returns','/restock':'restock','/analytics':'analytics','/accounting':'accounting','/barcode-print':'barcode-print','/gp':'gp'};
   // Check for order detail: #/orders/ID
   const orderMatch=hash.match(/^\/orders\/(.+)$/);
   if(orderMatch){
@@ -2791,7 +2808,7 @@ function renderCustomers(){
 }
 
 // ── ORDERS 抄貨單 ─────────────────────────────
-function openOrderModal(){
+function openOrderModal(skipDraftCheck){
   editOrderId=null;orderItems=[];
   ensureAnalyticsDataLoaded(); // 背景抓完整歷史訂單，讓「帶出上次售價」查得到一個月以前的紀錄（不等它完成，不阻塞畫面）
   G('o-modal-title').textContent='新增抄貨單';
@@ -2817,6 +2834,7 @@ function openOrderModal(){
   if(G('o-search'))G('o-search').value='';
   window._oSelPid=null;
   renderOrderItems();openModal('modal-order');
+  if(skipDraftCheck!==true)checkOrderFormDraft();
 }
 function editOrder(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
@@ -2977,6 +2995,7 @@ function addOrderItem(){
 }
 function removeOItem(idx){orderItems.splice(idx,1);renderOrderItems();}
 function renderOrderItems(){
+  saveOrderFormDraft();
   const el=G('o-items');if(!el)return;
   if(!orderItems.length){el.innerHTML='<div style="text-align:center;padding:18px;color:var(--text3);font-size:13px;">尚未加入商品</div>';return;}
   const total=orderItems.reduce((s,i)=>s+i.qty*i.price,0);
@@ -2992,6 +3011,42 @@ function renderOrderItems(){
     </tr>`).join('')}</tbody></table></div>
     <div style="text-align:right;padding:9px 12px;font-size:14px;font-weight:700;">合計：$${fmt(total)}</div>`;
 }
+// ── 抄貨單表單自動暫存（只存在這支手機/這台電腦的瀏覽器，不上傳）──
+// 為了避免「抄到一半切到別的 App、頁面被重新載入，內容就不見」。按取消/X 或儲存成功後會清掉。
+const ORDER_DRAFT_KEY='oscar_order_form_draft';
+function clearOrderFormDraft(){try{localStorage.removeItem(ORDER_DRAFT_KEY);}catch(e){}}
+function saveOrderFormDraft(){
+  try{
+    if(window._draftPrompting)return;
+    const m=G('modal-order');if(!m||!m.classList.contains('open'))return;
+    if(!orderItems||!orderItems.length){clearOrderFormDraft();return;}
+    localStorage.setItem(ORDER_DRAFT_KEY,JSON.stringify({
+      editOrderId:editOrderId||null,custId:G('o-cust').value||'',custName:G('o-cust-input')?.value||'',
+      date:G('o-date')?.value||'',items:orderItems,ts:Date.now()
+    }));
+  }catch(e){}
+}
+async function checkOrderFormDraft(){
+  let d=null;
+  try{d=JSON.parse(localStorage.getItem(ORDER_DRAFT_KEY)||'null');}catch(e){}
+  if(!d||!d.items||!d.items.length)return;
+  if(Date.now()-d.ts>3*86400000){clearOrderFormDraft();return;}
+  if(d.editOrderId&&!db.orders.find(x=>x.id===d.editOrderId)){clearOrderFormDraft();return;}
+  window._draftPrompting=true;
+  const when=new Date(d.ts);const t=(when.getMonth()+1)+'/'+when.getDate()+' '+String(when.getHours()).padStart(2,'0')+':'+String(when.getMinutes()).padStart(2,'0');
+  const ok=await toastConfirm('有一張沒存的抄貨單（'+(d.custName||'未選客戶')+'，'+d.items.length+' 項商品，'+t+' 暫存）。要接著填嗎？','接著填','不要，丟掉');
+  window._draftPrompting=false;
+  if(!ok){clearOrderFormDraft();return;}
+  if(d.editOrderId)editOrder(d.editOrderId); else openOrderModal(true);
+  orderItems=d.items.map(i=>({...i}));
+  if(G('o-date')&&d.date)G('o-date').value=d.date;
+  if(d.custId&&db.customers.find(c=>c.id===d.custId)){G('o-cust').value=d.custId;if(G('o-cust-input'))G('o-cust-input').value=d.custName;}
+  renderOrderItems();
+}
+setInterval(saveOrderFormDraft,2000);
+window.addEventListener('pagehide',saveOrderFormDraft);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveOrderFormDraft();});
+
 function adjustStock(oldItems,newItems){
   const key=i=>i.productId+'|'+(i.variant||'');
   const oldMap={};(oldItems||[]).forEach(i=>{oldMap[key(i)]=(oldMap[key(i)]||0)+i.qty;});
@@ -4635,6 +4690,45 @@ let _bpItems = []; // [{price, qty}]
 function renderBarcodePrint(){
   renderBpList();
   renderBcStock();
+  renderBcUsage();
+}
+// 各價位條碼使用量：每件出貨商品用一張條碼，依客戶條碼開頭 + 售價歸類
+async function renderBcUsage(){
+  const el=G('bu-list');if(!el)return;
+  await ensureAnalyticsDataLoaded();
+  const months=Number(G('bu-period').value)||0;
+  const [lo,hi]=G('bu-range').value.split('-').map(Number);
+  let cutoff='';
+  if(months){const d=new Date();d.setMonth(d.getMonth()-months);cutoff=d.toISOString().slice(0,10);}
+  const map={};let total=0;
+  anShipments('','').forEach(x=>{
+    if(cutoff&&x.routeDate<cutoff)return;
+    const cust=db.customers.find(c=>c.id===x.custId);
+    const prefix=(cust&&cust.labelBarcode)||'7990341';
+    (x.sh.items||[]).forEach(it=>{
+      if(!(it.price>=lo&&it.price<=hi))return;
+      const key=bcStockKey(it.price,prefix);
+      const o=map[key]=map[key]||{key,price:it.price,prefix:key.split('|')[0],qty:0,orders:new Set()};
+      o.qty+=it.qty;o.orders.add(x.sh.id);total+=it.qty;
+    });
+  });
+  const rows=Object.values(map).sort((a,b)=>b.qty-a.qty);
+  if(!rows.length){el.innerHTML='<div class="an-empty">這段期間沒有出貨資料</div>';return;}
+  let cum=0;
+  const th=(t,l)=>`<th style="text-align:${l?'left':'right'};padding:6px 8px;font-size:11px;color:var(--text2);white-space:nowrap;">${t}</th>`;
+  el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px;min-width:460px;">
+    <thead><tr>${th('價位',1)}${th('條碼開頭',1)}${th('用量（張）')}${th('占比')}${th('累計')}${th('出貨單數')}${th('目前庫存')}</tr></thead>
+    <tbody>${rows.map(o=>{
+      cum+=o.qty;const st=(db.barcodeStock||{})[o.key]||0;
+      return `<tr style="border-top:1px solid var(--border);">
+        <td style="padding:6px 8px;font-weight:700;">$${o.price}</td>
+        <td style="padding:6px 8px;font-family:monospace;font-size:12px;color:var(--text2);">${o.prefix}</td>
+        <td style="text-align:right;padding:6px 8px;font-weight:700;">${fmt(o.qty)}</td>
+        <td style="text-align:right;padding:6px 8px;">${Math.round(o.qty/total*1000)/10}%</td>
+        <td style="text-align:right;padding:6px 8px;color:var(--text2);">${Math.round(cum/total*100)}%</td>
+        <td style="text-align:right;padding:6px 8px;color:var(--text2);">${o.orders.size}</td>
+        <td style="text-align:right;padding:6px 8px;${st?'font-weight:700;':'color:var(--text3);'}">${st||'-'}</td></tr>`;}).join('')}</tbody></table>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px;">共 ${rows.length} 種條碼、${fmt(total)} 張。「累計」是從用量最大的往下加總，例如累計 80% 代表上面這些價位就占了八成用量。</div>`;
 }
 
 // ── 已印好的條碼庫存 ──────────────────────────
@@ -7131,6 +7225,13 @@ function startApp(){
   loadData();
   startRealtimeListeners();
   setTimeout(handleHashChange,200);
+  // 開啟時若有沒存完的抄貨單，問一次要不要接著填（等客戶資料載入後再問）
+  let _dTry=0;const _dGo=()=>{
+    if(!localStorage.getItem(ORDER_DRAFT_KEY))return;
+    if(!db.customers.length&&_dTry++<10)return setTimeout(_dGo,1000);
+    if(G('modal-order').classList.contains('open'))return;
+    checkOrderFormDraft();
+  };setTimeout(_dGo,2500);
   setTimeout(cleanupOldOrderStates,5000); // 背景清理超過60天沒動過的撿貨/裝箱記錄，不擋畫面
 }
 firebase.auth().onAuthStateChanged(user=>{
