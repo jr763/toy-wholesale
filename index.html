@@ -377,6 +377,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
   <div class="page-header">
     <div><h2>總覽</h2></div>
   </div>
+  <div class="order-draft-banner"></div>
   <div id="dash-alert"></div>
   <!-- 待處理修改 -->
   <div id="edit-alert-section"></div>
@@ -472,6 +473,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
     <div><h2>抄貨單</h2></div>
     <button class="btn btn-primary" onclick="openOrderModal()">＋ 新增抄貨單</button>
   </div>
+  <div class="order-draft-banner"></div>
   <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
     <div style="position:relative;flex:1;min-width:150px;">
       <input id="order-filter-cust" placeholder="搜尋客戶名稱…" oninput="onOrderFilterCust()" autocomplete="off" style="width:100%;">
@@ -2485,6 +2487,7 @@ async function deleteCalVisit(){
 }
 
 function renderDashboard(){
+  renderOrderDraftBanner();
   const low=db.products.filter(p=>p.safetyStock>0&&(p.currentStock??0)<=p.safetyStock&&!p.outOfStock&&!p.discontinued).length;
 
   G('dash-alert').innerHTML=low?`<div style="background:var(--red-bg);border:1.5px solid #f5c6c2;border-radius:8px;padding:11px 15px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
@@ -3014,28 +3017,47 @@ function renderOrderItems(){
 // ── 抄貨單表單自動暫存（只存在這支手機/這台電腦的瀏覽器，不上傳）──
 // 為了避免「抄到一半切到別的 App、頁面被重新載入，內容就不見」。按取消/X 或儲存成功後會清掉。
 const ORDER_DRAFT_KEY='oscar_order_form_draft';
-function clearOrderFormDraft(){try{localStorage.removeItem(ORDER_DRAFT_KEY);}catch(e){}}
+function clearOrderFormDraft(){try{localStorage.removeItem(ORDER_DRAFT_KEY);}catch(e){}renderOrderDraftBanner();}
 function saveOrderFormDraft(){
   try{
     if(window._draftPrompting)return;
     const m=G('modal-order');if(!m||!m.classList.contains('open'))return;
     if(!orderItems||!orderItems.length){clearOrderFormDraft();return;}
+    const _had=!!localStorage.getItem(ORDER_DRAFT_KEY);
     localStorage.setItem(ORDER_DRAFT_KEY,JSON.stringify({
       editOrderId:editOrderId||null,custId:G('o-cust').value||'',custName:G('o-cust-input')?.value||'',
       date:G('o-date')?.value||'',items:orderItems,ts:Date.now()
     }));
+    if(!_had)renderOrderDraftBanner();
   }catch(e){}
 }
-async function checkOrderFormDraft(){
+// 總覽、抄貨單頁最上面：有沒存完的抄貨單就顯示提醒（只看這支手機/這台電腦的暫存）
+function renderOrderDraftBanner(){
+  let d=null;try{d=JSON.parse(localStorage.getItem(ORDER_DRAFT_KEY)||'null');}catch(e){}
+  const ok=d&&d.items&&d.items.length&&Date.now()-d.ts<=3*86400000;
+  const open=G('modal-order')&&G('modal-order').classList.contains('open');
+  const html=(ok&&!open)?`<div style="background:var(--orange-bg);color:var(--orange);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:200px;font-size:13px;"><b>⚠️ 有一張抄貨單還沒存</b><br>${anEsc(d.custName||'（未選客戶）')}，${d.items.length} 項商品${d.editOrderId?'（修改中）':''}，${(()=>{const w=new Date(d.ts);return (w.getMonth()+1)+'/'+w.getDate()+' '+String(w.getHours()).padStart(2,'0')+':'+String(w.getMinutes()).padStart(2,'0');})()} 暫存</div>
+    <button class="btn btn-sm btn-primary" onclick="checkOrderFormDraft(true)">繼續填</button>
+    <button class="btn btn-sm btn-secondary" onclick="discardOrderDraft()">丟掉</button></div>`:'';
+  document.querySelectorAll('.order-draft-banner').forEach(e=>e.innerHTML=html);
+}
+async function discardOrderDraft(){
+  if(await toastConfirm('確定丟掉這張還沒存的抄貨單？','丟掉','先留著'))clearOrderFormDraft();
+}
+async function checkOrderFormDraft(skipAsk){
   let d=null;
   try{d=JSON.parse(localStorage.getItem(ORDER_DRAFT_KEY)||'null');}catch(e){}
   if(!d||!d.items||!d.items.length)return;
   if(Date.now()-d.ts>3*86400000){clearOrderFormDraft();return;}
   if(d.editOrderId&&!db.orders.find(x=>x.id===d.editOrderId)){clearOrderFormDraft();return;}
+  let ok=true;
+  if(skipAsk!==true){
   window._draftPrompting=true;
   const when=new Date(d.ts);const t=(when.getMonth()+1)+'/'+when.getDate()+' '+String(when.getHours()).padStart(2,'0')+':'+String(when.getMinutes()).padStart(2,'0');
-  const ok=await toastConfirm('有一張沒存的抄貨單（'+(d.custName||'未選客戶')+'，'+d.items.length+' 項商品，'+t+' 暫存）。要接著填嗎？','接著填','不要，丟掉');
+  ok=await toastConfirm('有一張沒存的抄貨單（'+(d.custName||'未選客戶')+'，'+d.items.length+' 項商品，'+t+' 暫存）。要接著填嗎？','接著填','不要，丟掉');
   window._draftPrompting=false;
+  }
   if(!ok){clearOrderFormDraft();return;}
   if(d.editOrderId)editOrder(d.editOrderId); else openOrderModal(true);
   orderItems=d.items.map(i=>({...i}));
@@ -3343,6 +3365,7 @@ function filterOrders(f,btn){
   btn.classList.add('active');renderOrders();
 }
 function renderOrders(){
+  renderOrderDraftBanner();
   const list=G('orders-list');if(!list)return;
   const filterCustId=window._orderFilterCustId||'';
   const filterDate=G('order-filter-date')?.value||'';
