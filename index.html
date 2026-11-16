@@ -251,7 +251,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 .an-ta-res{display:none;position:absolute;top:100%;left:0;right:0;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:var(--shadow);margin-top:2px}
 .an-ta-res div{padding:9px 12px;font-size:13px;cursor:pointer}
 .an-ta-res div:hover{background:var(--surface2)}
-.lm-grid{position:relative;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(9,1fr);aspect-ratio:12/9;gap:2px;max-width:760px;margin:0 auto;}
+.lm-grid{position:relative;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(9,1fr);aspect-ratio:12/9;gap:2px;margin:0 auto;}
 .lm-c{border-radius:4px;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:clamp(10px,1.7vw,15px);line-height:1.15;overflow:hidden;position:relative;color:#444;background:var(--surface);border:1px solid var(--border);}
 .lm-c.furn{background:#d9d9d9;border-color:#c4c4c4;}
 .lm-c.door{background:#b6d7a8;border-color:#93c47d;}
@@ -266,12 +266,20 @@ body.dg-active{cursor:grabbing;}
 #tab-locations .btn-sm{padding:9px 14px;font-size:14px;}
 #tab-locations select,#tab-locations input{font-size:15px;}
 #tab-locations .lm-n{font-size:12px;padding:1px 6px;}
-.lp-wrap{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:12px;align-items:start;}
+.lp-wrap{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:start;}
+.lp-left{position:sticky;top:60px;min-width:0;}
+.lp-right{min-width:0;}
+.lm-grid{width:min(100%,calc((100vh - 290px)*var(--ar,1.33)));}
+.lm-c.cell{cursor:pointer;color:#bbb;}
+.lm-c.cell .cl{font-size:10px;}
+.lm-c.cell:hover{background:#fff4d6;}
+.lm-c.cell.has{background:#ffe599;border-color:#bf9000;color:#5a2d00;}
+.lm-c.cell.sel{outline:3px solid var(--brown);outline-offset:1px;}
 .lp-main{min-width:0;}
-.lp-side{position:sticky;top:8px;max-height:calc(100vh - 100px);display:flex;flex-direction:column;padding:10px;}
-.lp-list{overflow-y:auto;flex:1;min-height:120px;}
+.lp-side{display:flex;flex-direction:column;padding:12px;}
+.lp-list{overflow-y:auto;max-height:46vh;min-height:120px;}
 .lp-bar{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;padding:10px 0;background:var(--bg,#fff);border-top:1px solid var(--border);margin-top:6px;z-index:6;}
-@media(max-width:900px){.lp-wrap{grid-template-columns:1fr;}.lp-side{position:static;max-height:none;}.lp-list{max-height:55vh;}}
+@media(max-width:1000px){.lp-wrap{grid-template-columns:1fr;}.lp-left{position:static;}.lm-grid{width:min(100%,calc((75vh)*var(--ar,1.33)));}.lp-list{max-height:55vh;}}
 .lm-tgt{font-size:14px;border:1px dashed var(--border);border-radius:8px;padding:6px 8px;color:var(--text2);}
 .lm-tgt.on{border:2px solid #e07020;background:#fff4d6;color:#5a2d00;}
 .lm-row{font-size:15px;display:flex;align-items:center;gap:10px;padding:8px 8px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;}
@@ -596,10 +604,18 @@ body.dg-active{cursor:grabbing;}
 <div id="tab-locations" class="page lp-page">
   <div class="page-header"><div><h2>商品位置</h2><p id="lm-progress"></p></div></div>
   <div class="lp-wrap">
-    <div class="lp-main">
+    <div class="lp-left">
       <div id="lm-floors" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;"></div>
-      <div class="card" style="padding:10px;margin-bottom:10px;"><div id="lm-map"></div></div>
-      <div class="card" style="padding:10px;margin-bottom:10px;" id="lm-shelf"></div>
+      <div class="card" style="padding:10px;"><div id="lm-map"></div></div>
+    </div>
+    <div class="lp-right">
+      <div class="card" style="padding:12px;margin-bottom:10px;" id="lm-shelf"></div>
+      <div class="lp-side card" style="margin-bottom:10px;">
+        <div id="lm-target"></div>
+        <input id="lm-q" placeholder="🔍 搜尋商品名稱或條碼" oninput="lmSideRender()" style="width:100%;margin:6px 0;">
+        <div id="lm-filter" style="display:flex;gap:6px;margin-bottom:6px;"></div>
+        <div id="lm-list" class="lp-list"></div>
+      </div>
       <div class="card" style="padding:12px;margin-bottom:10px;" id="lm-test"></div>
       <details class="card" style="padding:10px 12px;margin-bottom:10px;">
         <summary style="font-size:13px;font-weight:700;cursor:pointer;">撿貨路線設定（之後才會啟用）</summary>
@@ -610,12 +626,6 @@ body.dg-active{cursor:grabbing;}
             <select id="lm-level"><option value="high">高 → 中 → 低</option><option value="low">低 → 中 → 高</option></select></div>
         </div>
       </details>
-    </div>
-    <div class="lp-side card">
-      <div id="lm-target"></div>
-      <input id="lm-q" placeholder="🔍 搜尋商品名稱或條碼" oninput="lmSideRender()" style="width:100%;margin:6px 0;">
-      <div id="lm-filter" style="display:flex;gap:6px;margin-bottom:6px;"></div>
-      <div id="lm-list" class="lp-list"></div>
     </div>
   </div>
   <div class="lp-bar"><span id="lm-dirty" style="font-size:12px;color:var(--orange);flex:1;"></span>
@@ -2640,7 +2650,7 @@ function editProduct(id){
   G('p-stock').value=p.currentStock??''; G('p-safety').value=p.safetyStock||''; 
   if(G('p-status'))G('p-status').value=p.discontinued?'disc':(p.outOfStock?'oos':'');
   if(G('p-loc')) G('p-loc').value=p.location||'一樓';
-  if(G('p-shelf-sel')){pFillPlaces();G('p-shelf-sel').value=locShelfInfo(p.location,p.shelf)?locNorm(p.shelf):'';pFillLevels();}if(G('p-level-sel')) G('p-level-sel').value=p.level||'';pLocChanged();
+  if(G('p-shelf-sel')){pFillPlaces();if(String(p.shelf||'')[0]==='C'&&locShelfInfo(p.location,p.shelf)){const o=document.createElement('option');o.value=p.shelf;o.textContent=locShelfInfo(p.location,p.shelf).name;G('p-shelf-sel').appendChild(o);}G('p-shelf-sel').value=locShelfInfo(p.location,p.shelf)?locNorm(p.shelf):'';pFillLevels();}if(G('p-level-sel')) G('p-level-sel').value=p.level||'';pLocChanged();
 
   const hasM=p.hasInspectionMark!==false;
   document.querySelectorAll('input[name="p-insp"]')[hasM?0:1].checked=true;
@@ -2672,7 +2682,7 @@ function generateInternalCode(){
 }
 function pFillPlaces(){
   const sel=G('p-shelf-sel');if(!sel)return;const cur=sel.value;
-  sel.innerHTML='<option value="">請選擇</option>'+locPlaces(G('p-loc')?.value).map(x=>`<option value="${x.id}">${anEsc(x.name)}${x.kind==='shelf'?'':'（'+(x.kind==='zone'?'地板':x.kind==='stair'?'樓梯':'家具')+'）'}</option>`).join('');
+  sel.innerHTML='<option value="">請選擇</option>'+'<option value="__floor">地板（空地，存好後到「商品位置」點格子）</option>'+locPlaces(G('p-loc')?.value).map(x=>`<option value="${x.id}">${anEsc(x.name)}${x.kind==='shelf'?'':'（'+(x.kind==='zone'?'地板':x.kind==='stair'?'樓梯':'家具')+'）'}</option>`).join('');
   sel.value=cur;if(sel.value!==cur)sel.value='';pFillLevels();
 }
 function pFillLevels(){
@@ -2700,7 +2710,7 @@ async function saveProduct(){
   const _sh=G('p-shelf-sel')?.value||'',_lv=G('p-level-sel')?.value||'';
   const _old0=editProdId?db.products.find(x=>x.id===editProdId):null;
   const _legacy=_old0&&_old0.location===_loc&&!locShelfInfo(_old0.location,_old0.shelf); // 舊資料還沒放位置，先允許存其他修改
-  if(locHasMap(_loc)&&(!_sh||!_lv)&&!_legacy){toastAlert('商品一定要有位置：請選擇放在哪個位置、哪一層','warn');return;}
+  if(locHasMap(_loc)&&(!_sh||!_lv)&&!_legacy&&_sh!=='__floor'){toastAlert('商品一定要有位置：請選擇放在哪個位置、哪一層','warn');return;}
   isSaving=true;
   const btn=G('btn-save-p');btn.disabled=true;btn.textContent='儲存中…';
   // 位置：位置沒變就保留原本的左右／疊放順序，變了就放到那一層的最後面
@@ -2716,7 +2726,7 @@ async function saveProduct(){
     outOfStock:pStatus==='oos',
     discontinued:pStatus==='disc',
     location:_loc,
-    shelf:locHasMap(_loc)?_sh:'',level:locHasMap(_loc)?_lv:'',pos:_pos,z:_z,
+    shelf:locHasMap(_loc)&&_sh!=='__floor'?_sh:'',level:locHasMap(_loc)&&_sh!=='__floor'?_lv:'',pos:_pos,z:_z,
     hasInspectionMark:hasM,inspectionBatchNo:hasM?'':V('p-batch'),
     variants:[...(window._productVariants||[])],
     variantImages:{...(window._productVariantImages||{})},
@@ -3624,7 +3634,26 @@ function locPlaces(floor){
   }
   return floor?_lpCache.all.filter(x=>x.floor===floor):_lpCache.all;
 }
-function locById(id){return id?(locPlaces().find(x=>x.id===locNorm(id))||null):null;}
+const _lmOccCache={};
+function lmOcc(fl){
+  if(_lmOccCache[fl])return _lmOccCache[fl];
+  const M=LOC_MAPS[fl],o=new Set();
+  M.blocks.forEach(b=>{for(let x=b.c;x<b.c+b.w;x++)for(let y=b.r;y<b.r+b.h;y++)o.add(x+','+y);});
+  M.shelves.forEach(sh=>sh.cells.forEach(([x,y])=>o.add(x+','+y)));
+  Object.values(M.doors||{}).forEach(d=>{for(let x=d.c;x<d.c+d.w;x++)for(let y=d.r;y<d.r+d.h;y++)o.add(x+','+y);});
+  return _lmOccCache[fl]=o;
+}
+function locCellName(c,r){return '地板 '+String.fromCharCode(65+c)+r;}
+function locById(id){
+  if(!id)return null;
+  if(id[0]==='C'&&id[1]==='|'){ // 地板上的一格（預設每個空格都能放）
+    const m=id.match(/^C\|(.+)\|(\d+),(\d+)$/);if(!m||!LOC_MAPS[m[1]])return null;
+    const fl=m[1],c=+m[2],r=+m[3],M=LOC_MAPS[fl];
+    if(c<0||c>=M.cols||r<1||r>M.rows||lmOcc(fl).has(c+','+r))return null;
+    return {id,floor:fl,name:locCellName(c,r),short:locCellName(c,r),cells:[[c,r]],stand:[c,r],kind:'cell',layers:['一層'],face:'地板上的這一格（可以疊放）'};
+  }
+  return locPlaces().find(x=>x.id===locNorm(id))||null;
+}
 function locShelfInfo(floor,code){
   if(!locHasMap(floor)||!code)return null;
   const pl=locById(code);
@@ -5575,8 +5604,8 @@ function lmRender(){
   G('lm-dirty').textContent=dirty?'有修改還沒儲存'+(_lmDirty.size?'（'+_lmDirty.size+' 個商品）':''):'';
   G('btn-lm-discard').style.display=dirty?'':'none';
   lmMapRender();
-  if(_lmZone)lmZonePanel();else if(_lmSel)lmShelfView();
-  else G('lm-shelf').innerHTML='<div style="font-size:13px;color:var(--text2);padding:6px;">👆 點上面地圖的<b style="color:#e07020;">橘色貨架</b>，看它上面放了什麼。<br>灰色家具也可以點一下，設成放商品的地方。</div><div style="margin-top:6px;"><button class="btn btn-secondary btn-sm" onclick="_lmZone=[];lmRender()">＋ 新增地板放置區</button></div>';
+  if(_lmSel)lmShelfView();
+  else G('lm-shelf').innerHTML='<div style="font-size:15px;color:var(--text2);padding:8px;">👆 點左邊地圖：<b style="color:#e07020;">橘色貨架</b>、灰色家具（點一下設成可放商品），或<b>任何一格空地</b>（地板預設都能放），看它上面放了什麼。</div>';
   lmSideRender();lmTestRender();
 }
 function lmMapRender(){
@@ -5598,10 +5627,11 @@ function lmMapRender(){
     h+=place(sh.c,sh.r,sh.w,sh.h,'shelf'+sel(sh.id),sh.short+(n?`<span class="lm-n">${n}</span>`:''),`onclick="lmPickShelf('${sh.id}')" ${dz(sh.id)}`);});
   places.filter(x=>x.kind==='zone').forEach(z=>{const n=lmCount(z.id);
     z.cells.forEach(([x,y],k)=>{h+=place(x,y,1,1,'shelf zone'+sel(z.id),k===0?`<span style="font-size:9px;">${anEsc(z.name)}</span>`+(n?`<span class="lm-n">${n}</span>`:''):'',`onclick="lmPickShelf('${z.id}')" ${dz(z.id)}`);});});
+  const cellCnt={};db.products.forEach(p=>{if(!p.discontinued&&p.location===_lmFloor&&p.shelf&&String(p.shelf)[0]==='C')cellCnt[p.shelf]=(cellCnt[p.shelf]||0)+1;});
   for(let r=1;r<=L.rows;r++)for(let c=0;c<L.cols;c++)if(!occ.has(c+','+r)){
-    const on=zoneMode&&_lmZone.some(q=>q[0]===c&&q[1]===r);
-    h+=zoneMode?`<div class="lm-c" onclick="lmZoneCell(${c},${r})" style="grid-column:${c+1};grid-row:${r};cursor:pointer;${on?'background:#ffe599;border-color:#bf9000;':'border-style:dashed;'}"></div>`:`<div class="lm-c" style="grid-column:${c+1};grid-row:${r};"></div>`;}
-  G('lm-map').innerHTML=`<div class="lm-grid" style="grid-template-columns:repeat(${L.cols},1fr);grid-template-rows:repeat(${L.rows},1fr);aspect-ratio:${L.cols}/${L.rows};">${h}${lmTestOverlay()}</div><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px;">橘／黃＝可放商品（數字＝商品數）；灰色家具點一下可設成放商品的地方；也可以把右邊商品直接拖到貨架上</div>`;
+    const id='C|'+_lmFloor+'|'+c+','+r,n=cellCnt[id]||0;
+    h+=`<div class="lm-c cell${n?' has':''}${id===_lmSel?' sel':''}" onclick="lmPickShelf('${id}')" ${dz(id)} style="grid-column:${c+1};grid-row:${r};">${n?`<span class="lm-n">${n}</span>`:`<span class="cl">${String.fromCharCode(65+c)}${r}</span>`}</div>`;}
+  G('lm-map').innerHTML=`<div class="lm-grid" style="grid-template-columns:repeat(${L.cols},1fr);grid-template-rows:repeat(${L.rows},1fr);aspect-ratio:${L.cols}/${L.rows};--ar:${L.cols/L.rows};">${h}${lmTestOverlay()}</div><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px;">橘＝貨架／已設定的家具；黃＝地板上已有商品（數字＝商品數）；空白格＝地板（都能放）；灰色家具點一下可設成放商品的地方</div>`;
 }
 function lmZonePanel(){
   G('lm-shelf').innerHTML=`<div style="font-size:13px;"><b>畫地板放置區：</b>點上面地圖的<b>空白格子</b>圈出範圍（再點一次取消）。已選 ${_lmZone.length} 格。
@@ -5612,9 +5642,9 @@ function lmTgt(){
   if(!sh||!_lmTarget||!sh.layers.includes(_lmTarget.lv))return null;
   return _lmTarget;
 }
-function lmScrollTo(id){if(window.innerWidth<=900)setTimeout(()=>G(id)?.scrollIntoView({behavior:'smooth',block:'start'}),60);}
+function lmScrollTo(id){if(window.innerWidth<=1000)setTimeout(()=>G(id)?.scrollIntoView({behavior:'smooth',block:'start'}),60);}
 function lmSetTarget(lv,where){_lmTarget={lv,where};_lmPick=null;lmShelfView();lmSideRender();
-  if(window.innerWidth<=900){lmScrollTo('lm-list');}else G('lm-q').focus();}
+  if(window.innerWidth<=1000){lmScrollTo('lm-list');}else G('lm-q').focus();}
 function lmSideRender(){
   const t=lmTgt(),sh=t?locById(_lmSel):null;
   G('lm-target').className='lm-tgt'+(t?' on':'');
@@ -5734,7 +5764,7 @@ function lmShelfView(){
   }
   G('lm-shelf').innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
       <div style="font-size:20px;font-weight:700;">${anEsc(sh.name)}　<span style="font-size:11px;font-weight:400;color:var(--text3);">${sh.face}</span></div></div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;margin-bottom:6px;">${sh.kind==='stair'?'階數':'層數'}：<select style="width:auto;" onchange="lmSetLayers('${sh.id}',this.value)">${(sh.kind==='stair'?Array.from({length:30},(_,i)=>i+1):[1,2,3,4,5]).map(n=>`<option value="${n}" ${n===sh.layers.length?'selected':''}>${n} ${sh.kind==='stair'?'階':'層'}</option>`).join('')}</select>${sh.kind!=='shelf'?`<button class="btn btn-secondary btn-sm" onclick="lmRemovePlace('${sh.id}')">不要放商品了</button>`:''}</div>
+    <div style="display:${sh.kind==='cell'?'none':'flex'};gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;margin-bottom:6px;">${sh.kind==='stair'?'階數':'層數'}：<select style="width:auto;" onchange="lmSetLayers('${sh.id}',this.value)">${(sh.kind==='stair'?Array.from({length:30},(_,i)=>i+1):[1,2,3,4,5]).map(n=>`<option value="${n}" ${n===sh.layers.length?'selected':''}>${n} ${sh.kind==='stair'?'階':'層'}</option>`).join('')}</select>${sh.kind!=='shelf'?`<button class="btn btn-secondary btn-sm" onclick="lmRemovePlace('${sh.id}')">不要放商品了</button>`:''}</div>
     <div style="font-size:14px;color:var(--text2);margin-bottom:8px;">每一排從左到右就是實際擺放的位置（站在它前面看），<b>同一欄的商品是疊在一起的</b>（虛線框）。點商品卡片可以移動／疊放。<b>放商品</b>：點<b>＋</b>再到右邊點商品；或直接<b>拖</b>右邊的商品過來（拖到卡片上＝疊上去，拖到＋或兩欄中間＝自己一欄）。手機請<b>長按商品 0.3 秒</b>再拖。</div>
     ${tools}${rows}`;
   if(_lmFocusPid)setTimeout(()=>{G('lmc-'+_lmFocusPid)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});_lmFocusPid=null;},80);
