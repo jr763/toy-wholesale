@@ -5977,7 +5977,7 @@ function lpEnsureOpen(){const st=lpPanelState();if(st.closed||st.min)lpShow();}
     new ResizeObserver(()=>{if(window.innerWidth<=1000||el.classList.contains('min')||el.classList.contains('hide')||drag)return;
       clearTimeout(t);t=setTimeout(()=>lpSavePanel({w:el.offsetWidth,h:el.offsetHeight}),400);}).observe(el);});
 })();
-let _lmTest={carry:6,table:null,orderId:'',res:null};
+let _lmTest={carry:6,table:null,orderId:'',res:null,center:null,pick:false};
 function locTableIdx(){
   const cfg=db.locConfig||{};
   if(Number.isInteger(_lmTest.table))return _lmTest.table;
@@ -5996,12 +5996,12 @@ function locPath(blocked,a,b){ // 格子上的最短路徑（含起終點）
 }
 function locPlanTrips(items,carry){ // items:[{pid,name,placeId,level,pos,z}]（都在一樓）
   const L=LOCMAP_1F,blocked=locWalkGrid(),places=locPlaces('一樓');
-  const tb=L.blocks[locTableIdx()];if(!tb)return {err:'還沒指定工作桌'};
+  const ct=_lmTest.center;if(!ct)return {err:'先在地圖上點一下「中心」'};
   const tcells=[];
-  for(let x=tb.c;x<tb.c+tb.w;x++)for(let y=tb.r;y<tb.r+tb.h;y++)[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
-    const nx=x+dx,ny=y+dy,k=nx+','+ny;
-    if(nx<0||nx>=L.cols||ny<1||ny>L.rows||blocked.has(k)||tcells.some(c=>c[0]===nx&&c[1]===ny))return;tcells.push([nx,ny]);});
-  if(!tcells.length)return {err:'工作桌旁邊沒有可以站的位置'};
+  if(!blocked.has(ct.join(',')))tcells.push([ct[0],ct[1]]);
+  else [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const nx=ct[0]+dx,ny=ct[1]+dy;
+    if(nx<0||nx>=L.cols||ny<1||ny>L.rows||blocked.has(nx+','+ny))return;tcells.push([nx,ny]);});
+  if(!tcells.length)return {err:'這個位置旁邊沒有可以站的地方，換一格點點看'};
   // 多起點 BFS：離工作桌多遠
   const dT={};const q=[];tcells.forEach(c=>{dT[c.join(',')]=0;q.push(c);});
   while(q.length){const [x,y]=q.shift();const d=dT[x+','+y];[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const nx=x+dx,ny=y+dy,k=nx+','+ny;
@@ -6046,7 +6046,7 @@ function locPlanTrips(items,carry){ // items:[{pid,name,placeId,level,pos,z}]（
       if(nx>=0&&nx<L.cols&&ny>=1&&ny<=L.rows&&!blocked.has(nx+','+ny))return [nx,ny];}
     return null;};
   const cfg=db.locConfig||{};
-  const startPt=doorStand(cfg.start||'garage'),endPt=doorStand(cfg.end||'garage');
+  const startPt=null,endPt=null;
   trips.forEach((t,ti)=>{
     let cur=(ti===0&&startPt)?startPt:start;const path=[cur];
     const seq=[];t.units.forEach(u=>{const k=sk(u.stand);if(!seq.length||seq[seq.length-1]!==k)seq.push(k);});
@@ -6084,20 +6084,37 @@ function lmTestRender(){
   const tbIdx=locTableIdx();
   const tbOpts=LOCMAP_1F.blocks.map((b,i)=>({b,i})).filter(x=>x.b.t==='furn').map(({b,i})=>{const x=b.c+b.w/2,y=b.r+b.h/2;return `<option value="${i}" ${i===tbIdx?'selected':''}>${(x<4?'左':x<8?'中':'右')+(y<4?'上':y<7?'中':'下')} ${anEsc(b.l)}</option>`;}).join('');
   el.innerHTML=`<div style="font-size:12px;color:var(--text3);margin-bottom:4px;">只是試算，不會影響真的撿貨單</div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">沒有推車：一趟拿滿就回工作桌放好，再出發拿下一趟。目前只算一樓。</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">先在地圖上點一個「中心」，再按開始測試，會畫出拿東西的順序。目前只算一樓。</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
       <div><div style="font-size:12px;color:var(--text3);">用哪一張單測試</div><select id="lm-test-src" style="min-width:200px;"><option value="random" ${cur==='random'?'selected':''}>隨機挑 12 個已放好的商品</option>${ords.map(o=>`<option value="${o.id}" ${cur===o.id?'selected':''}>${anEsc(o.date||'')} ${anEsc(db.customers.find(c=>c.id===o.customerId)?.name||'')}（${(o.items||[]).length} 項）</option>`).join('')}</select></div>
-      <div><div style="font-size:12px;color:var(--text3);">一趟最多拿幾樣</div><input id="lm-test-carry" type="number" min="1" max="30" value="${_lmTest.carry}" style="width:90px;" onchange="_lmTest.carry=Math.max(1,parseInt(this.value)||6);lmQueueSave()"></div>
-      <div><div style="font-size:12px;color:var(--text3);">工作桌是哪一個</div><select id="lm-test-table" onchange="_lmTest.table=Number(this.value);lmQueueSave()">${tbOpts}</select></div>
+      <div><div style="font-size:12px;color:var(--text3);">中心（從這裡出發、拿完回來）</div>
+        <button class="btn ${_lmTest.pick?'btn-primary':'btn-secondary'}" onclick="lmPickCenter()">${_lmTest.pick?'👆 請點地圖上的位置…':(_lmTest.center?'📍 已選，點此重選':'📍 在地圖上點選中心')}</button></div>
       <button class="btn btn-primary" onclick="lmRunTest()">開始測試</button>
       ${_lmTest.res?'<button class="btn btn-secondary" onclick="_lmTest.res=null;lmRender()">清除路線</button>':''}
     </div><div id="lm-test-res" style="margin-top:10px;">${_lmTest.res?lmTestResHtml():''}</div>`;
 }
+function lmPickCenter(){
+  if(_lmFloor!=='一樓'){_lmFloor='一樓';_lmSel=null;_lmTarget=null;lmRender();}
+  _lmTest.pick=!_lmTest.pick;lmTestRender();
+  const m=G('lm-map');if(m)m.style.cursor=_lmTest.pick?'crosshair':'';
+  if(_lmTest.pick)showToast('點地圖上的任一格當中心','info',2500);
+}
+document.addEventListener('click',e=>{
+  if(!_lmTest.pick)return;const m=document.getElementById('lm-map');if(!m||!m.contains(e.target))return;
+  const g=m.querySelector('.lm-grid');if(!g)return;e.stopPropagation();e.preventDefault();
+  const L=LOCMAP_1F,r=g.getBoundingClientRect();
+  const c=Math.min(L.cols-1,Math.max(0,Math.floor((e.clientX-r.left)/r.width*L.cols)));
+  const y=Math.min(L.rows,Math.max(1,Math.floor((e.clientY-r.top)/r.height*L.rows)+1));
+  _lmTest.center=[c,y];_lmTest.pick=false;m.style.cursor='';
+  if(_lmTest.res){try{lmRunTest();return;}catch(x){}}
+  lmRender();
+},true);
 function lmRunTest(){
-  _lmTest.orderId=G('lm-test-src').value;_lmTest.carry=Math.max(1,parseInt(G('lm-test-carry').value)||6);_lmTest.table=Number(G('lm-test-table').value);
+  _lmTest.orderId=G('lm-test-src').value;
+  if(!_lmTest.center){showToast('先在地圖上點一下「中心」','warn',2500);lmPickCenter();return;}
   const it=lmTestItems();
   if(!it.one.length&&!it.other.length&&!it.none.length){showToast('這張單沒有商品','warn');return;}
-  const plan=it.one.length?locPlanTrips(it.one,_lmTest.carry):{trips:[],total:0,start:null};
+  const plan=it.one.length?locPlanTrips(it.one,999):{trips:[],total:0,start:null};
   if(plan.err){showToast(plan.err,'warn',3000);return;}
   _lmTest.res={plan,other:it.other,none:it.none};lpOpen('test');
   if(_lmFloor!=='一樓'){_lmFloor='一樓';_lmSel=null;_lmTarget=null;}
@@ -6105,14 +6122,15 @@ function lmRunTest(){
 }
 function lmTestResHtml(){
   const r=_lmTest.res;if(!r)return '';const p=r.plan;
-  let h=`<div style="font-size:15px;margin-bottom:6px;">一樓 <b>${p.trips.reduce((a,t)=>a+t.units.length,0)}</b> 樣，要走 <b>${p.trips.length}</b> 趟，合計約 <b>${p.total}</b> 步（一格算一步）</div>`;
-  p.trips.forEach((t,ti)=>{
-    h+=`<div style="border-left:6px solid ${LM_TRIP_COLORS[ti%8]};background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:8px;">
-      <div style="font-size:14px;font-weight:700;">第 ${ti+1} 趟${t.fromDoor?`（從${anEsc(t.fromDoor)}出發）`:'（從工作桌出發）'} <span style="font-weight:400;color:var(--text3);">約 ${t.steps} 步</span></div>
-      ${t.units.map((u,k)=>`<div style="font-size:14px;">${k+1}. ${anEsc(u.place?u.place.name:'')} ${anEsc(lvLabel(u.level||''))}　<b>${anEsc(u.name)}</b></div>`).join('')}
-      <div style="font-size:13px;color:var(--text2);margin-top:2px;">→ 回工作桌放好</div></div>`;
+  const all=p.trips.flatMap(t=>t.units);
+  let h=`<div style="font-size:15px;margin-bottom:6px;">一樓 <b>${all.length}</b> 樣，照這個順序拿：</div>`;
+  let n=0,last='';
+  all.forEach(u=>{
+    const pn=(u.place?u.place.name:'');
+    if(pn!==last){h+=`<div style="font-size:14px;font-weight:700;margin-top:8px;">${anEsc(pn)}</div>`;last=pn;}
+    n++;
+    h+=`<div style="font-size:14px;padding-left:6px;">${n}. ${anEsc(lvLabel(u.level||''))}　<b>${anEsc(u.name)}</b></div>`;
   });
-  if(p.final&&p.endName)h+=`<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">全部放好後，走到 <b>${anEsc(p.endName)}</b>（${p.final.length-1} 步）</div>`;
   if(r.other.length)h+=`<div style="font-size:13px;color:var(--orange);margin-bottom:4px;">其他樓層 ${r.other.length} 樣（${[...new Set(r.other.map(i=>i.place.floor))].join('、')}）：這裡還沒算，要另外跑：${r.other.map(i=>anEsc(i.name)).join('、')}</div>`;
   if(r.none.length)h+=`<div style="font-size:13px;color:var(--orange);">還沒放位置 ${r.none.length} 樣，沒有排進去：${r.none.map(i=>anEsc(i.name)).join('、')}</div>`;
   return h;
@@ -6128,7 +6146,7 @@ function lmTestOverlay(){ // 把各趟路線畫在地圖上
   });
   if(r.plan.final&&r.plan.final.length>1)svg+=`<polyline points="${r.plan.final.map(c=>`${c[0]+.5},${c[1]-.5}`).join(' ')}" fill="none" stroke="#666" stroke-width="0.1" stroke-dasharray="0.25 0.2" opacity=".8"/>`;
   if(r.plan.startPt)svg+=`<circle cx="${r.plan.startPt[0]+.5}" cy="${r.plan.startPt[1]-.5}" r="0.3" fill="#188038"/><text x="${r.plan.startPt[0]+.5}" y="${r.plan.startPt[1]-.5+0.1}" font-size="0.3" fill="#fff" text-anchor="middle">起</text>`;
-  svg+=`<rect x="${r.plan.start[0]+.2}" y="${r.plan.start[1]-.8}" width="0.6" height="0.6" fill="#5a2d00"/><text x="${r.plan.start[0]+.5}" y="${r.plan.start[1]-.37}" font-size="0.3" fill="#fff" text-anchor="middle">桌</text></svg>`;
+  svg+=`<rect x="${r.plan.start[0]+.2}" y="${r.plan.start[1]-.8}" width="0.6" height="0.6" fill="#5a2d00"/><text x="${r.plan.start[0]+.5}" y="${r.plan.start[1]-.37}" font-size="0.3" fill="#fff" text-anchor="middle">中</text></svg>`;
   return svg;
 }
 // ── END 商品位置圖 ──────────────────────────
