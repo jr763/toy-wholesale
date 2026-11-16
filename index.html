@@ -266,7 +266,18 @@ body.dg-active{cursor:grabbing;}
 #tab-locations .btn-sm{padding:9px 14px;font-size:14px;}
 #tab-locations select,#tab-locations input{font-size:15px;}
 #tab-locations .lm-n{font-size:12px;padding:1px 6px;}
-.lp-wrap{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:start;}
+.lp-wrap{display:grid;grid-template-columns:var(--lpl,minmax(0,1.15fr)) 12px minmax(0,1fr);gap:0;align-items:start;}
+.lp-split{align-self:stretch;cursor:col-resize;touch-action:none;position:relative;min-height:200px;}
+.lp-split::after{content:'';position:absolute;left:5px;top:0;bottom:0;width:2px;background:var(--border);border-radius:2px;}
+.lp-split:hover::after,.lp-split.drag::after{background:#e07020;width:4px;left:4px;}
+.lp-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
+.lp-sec{padding:10px 12px;margin-bottom:10px;}
+.lp-sec-h{display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:16px;font-weight:700;user-select:none;}
+.lp-sec-h .ar{transition:transform .15s;color:var(--text3);}
+.lp-sec.closed .lp-sec-b{display:none;}
+.lp-sec.closed .ar{transform:rotate(-90deg);}
+.lp-sec-b{margin-top:8px;}
+.lp-right{zoom:var(--lpz,1);}
 .lp-left{position:sticky;top:60px;min-width:0;}
 .lp-right{min-width:0;}
 .lm-grid{width:min(100%,calc((100vh - 290px)*var(--ar,1.33)));}
@@ -276,10 +287,10 @@ body.dg-active{cursor:grabbing;}
 .lm-c.cell.has{background:#ffe599;border-color:#bf9000;color:#5a2d00;}
 .lm-c.cell.sel{outline:3px solid var(--brown);outline-offset:1px;}
 .lp-main{min-width:0;}
-.lp-side{display:flex;flex-direction:column;padding:12px;}
+.lp-side{display:flex;flex-direction:column;}
 .lp-list{overflow-y:auto;max-height:46vh;min-height:120px;}
 .lp-bar{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;padding:10px 0;background:var(--bg,#fff);border-top:1px solid var(--border);margin-top:6px;z-index:6;}
-@media(max-width:1000px){.lp-wrap{grid-template-columns:1fr;}.lp-left{position:static;}.lm-grid{width:min(100%,calc((75vh)*var(--ar,1.33)));}.lp-list{max-height:55vh;}}
+@media(max-width:1000px){.lp-wrap{grid-template-columns:1fr;}.lp-split{display:none;}.lp-right{margin-top:10px;}.lp-left{position:static;}.lm-grid{width:min(100%,calc((75vh)*var(--ar,1.33)));}.lp-list{max-height:55vh;}}
 .lm-tgt{font-size:14px;border:1px dashed var(--border);border-radius:8px;padding:6px 8px;color:var(--text2);}
 .lm-tgt.on{border:2px solid #e07020;background:#fff4d6;color:#5a2d00;}
 .lm-row{font-size:15px;display:flex;align-items:center;gap:10px;padding:8px 8px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;}
@@ -608,24 +619,24 @@ body.dg-active{cursor:grabbing;}
       <div id="lm-floors" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;"></div>
       <div class="card" style="padding:10px;"><div id="lm-map"></div></div>
     </div>
+    <div class="lp-split" id="lp-split" title="左右拖曳可以調整寬度（連點兩下還原）"></div>
     <div class="lp-right">
-      <div class="card" style="padding:12px;margin-bottom:10px;" id="lm-shelf"></div>
-      <div class="lp-side card" style="margin-bottom:10px;">
-        <div id="lm-target"></div>
-        <input id="lm-q" placeholder="🔍 搜尋商品名稱或條碼" oninput="lmSideRender()" style="width:100%;margin:6px 0;">
-        <div id="lm-filter" style="display:flex;gap:6px;margin-bottom:6px;"></div>
-        <div id="lm-list" class="lp-list"></div>
-      </div>
-      <div class="card" style="padding:12px;margin-bottom:10px;" id="lm-test"></div>
-      <details class="card" style="padding:10px 12px;margin-bottom:10px;">
-        <summary style="font-size:13px;font-weight:700;cursor:pointer;">撿貨路線設定（之後才會啟用）</summary>
-        <div class="form-grid" style="margin-top:8px;">
+      <div class="lp-tools"><span style="font-size:12px;color:var(--text3);">右邊文字大小</span>
+        <button class="btn btn-secondary btn-sm" onclick="lpZoom(-0.1)">A－</button><button class="btn btn-secondary btn-sm" onclick="lpZoom(0.1)">A＋</button>
+        <button class="btn btn-secondary btn-sm" onclick="lpAll(false)">全部收起</button><button class="btn btn-secondary btn-sm" onclick="lpAll(true)">全部展開</button></div>
+      <div class="card lp-sec" data-sec="shelf"><div class="lp-sec-h" onclick="lpToggle('shelf')"><span>📦 貨架正面</span><span class="ar">▾</span></div><div class="lp-sec-b" id="lm-shelf"></div></div>
+      <div class="card lp-sec" data-sec="list"><div class="lp-sec-h" onclick="lpToggle('list')"><span>🔍 商品清單（點選或拖到格子）</span><span class="ar">▾</span></div>
+        <div class="lp-sec-b"><div id="lm-target"></div>
+          <input id="lm-q" placeholder="搜尋商品名稱或條碼" oninput="lmSideRender()" style="width:100%;margin:6px 0;">
+          <div id="lm-filter" style="display:flex;gap:6px;margin-bottom:6px;"></div>
+          <div id="lm-list" class="lp-list"></div></div></div>
+      <div class="card lp-sec closed" data-sec="test"><div class="lp-sec-h" onclick="lpToggle('test')"><span>🧪 路線測試</span><span class="ar">▾</span></div><div class="lp-sec-b" id="lm-test"></div></div>
+      <div class="card lp-sec closed" data-sec="cfg"><div class="lp-sec-h" onclick="lpToggle('cfg')"><span>⚙️ 撿貨路線設定（之後才會啟用）</span><span class="ar">▾</span></div>
+        <div class="lp-sec-b"><div class="form-grid" style="margin-top:8px;">
           <div class="form-group"><label>從哪裡開始撿</label><select id="lm-start"></select></div>
           <div class="form-group"><label>撿完走到哪裡</label><select id="lm-end"></select></div>
           <div class="form-group"><label>同一格裡，先拿哪一層</label>
-            <select id="lm-level"><option value="high">高 → 中 → 低</option><option value="low">低 → 中 → 高</option></select></div>
-        </div>
-      </details>
+            <select id="lm-level"><option value="high">高 → 中 → 低</option><option value="low">低 → 中 → 高</option></select></div></div></div></div>
     </div>
   </div>
   <div class="lp-bar"><span id="lm-dirty" style="font-size:12px;color:var(--orange);flex:1;"></span>
@@ -5541,6 +5552,7 @@ function renderLocations(){
     G('lm-start').value=cfg.start||'garage';G('lm-end').value=cfg.end||'garage';G('lm-level').value=cfg.level||'high';
     _lmCfgOrig=JSON.stringify({p:cfg.placeCfg||{},z:cfg.zones||[]});_lmZone=null;
     _lmDirty=new Set();_lmOrig={};_lmSel=null;_lmPick=null;_lmFocusPid=null;_lmTarget=null;G('lm-q').value='';
+    lpApply();
     _lmTest.carry=cfg.carry||_lmTest.carry||6;_lmTest.table=Number.isInteger(cfg.table)?cfg.table:null;_lmTest.res=null;
     _lmActive=true;
   }
@@ -5718,7 +5730,7 @@ async function lmRemovePlace(id){
   _locRouteCache={};_lmSel=null;lmRender();
 }
 function lmPickShelf(id){
-  _lmSel=id;_lmPick=null;_lmFocusPid=null;_lmZone=null;
+  _lmSel=id;_lmPick=null;_lmFocusPid=null;_lmZone=null;lpOpen('shelf');
   const sh=locById(id);_lmTarget=sh?{lv:sh.layers[0],where:{end:true}}:null;
   lmRender();lmScrollTo('lm-shelf');
 }
@@ -5896,6 +5908,30 @@ async function saveLocMap(){
   showToast('位置已儲存','success',2500);
 }
 // ── 路線測試：沒有推車，一趟拿幾樣就要回工作桌放好，再出發 ──────────
+const LP_DEF_CLOSED={test:true,cfg:true};
+function lpLoad(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
+function lpSave(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function lpApply(){
+  const st=lpLoad('lp_secs',{});
+  document.querySelectorAll('#tab-locations .lp-sec').forEach(el=>{const k=el.dataset.sec;const closed=(k in st)?st[k]:!!LP_DEF_CLOSED[k];el.classList.toggle('closed',closed);});
+  const w=lpLoad('lp_split',null),wrap=document.querySelector('#tab-locations .lp-wrap');
+  if(wrap){if(w)wrap.style.setProperty('--lpl',w+'px');else wrap.style.removeProperty('--lpl');wrap.style.setProperty('--lpz',lpLoad('lp_zoom',1));}
+}
+function lpToggle(k){const el=document.querySelector('#tab-locations .lp-sec[data-sec="'+k+'"]');if(!el)return;el.classList.toggle('closed');
+  const st=lpLoad('lp_secs',{});st[k]=el.classList.contains('closed');lpSave('lp_secs',st);}
+function lpOpen(k){const el=document.querySelector('#tab-locations .lp-sec[data-sec="'+k+'"]');if(el&&el.classList.contains('closed'))lpToggle(k);}
+function lpAll(open){const st={};document.querySelectorAll('#tab-locations .lp-sec').forEach(el=>{el.classList.toggle('closed',!open);st[el.dataset.sec]=!open;});lpSave('lp_secs',st);}
+function lpZoom(d){const z=Math.max(0.7,Math.min(1.6,Math.round((lpLoad('lp_zoom',1)+d)*10)/10));lpSave('lp_zoom',z);document.querySelector('#tab-locations .lp-wrap').style.setProperty('--lpz',z);}
+(function(){ // 拖曳中間的分隔線調整左右寬度
+  let drag=null;
+  const down=e=>{const sp=e.target.closest&&e.target.closest('#lp-split');if(!sp)return;drag={wrap:sp.parentElement,sp};sp.classList.add('drag');e.preventDefault();};
+  const move=e=>{if(!drag)return;const r=drag.wrap.getBoundingClientRect(),x=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
+    const w=Math.max(r.width*0.28,Math.min(r.width*0.78,x));drag.wrap.style.setProperty('--lpl',w+'px');drag.w=w;if(e.cancelable)e.preventDefault();};
+  const up=()=>{if(!drag)return;drag.sp.classList.remove('drag');if(drag.w)lpSave('lp_split',Math.round(drag.w));drag=null;};
+  document.addEventListener('mousedown',down);document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);
+  document.addEventListener('touchstart',down,{passive:false});document.addEventListener('touchmove',move,{passive:false});document.addEventListener('touchend',up);
+  document.addEventListener('dblclick',e=>{if(e.target.closest&&e.target.closest('#lp-split')){try{localStorage.removeItem('lp_split');}catch(_){}document.querySelector('#tab-locations .lp-wrap').style.removeProperty('--lpl');}});
+})();
 let _lmTest={carry:6,table:null,orderId:'',res:null};
 function locTableIdx(){
   const cfg=db.locConfig||{};
@@ -5991,7 +6027,7 @@ function lmTestRender(){
   const cur=G('lm-test-src')?.value||_lmTest.orderId||'random';
   const tbIdx=locTableIdx();
   const tbOpts=LOCMAP_1F.blocks.map((b,i)=>({b,i})).filter(x=>x.b.t==='furn').map(({b,i})=>{const x=b.c+b.w/2,y=b.r+b.h/2;return `<option value="${i}" ${i===tbIdx?'selected':''}>${(x<4?'左':x<8?'中':'右')+(y<4?'上':y<7?'中':'下')} ${anEsc(b.l)}</option>`;}).join('');
-  el.innerHTML=`<div style="font-size:17px;font-weight:700;margin-bottom:4px;">🧪 路線測試 <span style="font-size:12px;font-weight:400;color:var(--text3);">只是試算，不會影響真的撿貨單</span></div>
+  el.innerHTML=`<div style="font-size:12px;color:var(--text3);margin-bottom:4px;">只是試算，不會影響真的撿貨單</div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">沒有推車：一趟拿滿就回工作桌放好，再出發拿下一趟。目前只算一樓。</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
       <div><div style="font-size:12px;color:var(--text3);">用哪一張單測試</div><select id="lm-test-src" style="min-width:200px;"><option value="random" ${cur==='random'?'selected':''}>隨機挑 12 個已放好的商品</option>${ords.map(o=>`<option value="${o.id}" ${cur===o.id?'selected':''}>${anEsc(o.date||'')} ${anEsc(db.customers.find(c=>c.id===o.customerId)?.name||'')}（${(o.items||[]).length} 項）</option>`).join('')}</select></div>
@@ -6007,7 +6043,7 @@ function lmRunTest(){
   if(!it.one.length&&!it.other.length&&!it.none.length){showToast('這張單沒有商品','warn');return;}
   const plan=it.one.length?locPlanTrips(it.one,_lmTest.carry):{trips:[],total:0,start:null};
   if(plan.err){showToast(plan.err,'warn',3000);return;}
-  _lmTest.res={plan,other:it.other,none:it.none};
+  _lmTest.res={plan,other:it.other,none:it.none};lpOpen('test');
   if(_lmFloor!=='一樓'){_lmFloor='一樓';_lmSel=null;_lmTarget=null;}
   lmRender();setTimeout(()=>G('lm-map')?.scrollIntoView({behavior:'smooth',block:'start'}),50);
 }
