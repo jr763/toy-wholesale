@@ -251,8 +251,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 .an-ta-res{display:none;position:absolute;top:100%;left:0;right:0;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:var(--shadow);margin-top:2px}
 .an-ta-res div{padding:9px 12px;font-size:13px;cursor:pointer}
 .an-ta-res div:hover{background:var(--surface2)}
-.lm-grid{position:relative;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(9,1fr);aspect-ratio:12/9;gap:2px;margin:0 auto;}
-.lm-c{border-radius:4px;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:clamp(11px,1.9cqw,26px);line-height:1.15;overflow:hidden;position:relative;color:#444;background:var(--surface);border:1px solid var(--border);}
+.lm-grid{position:relative;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(9,1fr);gap:2px;margin:0 auto;}
+.lm-c{border-radius:4px;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:clamp(11px,min(1.9cqw,3cqh),26px);line-height:1.15;overflow:hidden;position:relative;color:#444;background:var(--surface);border:1px solid var(--border);}
 .lm-c.furn{background:#d9d9d9;border-color:#c4c4c4;}
 .lm-c.door{background:#b6d7a8;border-color:#93c47d;}
 .lm-c.stair{background:#a4c2f4;border-color:#6fa8dc;}
@@ -269,11 +269,11 @@ body.dg-active{cursor:grabbing;}
 #tab-locations .btn-sm{padding:9px 14px;font-size:14px;}
 #tab-locations select,#tab-locations input{font-size:15px;}
 #tab-locations .lm-n{font-size:12px;padding:1px 6px;}
-#lm-map{width:min(100vw - 60px,calc((100vh - 165px)*var(--ar,1.33)));container-type:inline-size;}
-.lm-grid{width:100%;margin:0;}
+#lm-map{height:max(360px,calc(100vh - 165px));width:calc(100vw - 84px);container-type:size;}
+.lm-grid{width:100%;height:100%;margin:0;}
 .lp-float{position:fixed;right:18px;top:150px;width:440px;height:calc(100vh - 175px);max-height:calc(100vh - 160px);min-width:320px;min-height:140px;display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.3);z-index:60;resize:both;overflow:hidden;}
 .lp-float.hide{display:none;}
-@media(max-width:1000px){#lm-map{width:min(100vw - 40px,calc(62vh*var(--ar,1.33)));}.lp-float{left:8px!important;right:8px!important;top:auto!important;bottom:8px!important;width:auto!important;height:auto!important;max-height:56vh;resize:none;}.lp-ph{cursor:default;}.lp-mapcard{margin-bottom:60vh;}}
+@media(max-width:1000px){#lm-map{height:auto;width:min(100vw - 40px,calc(62vh*var(--ar,1.33)));container-type:inline-size;}.lm-grid{height:auto;aspect-ratio:var(--ar,1.33);}.lp-float{left:8px!important;right:8px!important;top:auto!important;bottom:8px!important;width:auto!important;height:auto!important;max-height:56vh;resize:none;}.lp-ph{cursor:default;}.lp-mapcard{margin-bottom:60vh;}}
 .lp-float.min{height:auto!important;min-height:0;resize:none;}
 .lp-float.min .lp-pb{display:none;}
 .lp-ph{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-bottom:1px solid var(--border);cursor:move;user-select:none;touch-action:none;font-size:15px;}
@@ -292,7 +292,7 @@ body.dg-active{cursor:grabbing;}
 .lm-tgt{font-size:14px;border:1px dashed var(--border);border-radius:8px;padding:6px 8px;color:var(--text2);}
 .lm-tgt.on{border:2px solid #e07020;background:#fff4d6;color:#5a2d00;}
 .lm-c.cell{cursor:pointer;color:#bbb;}
-.lm-c.cell .cl{font-size:clamp(9px,1.1cqw,15px);}
+.lm-c.cell .cl{font-size:clamp(9px,min(1.1cqw,1.8cqh),15px);}
 .lm-c.cell:hover{background:#fff4d6;}
 .lm-c.cell.has{background:#ffe599;border-color:#bf9000;color:#5a2d00;}
 .lm-c.cell.sel{outline:3px solid var(--brown);outline-offset:1px;}
@@ -5666,7 +5666,7 @@ function lmMapRender(){
     const id='C|'+_lmFloor+'|'+c+','+r,n=cellCnt[id]||0;
     h+=`<div class="lm-c cell${n?' has':''}${id===_lmSel?' sel':''}" onclick="lmPickShelf('${id}')" ${dz(id)} style="grid-column:${c+1};grid-row:${r};">${n?`<span class="lm-n">${n}</span>`:`<span class="cl">${String.fromCharCode(65+c)}${r}</span>`}</div>`;}
   G('lm-map').style.setProperty('--ar',L.cols/L.rows);
-  G('lm-map').innerHTML=`<div class="lm-grid" style="grid-template-columns:repeat(${L.cols},1fr);grid-template-rows:repeat(${L.rows},1fr);aspect-ratio:${L.cols}/${L.rows};">${h}${lmTestOverlay()}</div><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px;">橘＝貨架／已設定的家具；黃＝地板上已有商品（數字＝商品數）；空白格＝地板（都能放）；灰色家具點一下可設成放商品的地方</div>`;
+  G('lm-map').innerHTML=`<div class="lm-grid" style="grid-template-columns:repeat(${L.cols},1fr);grid-template-rows:repeat(${L.rows},1fr);">${h}${lmTestOverlay()}</div><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px;">橘＝貨架／已設定的家具；黃＝地板上已有商品（數字＝商品數）；空白格＝地板（都能放）；灰色家具點一下可設成放商品的地方</div>`;
 }
 function lmZonePanel(){
   G('lm-shelf').innerHTML=`<div style="font-size:13px;"><b>畫地板放置區：</b>點上面地圖的<b>空白格子</b>圈出範圍（再點一次取消）。已選 ${_lmZone.length} 格。
