@@ -251,6 +251,21 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 .an-ta-res{display:none;position:absolute;top:100%;left:0;right:0;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:var(--shadow);margin-top:2px}
 .an-ta-res div{padding:9px 12px;font-size:13px;cursor:pointer}
 .an-ta-res div:hover{background:var(--surface2)}
+.lm-grid{display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(9,1fr);aspect-ratio:12/9;gap:2px;max-width:640px;margin:0 auto;}
+.lm-c{border-radius:4px;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:clamp(8px,1.6vw,11px);line-height:1.15;overflow:hidden;position:relative;color:#444;background:var(--surface);border:1px solid var(--border);}
+.lm-c.furn{background:#d9d9d9;border-color:#c4c4c4;}
+.lm-c.door{background:#b6d7a8;border-color:#93c47d;}
+.lm-c.stair{background:#a4c2f4;border-color:#6fa8dc;}
+.lm-c.shelf{background:#f6b26b;border-color:#e07020;cursor:pointer;font-weight:700;color:#5a2d00;}
+.lm-c.shelf.zone{background:#ffe599;border-color:#bf9000;}
+.lm-c.shelf.fpl{background:#f9cb9c;}
+.lm-c.shelf.sel{outline:3px solid var(--brown);outline-offset:1px;}
+.lm-c.shelf.hit{animation:lmpulse 1s ease 3;}
+@keyframes lmpulse{50%{background:#ffe599;}}
+.lm-c .lm-n{position:absolute;right:2px;bottom:1px;background:#5a2d00;color:#fff;border-radius:8px;padding:0 4px;font-size:9px;font-weight:700;}
+.lm-chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:3px 4px 3px 10px;margin:2px;font-size:12px;}
+.lm-chip button{border:none;background:none;cursor:pointer;color:var(--red);font-size:14px;padding:0 4px;}
+.lm-chip.add{cursor:pointer;padding:3px 10px;border-style:dashed;}
 .gp-fold>summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--text);list-style:none}.gp-fold>summary::-webkit-details-marker{display:none}
 .gp-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px}.gp-hero>div{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}.gp-hero small{display:block;font-size:11px;color:var(--text2);margin-bottom:2px}.gp-hero b{font-size:20px}
 .an-seg{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
@@ -436,6 +451,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
   <div class="page-header">
     <div><h2>商品資料庫</h2></div>
     <div style="display:flex;gap:6px;">
+      <button class="btn btn-secondary btn-sm" onclick="openLocMap()">📍 商品位置圖</button>
       <button class="btn btn-secondary btn-sm" onclick="showCustomCodeList()">📋 自編商品條碼清單</button>
       <button class="btn btn-primary" onclick="openProductModal()">＋ 新增商品</button>
     </div>
@@ -784,6 +800,37 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 
 <!-- ======= MODALS ======= -->
 
+<!-- 商品位置圖 -->
+<div class="modal-overlay" id="modal-locmap">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-header"><h3>📍 商品位置 · 一樓</h3><button class="modal-close" onclick="closeLocMap()">×</button></div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">先在位置圖點一個貨架，再看或調整它上面放了什麼。目前只用來記錄商品放在哪裡，撿貨順序先不會跟著變。</div>
+      <div style="position:relative;margin-bottom:8px;">
+        <input id="lm-search" placeholder="🔍 找商品在哪（輸入名稱或條碼）" oninput="lmSearch()" style="width:100%;">
+        <div id="lm-search-res" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--surface);border:1px solid var(--border);border-radius:10px;max-height:220px;overflow-y:auto;box-shadow:0 6px 18px rgba(0,0,0,.12);"></div>
+      </div>
+      <div id="lm-progress" style="font-size:12px;color:var(--text2);margin-bottom:6px;"></div>
+      <div id="lm-map"></div>
+      <div id="lm-panel" style="margin-top:12px;"></div>
+      <details style="margin-top:12px;">
+        <summary style="font-size:13px;font-weight:700;cursor:pointer;">撿貨路線設定（之後才會啟用）</summary>
+        <div class="form-grid" style="margin-top:8px;">
+          <div class="form-group"><label>從哪裡開始撿</label><select id="lm-start"></select></div>
+          <div class="form-group"><label>撿完走到哪裡</label><select id="lm-end"></select></div>
+          <div class="form-group"><label>同一格裡，先拿哪一層</label>
+            <select id="lm-level"><option value="high">高 → 中 → 低</option><option value="low">低 → 中 → 高</option></select></div>
+        </div>
+      </details>
+    </div>
+    <div class="modal-footer" style="padding:12px 22px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid var(--border);">
+      <span id="lm-dirty" style="font-size:12px;color:var(--orange);"></span>
+      <span style="display:flex;gap:8px;"><button class="btn btn-secondary" onclick="closeLocMap()">關閉</button>
+      <button class="btn btn-primary" id="btn-lm-save" onclick="saveLocMap()">儲存</button></span>
+    </div>
+  </div>
+</div>
+
 <!-- Product -->
 <div class="modal-overlay" id="modal-product">
   <div class="modal" style="max-width:600px;">
@@ -821,8 +868,14 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
         </div>
 
         <div class="form-group"><label>存放地點 <span class="req">*</span></label>
-          <select id="p-loc"><option value="地下室">地下室</option><option value="一樓">一樓</option><option value="樓梯間">樓梯間</option><option value="二樓">二樓</option><option value="其他">其他</option></select>
+          <select id="p-loc" onchange="pLocChanged()"><option value="地下室">地下室</option><option value="一樓">一樓</option><option value="樓梯間">樓梯間</option><option value="二樓">二樓</option><option value="其他">其他</option></select>
         </div>
+        <div class="form-group" id="p-spot-shelf-wrap" style="display:none;"><label>放在哪個位置 <span class="req">*</span></label>
+          <select id="p-shelf-sel" onchange="pFillLevels()"><option value="">請選擇</option></select></div>
+        <div class="form-group" id="p-spot-level-wrap" style="display:none;"><label>放在哪一層 <span class="req">*</span></label>
+          <select id="p-level-sel"><option value="">請選擇</option></select></div>
+        <div class="form-group" id="p-spot-fine" style="display:none;"><label>微調位置</label>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openLocMap(editProdId)">📍 到位置圖上調整左右、疊放</button></div>
       </div>
       <!-- 商檢標 -->
       <div style="margin-top:13px;">
@@ -1375,7 +1428,7 @@ async function backupToDrive(){
 setInterval(backupToDrive, 60*60*1000);
 // ── STATE ─────────────────────────────────────
 let db = { products:[], customers:[], orders:[], shipments:[], returns:[],
-  variantOptions:[], payments:{}, accountingChecked:{}, accountingBills:{}, barcodeStock:{}, barcodeLog:[], routeNames:{}, gpSettings:{} };
+  variantOptions:[], payments:{}, accountingChecked:{}, accountingBills:{}, barcodeStock:{}, barcodeLog:[], routeNames:{}, gpSettings:{}, locConfig:{} };
 let orderItems=[], returnItemsArr=[], shipmentItems=[];
 let orderFilter='all';
 let editProdId=null, editCustId=null, editOrderId=null;
@@ -1504,6 +1557,7 @@ async function loadData(btn=false){
       db.barcodeLog=m.barcodeLog||[];
       db.routeNames=m.routeNames||{};
       db.gpSettings=m.gpSettings||{};
+      db.locConfig=m.locConfig||{};
     }
     setSyncStatus('ok','雲端同步・所有人共用');
     G('loading-overlay').style.display='none';
@@ -1739,7 +1793,8 @@ async function saveMeta(){
     barcodeStock:db.barcodeStock||{},
     barcodeLog:(db.barcodeLog||[]).slice(-200),
     routeNames:db.routeNames||{},
-    gpSettings:db.gpSettings||{}
+    gpSettings:db.gpSettings||{},
+    locConfig:db.locConfig||{}
   };
   _logPayloadSize('meta',metaData);
   await fsdb.collection('sections').doc('meta').set({data:metaData, updatedAt:Date.now()});
@@ -2108,7 +2163,7 @@ function queuePendingBackup(section){
   else if(section==='returns') savePendingQueue('returns',{data:db.returns, updatedAt:Date.now()});
   else if(section==='pickingState') savePendingQueue('pickingState',{data:db.pickingState||{}, updatedAt:Date.now()});
   else if(section==='boxingState') savePendingQueue('boxingState',{data:db.boxingState||{}, updatedAt:Date.now()});
-  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},trash:db.trash||[],payments:db.payments||{},accountingChecked:db.accountingChecked||{},accountingBills:db.accountingBills||{},barcodeStock:db.barcodeStock||{},barcodeLog:(db.barcodeLog||[]).slice(-200),routeNames:db.routeNames||{},gpSettings:db.gpSettings||{}}, updatedAt:Date.now()});
+  else if(section==='meta') savePendingQueue('meta',{data:{variantOptions:db.variantOptions||[],calVisits:db.calVisits||{},trash:db.trash||[],payments:db.payments||{},accountingChecked:db.accountingChecked||{},accountingBills:db.accountingBills||{},barcodeStock:db.barcodeStock||{},barcodeLog:(db.barcodeLog||[]).slice(-200),routeNames:db.routeNames||{},gpSettings:db.gpSettings||{},locConfig:db.locConfig||{}}, updatedAt:Date.now()});
 }
 const _sectionLabels={orders:'抄貨單',products:'商品/庫存',customers:'客戶',shipments:'出貨單',returns:'退貨單',meta:'其他設定',pickingState:'撿貨記錄',boxingState:'裝箱記錄'};
 // 一次存多個區塊（例如確認抄貨單同時要存 orders/products/meta）
@@ -2230,6 +2285,7 @@ fsdb.collection('sections').doc('meta').onSnapshot({includeMetadataChanges:true}
       db.barcodeLog=m.barcodeLog||[];
       db.routeNames=m.routeNames||{};
       db.gpSettings=m.gpSettings||{};
+      db.locConfig=m.locConfig||{};
       _lastUpdatedAt['meta']=ts;
     } else {
       console.warn('略過較舊的快取資料（meta），保留目前較新的資料');
@@ -2535,6 +2591,7 @@ function openProductModal(){
   ['p-name','p-barcode','p-cost','p-stock','p-safety','p-batch'].forEach(id=>{if(G(id))G(id).value='';});
   if(G('p-status'))G('p-status').value='';
   if(G('p-loc')) G('p-loc').value='一樓';
+  if(G('p-shelf-sel')) G('p-shelf-sel').value='';if(G('p-level-sel')) G('p-level-sel').value='';pLocChanged();
   document.querySelectorAll('input[name="p-insp"]')[0].checked=true;
   G('p-batch-wrap').style.display='none';
   renderProductVariantList(); openModal('modal-product');
@@ -2547,6 +2604,7 @@ function editProduct(id){
   G('p-stock').value=p.currentStock??''; G('p-safety').value=p.safetyStock||''; 
   if(G('p-status'))G('p-status').value=p.discontinued?'disc':(p.outOfStock?'oos':'');
   if(G('p-loc')) G('p-loc').value=p.location||'一樓';
+  if(G('p-shelf-sel')){pFillPlaces();G('p-shelf-sel').value=locShelfInfo(p.location,p.shelf)?locNorm(p.shelf):'';pFillLevels();}if(G('p-level-sel')) G('p-level-sel').value=p.level||'';pLocChanged();
 
   const hasM=p.hasInspectionMark!==false;
   document.querySelectorAll('input[name="p-insp"]')[hasM?0:1].checked=true;
@@ -2576,6 +2634,23 @@ function generateInternalCode(){
   const next=(nums.length?Math.max(...nums):0)+1;
   return 'ASK'+String(next).padStart(4,'0');
 }
+function pFillPlaces(){
+  const sel=G('p-shelf-sel');if(!sel)return;const cur=sel.value;
+  sel.innerHTML='<option value="">請選擇</option>'+locPlaces().map(x=>`<option value="${x.id}">${anEsc(x.name)}${x.kind==='shelf'?'':'（'+(x.kind==='zone'?'地板':'家具')+'）'}</option>`).join('');
+  sel.value=cur;if(sel.value!==cur)sel.value='';pFillLevels();
+}
+function pFillLevels(){
+  const ls=G('p-level-sel');if(!ls)return;const cur=ls.value;
+  const pl=locShelfInfo('一樓',G('p-shelf-sel')?.value||'');
+  ls.innerHTML='<option value="">請選擇</option>'+(pl?pl.layers.map(l=>`<option value="${l}">${lvLabel(l)}</option>`).join(''):'');
+  ls.value=cur;if(ls.value!==cur)ls.value=(pl&&pl.layers.length===1)?pl.layers[0]:'';
+}
+function pLocChanged(){
+  const one=(G('p-loc')?.value||'')==='一樓';
+  if(one)pFillPlaces();
+  ['p-spot-shelf-wrap','p-spot-level-wrap'].forEach(id=>{if(G(id))G(id).style.display=one?'':'none';});
+  if(G('p-spot-fine'))G('p-spot-fine').style.display=(one&&editProdId)?'':'none';
+}
 async function saveProduct(){
   const name=V('p-name');
   let barcode=V('p-barcode');
@@ -2585,14 +2660,25 @@ async function saveProduct(){
   if(G('p-safety').value===''){toastAlert('請輸入安全庫存量','warn');return;}
   const hasM=document.querySelector('input[name="p-insp"]:checked').value==='1';
   if(!hasM&&!V('p-batch')){toastAlert('請輸入商檢批號','warn');return;}
+  const _loc=G('p-loc')?.value||'一樓';
+  const _sh=G('p-shelf-sel')?.value||'',_lv=G('p-level-sel')?.value||'';
+  if(_loc==='一樓'&&(!_sh||!_lv)){toastAlert('商品一定要有位置：請選擇放在哪個位置、哪一層','warn');return;}
   isSaving=true;
   const btn=G('btn-save-p');btn.disabled=true;btn.textContent='儲存中…';
+  // 位置：位置沒變就保留原本的左右／疊放順序，變了就放到那一層的最後面
+  const _old=editProdId?db.products.find(x=>x.id===editProdId):null;
+  let _pos=0,_z=0;
+  if(_loc==='一樓'){
+    if(_old&&_old.location==='一樓'&&locNorm(_old.shelf)===_sh&&_old.level===_lv){_pos=Number(_old.pos)||0;_z=Number(_old.z)||0;}
+    else _pos=lmAppendPos(_sh,_lv,editProdId);
+  }
   const pStatus=G('p-status')?.value||'';
   const data={name,barcode,cost:parseFloat(G('p-cost').value)||0,currentStock:parseFloat(G('p-stock').value)||0,
     safetyStock:parseFloat(G('p-safety').value)||0,
     outOfStock:pStatus==='oos',
     discontinued:pStatus==='disc',
-    location:G('p-loc')?.value||'一樓',
+    location:_loc,
+    shelf:_loc==='一樓'?_sh:'',level:_loc==='一樓'?_lv:'',pos:_pos,z:_z,
     hasInspectionMark:hasM,inspectionBatchNo:hasM?'':V('p-batch'),
     variants:[...(window._productVariants||[])],
     variantImages:{...(window._productVariantImages||{})},
@@ -2647,7 +2733,7 @@ function renderProducts(){
       <td data-label="EAN條碼" class="mono">${p.barcode||'—'}</td>
       <td data-label="庫存" class="${sc}">${s}</td>
       <td data-label="商標">${insp}</td>
-      <td data-label="存放地點">${p.location||'—'}</td>
+      <td data-label="存放地點">${locLabelOf(p)}</td>
       <td data-label="" style="white-space:nowrap;">
         <button class="btn btn-sm btn-secondary" onclick="editProduct('${p.id}')">編輯</button>
         <button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')" style="margin-left:3px;">刪除</button>
@@ -3418,16 +3504,146 @@ function filterPickReadonlyByPrice(){
 }
 // 撿貨/裝箱記錄(pickingState)是用「排序後的商品清單位置」當key存的。
 // 所有用到這份記錄的地方（撿貨畫面、唯讀畫面、撿貨完成、裝箱、編輯抄貨單）都必須用這同一個排序，位置才會對得上。
+// ── 一樓位置圖 & 撿貨動線 ─────────────────────
+// 座標：col 0~11 = A~L，row 1~9（跟你畫的格子圖一樣）。程式用代碼，使用者只會看到圖和「貨架①左」這類名稱。
+const LOC_FLOORS=['地下室','一樓','樓梯間','二樓','其他',''];
+const LOCMAP_1F={
+  cols:12,rows:9,
+  // 不能走的家具／牆（label 會畫在圖上）
+  blocks:[
+    {c:0,r:1,w:1,h:1,t:'wall',l:''},
+    {c:5,r:1,w:5,h:1,t:'furn',l:'電視櫃+電視'},{c:10,r:1,w:1,h:1,t:'furn',l:'櫃子'},{c:11,r:1,w:1,h:1,t:'furn',l:'櫃子'},
+    {c:0,r:6,w:1,h:1,t:'furn',l:'垃圾桶'},{c:0,r:7,w:1,h:2,t:'furn',l:'廁所'},
+    {c:5,r:5,w:4,h:2,t:'furn',l:'桌子'},{c:9,r:5,w:1,h:2,t:'furn',l:'椅子'},{c:9,r:7,w:1,h:2,t:'furn',l:'櫃子'},
+    {c:5,r:8,w:4,h:1,t:'furn',l:'椅子'},{c:10,r:6,w:1,h:3,t:'furn',l:'鐵櫃'},
+    {c:11,r:4,w:1,h:1,t:'furn',l:'櫃子'},{c:11,r:5,w:1,h:4,t:'furn',l:'辦公桌'}],
+  // 出入口（可以走）
+  doors:{door:{c:11,r:2,w:1,h:2,l:'門口',name:'門口'},garage:{c:4,r:9,w:1,h:1,l:'車庫門',name:'車庫門'},
+         stairDown:{c:0,r:9,w:1,h:1,l:'往地下室',name:'地下室樓梯'},stairUp:{c:1,r:9,w:1,h:1,l:'往二樓',name:'二樓樓梯'}},
+  // 三個長貨架：id 是程式用的代碼；stand 是人站著拿貨的位置；cells 是它在圖上佔的格子
+  shelves:[
+    {id:'S1',name:'貨架①',short:'貨架①',c:1,r:1,w:2,h:1,stand:[1,2],cells:[[1,1],[2,1]],face:'站在貨架前面（南邊）看，左邊是西、右邊是東'},
+    {id:'S2',name:'貨架②',short:'貨架②',c:3,r:1,w:2,h:1,stand:[3,2],cells:[[3,1],[4,1]],face:'站在貨架前面（南邊）看，左邊是西、右邊是東'},
+    {id:'S3',name:'貨架③',short:'貨架③',c:0,r:2,w:1,h:4,stand:[1,3],cells:[[0,2],[0,3],[0,4],[0,5]],face:'站在貨架前面（東邊）看，左邊是南、右邊是北'}]
+};
+// 舊版用過的格子代碼 → 轉成新的貨架代碼
+const LOC_OLD_CODE={B1:'S1',C1:'S1',D1:'S2',E1:'S2',A2:'S3',A3:'S3',A4:'S3',A5:'S3'};
+function locNorm(code){return LOC_OLD_CODE[code]||code;}
+function locLayerNames(n){n=Math.max(1,Math.min(6,Number(n)||1));return n===1?['一層']:n===2?['上層','下層']:n===3?['高','中','低']:Array.from({length:n},(_,i)=>'第'+(i+1)+'層');}
+function lvLabel(l){return ['高','中','低'].includes(l)?l+'層':l;}
+// 所有「可以放商品的地方」：三個貨架 + 使用者設定成可放商品的家具 + 使用者在地板上畫的放置區
+function locPlaces(){
+  const cfg=db.locConfig||{},pc=cfg.placeCfg||{},out=[];
+  LOCMAP_1F.shelves.forEach(sh=>out.push({...sh,kind:'shelf',layers:locLayerNames((pc[sh.id]||{}).layers||3)}));
+  const names=LOCMAP_1F.blocks.map((b,i)=>{
+    if(b.t!=='furn')return '';
+    const x=b.c+b.w/2,y=b.r+b.h/2;
+    return (x<4?'左':x<8?'中':'右')+(y<4?'上':y<7?'中':'下')+' '+b.l;
+  });
+  const seen={};
+  LOCMAP_1F.blocks.forEach((b,i)=>{
+    if(b.t!=='furn')return;
+    const id='F'+i,c=pc[id];
+    seen[names[i]]=(seen[names[i]]||0)+1;
+    const dup=names.filter(n=>n===names[i]).length>1;
+    if(!c||!c.on)return;
+    const cells=[];for(let x=b.c;x<b.c+b.w;x++)for(let y=b.r;y<b.r+b.h;y++)cells.push([x,y]);
+    out.push({id,name:names[i]+(dup?'（'+seen[names[i]]+'）':''),short:b.l,c:b.c,r:b.r,w:b.w,h:b.h,cells,stand:null,kind:'furn',layers:locLayerNames(c.layers||1),face:'站在它前面看，左邊是你的左手邊'});
+  });
+  (cfg.zones||[]).forEach(z=>out.push({id:z.id,name:z.name,short:z.name,cells:z.cells,stand:z.cells[0],kind:'zone',layers:locLayerNames(z.layers||1),face:'地板上的放置區'}));
+  return out;
+}
+function locShelfInfo(floor,code){
+  if(floor!=='一樓'||!code)return null;
+  const k=locNorm(code);
+  return locPlaces().find(x=>x.id===k)||null;
+}
+function locLabelOf(i){
+  const sh=locShelfInfo(i.location,i.shelf);
+  const parts=[i.location||'',sh?sh.name:(i.shelf||''),i.level||''].filter(Boolean);
+  return parts.length?parts.join(' '):'—';
+}
+// 一樓：算出「從起點走過所有要拿貨的格子再到終點」最短的順序
+let _locRouteCache={};
+function locWalkGrid(){
+  const L=LOCMAP_1F,blocked=new Set();
+  L.blocks.forEach(b=>{for(let x=b.c;x<b.c+b.w;x++)for(let y=b.r;y<b.r+b.h;y++)blocked.add(x+','+y);});
+  L.shelves.forEach(sh=>sh.cells.forEach(([x,y])=>blocked.add(x+','+y)));
+  return blocked;
+}
+function locBfs(blocked,from){
+  const L=LOCMAP_1F,dist={};dist[from[0]+','+from[1]]=0;const q=[from];
+  while(q.length){const [x,y]=q.shift();const d=dist[x+','+y];
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const nx=x+dx,ny=y+dy,k=nx+','+ny;
+      if(nx<0||nx>=L.cols||ny<1||ny>L.rows||blocked.has(k)||dist[k]!==undefined)return;
+      dist[k]=d+1;q.push([nx,ny]);});}
+  return dist;
+}
+function locRouteOrder(cells){ // cells: 要拿貨的放置處代碼 → 回傳 {代碼:順序}
+  const cfg=db.locConfig||{};const L=LOCMAP_1F;
+  const startK=cfg.start||'garage',endK=cfg.end||'garage';
+  const key=JSON.stringify([cells.slice().sort(),startK,endK,cfg.zones||[],cfg.placeCfg||{}]);
+  if(_locRouteCache[key])return _locRouteCache[key];
+  const blocked=locWalkGrid();
+  const doorPos=k=>{const d=L.doors[k]||L.doors.garage;return [d.c,d.r];};
+  const sPos=doorPos(startK),ePos=doorPos(endK);
+  const dStart=locBfs(blocked,sPos);
+  const places=locPlaces();
+  const standOf=id=>{
+    const pl=places.find(x=>x.id===id);if(!pl)return null;
+    if(pl.stand&&!blocked.has(pl.stand.join(',')))return pl.stand;
+    if(pl.stand&&pl.kind==='zone')return pl.stand;
+    const own=new Set(pl.cells.map(c=>c.join(',')));let best=null,bd=Infinity;
+    pl.cells.forEach(([x,y])=>[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+      const nx=x+dx,ny=y+dy,k=nx+','+ny;
+      if(nx<0||nx>=L.cols||ny<1||ny>L.rows||blocked.has(k)||own.has(k))return;
+      const d=dStart[k];if(d!==undefined&&d<bd){bd=d;best=[nx,ny];}
+    }));
+    return best||pl.stand||pl.cells[0];
+  };
+  const standById={};cells.forEach(c=>{standById[c]=standOf(c);});
+  const stands=[...new Set(Object.values(standById).filter(Boolean).map(p=>p.join(',')))];
+  const nodes=[sPos.join(','),...stands,ePos.join(',')];
+  const D={};nodes.forEach(n=>{D[n]=locBfs(blocked,n.split(',').map(Number));});
+  const dd=(x,y)=>(D[x]&&D[x][y]!==undefined)?D[x][y]:999;
+  let best=null,bestLen=Infinity;
+  const perm=(arr,cur,len,last)=>{
+    if(!arr.length){const t=len+dd(last,nodes[nodes.length-1]);if(t<bestLen){bestLen=t;best=cur.slice();}return;}
+    if(len>=bestLen)return;
+    arr.forEach((n,i)=>{cur.push(n);perm(arr.slice(0,i).concat(arr.slice(i+1)),cur,len+dd(last,n),n);cur.pop();});
+  };
+  if(stands.length<=8)perm(stands,[],0,nodes[0]);
+  else{ // 站點太多：用「最近的下一個」的方法
+    let left=stands.slice(),last=nodes[0];best=[];
+    while(left.length){left.sort((p,q)=>dd(last,p)-dd(last,q));last=left.shift();best.push(last);}
+  }
+  const rankOfStand={};(best||stands).forEach((n,i)=>{rankOfStand[n]=i;});
+  const res={};cells.forEach(c=>{const st=standById[c];res[c]=st&&rankOfStand[st.join(',')]!==undefined?rankOfStand[st.join(',')]:900;});
+  _locRouteCache[key]=res;return res;
+}
+const LOC_ROUTE_ON=false; // 位置都放好之前先不依位置圖排撿貨順序；之後改成 true 就啟用
 function getPickSortedItems(items){
-  const locOrder=['地下室','一樓','樓梯間','二樓','其他',''];
-  return [...(items||[])].map(i=>{
+  const list=[...(items||[])].map(i=>{
     const p=db.products.find(x=>x.id===i.productId);
-    return {...i,location:i.location||p?.location||'',
+    return {...i,location:i.location||p?.location||'',shelf:locNorm(p?.shelf||''),level:p?.level||'',pos:Number(p?.pos)||0,z:Number(p?.z)||0,
       hasInspMark:p?p.hasInspectionMark!==false:true,
       batchNo:p?.inspectionBatchNo||''};
-  }).sort((a,b)=>{
-    const la=locOrder.indexOf(a.location);const lb=locOrder.indexOf(b.location);
-    if(la!==lb)return (la<0?99:la)-(lb<0?99:lb);
+  });
+  const cells1F=!LOC_ROUTE_ON?[]:[...new Set(list.filter(i=>i.location==='一樓'&&locShelfInfo('一樓',i.shelf)).map(i=>i.shelf))];
+  const route=cells1F.length?locRouteOrder(cells1F):{};
+  const lowFirst=((db.locConfig||{}).level||'high')==='low';
+  const rank=i=>{
+    const f=LOC_FLOORS.indexOf(i.location);
+    const sr=(i.location==='一樓'&&route[i.shelf]!==undefined)?route[i.shelf]:(i.shelf?5000:99999);
+    const pl=i.location==='一樓'?locShelfInfo('一樓',i.shelf):null;
+    const lv=(pl?pl.layers:['高','中','低']).slice();if(lowFirst)lv.reverse();
+    const li=lv.indexOf(i.level);
+    if(!LOC_ROUTE_ON)return [f<0?99:f];
+    return [f<0?99:f,sr,String(i.shelf||''),li<0?9:li,i.pos||0,i.z||0];
+  };
+  return list.sort((a,b)=>{
+    const ra=rank(a),rb=rank(b);
+    for(let k=0;k<ra.length;k++){if(ra[k]!==rb[k])return ra[k]<rb[k]?-1:1;}
     if(a.productId!==b.productId)return (a.productId||'').localeCompare(b.productId||'');
     return (a.variant||'').localeCompare(b.variant||'');
   });
@@ -3450,7 +3666,7 @@ async function viewOrderReadonly(id){
         const checked=!!savedState[idx];
         return `<tr id="pick-ro-row-${idx}" data-price="${i.price}" style="${checked?'opacity:0.55;text-decoration:line-through;':''}">
           <td>${checked?'✓':'□'}</td>
-          <td><span class="badge badge-blue">${i.location||'—'}</span></td>
+          <td><span class="badge badge-blue">${locLabelOf(i)}</span></td>
           <td>${i.hasInspMark!==false?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'—')+'</span>'}</td>
           <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}</td>
           <td>${i.variant?i.variant:(i.excludeVariants&&i.excludeVariants.length?`<span style="color:var(--orange);">任選（不含：${i.excludeVariants.join('、')}）</span>`:'—')}</td>
@@ -3502,7 +3718,7 @@ async function viewOrder(id){
         const isBlocked=(isOOS||isDisc)&&noStock; // 有標記但庫存還夠，還是可以正常撿貨；真的沒庫存才鎖住
         return `<tr id="pick-row-${idx}" data-price="${i.price}" style="transition:opacity .2s;${isBlocked?'background:var(--bg2);':''}">
         <td><input type="checkbox" id="pick-cb-${idx}" onchange="togglePicked(${idx},this)" ${isBlocked?`disabled title="此商品已標記${isDisc?'停售':'缺貨'}且庫存為0，無法撿貨"`:''}></td>
-        <td><span class="badge badge-blue">${i.location||'—'}</span></td>
+        <td><span class="badge badge-blue">${locLabelOf(i)}</span></td>
         <td>${i.hasInspMark?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'無批號')+'</span>'}</td>
         <td><strong>${i.name}</strong>${i.specialPacking?` <span class='badge badge-orange'>${i.specialPacking}</span>`:''}${isDisc?` <span class="badge badge-red">停售</span>`:isOOS?` <span class="badge badge-red">缺貨</span>`:''}</td>
         <td>${i.variant?i.variant:(i.excludeVariants&&i.excludeVariants.length?`<span style="color:var(--orange);">任選（不含：${i.excludeVariants.join('、')}）</span>`:'—')}</td>
@@ -3570,7 +3786,7 @@ function showMissingItems(){
         <tbody>${missingIdxs.map(i=>{
           const item=items[i];
           return `<tr style="cursor:pointer;" onclick="scrollToPickRow(${i})">
-            <td><span class="badge badge-blue">${item.location||'—'}</span></td>
+            <td><span class="badge badge-blue">${locLabelOf(item)}</span></td>
             <td>${item.hasInspMark!==false?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(item.batchNo||'—')+'</span>'}</td>
             <td><strong>${item.name}</strong>${item.specialPacking?` <span class='badge badge-orange'>${item.specialPacking}</span>`:''}</td>
             <td>${item.variant||'—'}</td>
@@ -4761,12 +4977,12 @@ function bcStockKey(price,prefix){
   return eff+'|'+price;
 }
 function bcStockGet(price,prefix){ return (db.barcodeStock||{})[bcStockKey(price,prefix)]||0; }
-function bcStockAdjust(key,delta,reason){
+function bcStockAdjust(key,delta,reason,note){
   if(!db.barcodeStock)db.barcodeStock={};
   const n=Math.max(0,(db.barcodeStock[key]||0)+delta);
   if(n>0)db.barcodeStock[key]=n; else delete db.barcodeStock[key];
   if(!db.barcodeLog)db.barcodeLog=[];
-  db.barcodeLog.push({t:new Date().toISOString().slice(0,16).replace('T',' '),key,delta,reason:reason||''});
+  db.barcodeLog.push({t:(d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'))(new Date()),key,delta,reason:reason||'',u:(typeof getCurrentUserName==='function'?getCurrentUserName():''),note:note||''});
   if(db.barcodeLog.length>200)db.barcodeLog=db.barcodeLog.slice(-200);
 }
 function renderBcStock(){
@@ -4794,9 +5010,17 @@ function renderBcStock(){
       </div>`).join('')}
     </div>`;
   }).join('');
-  const log=(db.barcodeLog||[]).slice(-8).reverse();
-  el.innerHTML=html+(log.length?`<details><summary style="font-size:12px;color:var(--text2);cursor:pointer;">最近異動紀錄</summary>
-    <div style="font-size:12px;color:var(--text2);margin-top:6px;">${log.map(l=>`<div>${l.t}　${l.key.replace('|',' / $')}　<strong style="color:${l.delta>=0?'var(--green)':'var(--red)'};">${l.delta>=0?'+':''}${l.delta}</strong>　${l.reason||''}</div>`).join('')}</div></details>`:'');
+  const all=(db.barcodeLog||[]).slice().reverse();
+  const used=all.filter(l=>l.reason==='列印時使用庫存');
+  const usedTotal=used.reduce((n,l)=>n+Math.abs(l.delta),0);
+  const row=l=>`<div style="padding:3px 0;border-bottom:1px solid var(--border);">${l.t}　${l.u?anEsc(l.u)+'　':''}${l.key.replace('|',' / $')}　<strong style="color:${l.delta>=0?'var(--green)':'var(--red)'};">${l.delta>=0?'+':''}${l.delta}</strong>　${anEsc(l.reason||'')}${l.note?'　<span style="color:var(--text3);">'+anEsc(l.note)+'</span>':''}</div>`;
+  el.innerHTML=html+`<div style="margin-top:8px;padding:10px 12px;background:var(--surface2);border-radius:10px;font-size:13px;">
+      <b>撿貨時有沒有用到庫存</b>
+      ${used.length?`<div style="margin-top:2px;color:var(--text2);">最近紀錄共用掉 ${usedTotal} 張（${used.length} 次）。最後一次：${used[0].t}${used[0].u?'，'+anEsc(used[0].u):''}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:6px;max-height:220px;overflow-y:auto;">${used.slice(0,30).map(row).join('')}</div>`
+      :`<div style="margin-top:2px;color:var(--text2);">還沒有任何撿貨用過庫存的紀錄。</div>`}
+    </div>`+(all.length?`<details style="margin-top:8px;"><summary style="font-size:12px;color:var(--text2);cursor:pointer;">全部異動紀錄（加入、調整、使用）</summary>
+    <div style="font-size:12px;color:var(--text2);margin-top:6px;max-height:260px;overflow-y:auto;">${all.slice(0,60).map(row).join('')}</div></details>`:'');
 }
 async function addBarcodeStock(){
   const price=parseFloat(G('bs-price').value);
@@ -5195,6 +5419,277 @@ document.addEventListener('click',e=>{
     const r=G(id+'-res');if(r&&!e.target.closest('.an-ta'))r.style.display='none';
   });
 });
+
+// ── 商品位置圖（一樓）：地圖選貨架 → 貨架正面圖（每一層是一排「欄」，每欄可以疊好幾個商品）──────────
+let _lmSel=null,_lmDirty=new Set(),_lmOrig={},_lmPick=null,_lmFocusPid=null,_lmCfgOrig=null,_lmZone=null;
+function lmCfg(){db.locConfig=db.locConfig||{};db.locConfig.placeCfg=db.locConfig.placeCfg||{};db.locConfig.zones=db.locConfig.zones||[];return db.locConfig;}
+function lmCfgChanged(){return _lmCfgOrig!==null&&JSON.stringify({p:(db.locConfig||{}).placeCfg||{},z:(db.locConfig||{}).zones||[]})!==_lmCfgOrig;}
+function _lmSnap(p){if(!_lmOrig[p.id])_lmOrig[p.id]={location:p.location,shelf:p.shelf,level:p.level,pos:p.pos,z:p.z};}
+function openLocMap(pid){
+  const cfg=db.locConfig||{};
+  const dopts=Object.entries(LOCMAP_1F.doors).map(([k,d])=>`<option value="${k}">${d.name}</option>`).join('');
+  G('lm-start').innerHTML=dopts;G('lm-end').innerHTML=dopts;
+  G('lm-start').value=cfg.start||'garage';G('lm-end').value=cfg.end||'garage';G('lm-level').value=cfg.level||'high';
+  _lmCfgOrig=JSON.stringify({p:cfg.placeCfg||{},z:cfg.zones||[]});_lmZone=null;
+  _lmDirty=new Set();_lmOrig={};_lmSel=null;_lmPick=null;_lmFocusPid=null;G('lm-search').value='';G('lm-search-res').style.display='none';
+  const p=pid?db.products.find(x=>x.id===pid):null;
+  if(p){const sh=p.location==='一樓'&&locShelfInfo('一樓',p.shelf);if(sh){_lmSel=sh.id;_lmFocusPid=p.id;}}
+  if(document.getElementById('modal-product')?.classList.contains('open'))closeModal('modal-product');
+  lmRender();openModal('modal-locmap');
+}
+async function closeLocMap(){
+  if((_lmDirty.size||lmCfgChanged())&&!(await toastConfirm('有位置的修改還沒儲存，確定要關閉嗎？','關閉不儲存','回去')))return;
+  if(_lmCfgOrig!==null){const o=JSON.parse(_lmCfgOrig);lmCfg();db.locConfig.placeCfg=o.p;db.locConfig.zones=o.z;_locRouteCache={};}_lmZone=null;
+  Object.entries(_lmOrig).forEach(([id,o])=>{const p=db.products.find(x=>x.id===id);if(p){p.location=o.location;p.shelf=o.shelf;p.level=o.level;p.pos=o.pos;p.z=o.z;}});
+  _lmDirty=new Set();_lmOrig={};renderProducts();
+  closeModal('modal-locmap');
+}
+const lmOn=sh=>db.products.filter(p=>!p.discontinued&&p.location==='一樓'&&locNorm(p.shelf)===sh);
+function lmCount(id){return lmOn(id).length;}
+// 一排（某貨架某一層）→ 欄的陣列，每欄是由上（前）到下（後）疊放的商品陣列
+function lmGetCols(shelf,lv){
+  const m={};
+  lmOn(shelf).filter(p=>p.level===lv).forEach(p=>{const k=Number(p.pos)||0;(m[k]=m[k]||[]).push(p);});
+  return Object.keys(m).map(Number).sort((a,b)=>a-b).map(k=>m[k].sort((a,b)=>(Number(a.z)||0)-(Number(b.z)||0)));
+}
+function lmAppendPos(shelf,lv,excludeId){
+  const row=lmOn(shelf).filter(p=>p.level===lv&&p.id!==excludeId);
+  return row.length?Math.max(...row.map(p=>Number(p.pos)||0))+1:0;
+}
+function lmCommit(shelf,lv,cols){
+  cols.filter(c=>c.length).forEach((col,ci)=>col.forEach((p,zi)=>{
+    if(p.location!=='一樓'||locNorm(p.shelf)!==shelf||p.level!==lv||Number(p.pos)!==ci||Number(p.z)!==zi){
+      _lmSnap(p);p.location='一樓';p.shelf=shelf;p.level=lv;p.pos=ci;p.z=zi;_lmDirty.add(p.id);}
+  }));
+}
+function lmDetach(p){ // 把商品從目前那一排拿出來（它之後一定會放到別的地方）
+  if(p.location!=='一樓'||!locShelfInfo('一樓',p.shelf))return;
+  const sh=locNorm(p.shelf),lv=p.level;
+  lmCommit(sh,lv,lmGetCols(sh,lv).map(c=>c.filter(x=>x.id!==p.id)));
+}
+// where: {end:true} | {stackBefore:pid} | {colBefore:pid}
+function lmPlace(pid,shelf,lv,where){
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  _lmSnap(p);lmDetach(p);
+  const cols=lmGetCols(shelf,lv).map(c=>c.filter(x=>x.id!==pid)).filter(c=>c.length);
+  p.location='一樓';p.shelf=shelf;p.level=lv;_lmDirty.add(pid);
+  if(where&&where.stackBefore){const ci=cols.findIndex(c=>c.some(x=>x.id===where.stackBefore));if(ci>=0){const zi=cols[ci].findIndex(x=>x.id===where.stackBefore);cols[ci].splice(zi,0,p);}else cols.push([p]);}
+  else if(where&&where.colBefore){const ci=cols.findIndex(c=>c.some(x=>x.id===where.colBefore));if(ci>=0)cols.splice(ci,0,[p]);else cols.push([p]);}
+  else cols.push([p]);
+  lmCommit(shelf,lv,cols);
+}
+function lmRender(){
+  const L=LOCMAP_1F,all=db.products.filter(p=>!p.discontinued);
+  const placed=all.filter(p=>p.location==='一樓'&&locShelfInfo('一樓',p.shelf)).length;
+  G('lm-progress').textContent='一樓貨架上有 '+placed+' 個商品（全部 '+all.length+' 個商品）';
+  G('lm-dirty').textContent=_lmDirty.size?'有 '+_lmDirty.size+' 個商品還沒儲存':'';
+  if(_lmSel){G('lm-map').style.display='none';lmShelfView();return;}
+  G('lm-map').style.display='';
+  const places=locPlaces(),pcfg=lmCfg().placeCfg;
+  const zoneMode=!!_lmZone;
+  G('lm-panel').innerHTML=zoneMode?`<div style="border:2px solid var(--brown);border-radius:10px;padding:8px 10px;font-size:13px;">
+      <b>畫地板放置區：</b>點地圖上的<b>空白格子</b>選取要圈起來的範圍（再點一次取消）。已選 ${_lmZone.length} 格。
+      <div style="margin-top:6px;display:flex;gap:6px;"><button class="btn btn-primary btn-sm" onclick="lmZoneDone()" ${_lmZone.length?'':'disabled'}>完成並命名</button><button class="btn btn-secondary btn-sm" onclick="_lmZone=null;lmRender()">取消</button></div></div>`
+    :lmUnplacedHtml()+`<div style="margin-top:8px;"><button class="btn btn-secondary btn-sm" onclick="_lmZone=[];lmRender()">＋ 新增地板放置區（地上直接放貨的地方）</button></div>`;
+  const occ=new Set();
+  const place=(c,r,w,h,cls,label,extra='')=>{for(let x=c;x<c+w;x++)for(let y=r;y<r+h;y++)occ.add(x+','+y);
+    return `<div class="lm-c ${cls}" style="grid-column:${c+1}/span ${w};grid-row:${r}/span ${h};" ${extra}>${label}</div>`;};
+  let h='';
+  L.blocks.forEach((b,i)=>{
+    const pl=places.find(x=>x.id==='F'+i);
+    if(pl){const n=lmCount(pl.id);h+=place(b.c,b.r,b.w,b.h,'shelf fpl',b.l+(n?`<span class="lm-n">${n}</span>`:''),`onclick="lmPickShelf('${pl.id}')"`);}
+    else if(b.t==='furn'&&!zoneMode)h+=place(b.c,b.r,b.w,b.h,'furn',b.l,`onclick="lmFurn(${i})" title="點一下可以設成放商品的地方"`);
+    else h+=place(b.c,b.r,b.w,b.h,'furn',b.l);
+  });
+  Object.values(L.doors).forEach(d=>{h+=place(d.c,d.r,d.w,d.h,(d.l.startsWith('往'))?'stair':'door',d.l);});
+  L.shelves.forEach(sh=>{const n=lmCount(sh.id);
+    h+=place(sh.c,sh.r,sh.w,sh.h,'shelf',sh.short+(n?`<span class="lm-n">${n}</span>`:''),`onclick="lmPickShelf('${sh.id}')"`);});
+  places.filter(x=>x.kind==='zone').forEach(z=>{const n=lmCount(z.id);
+    z.cells.forEach(([x,y],k)=>{h+=place(x,y,1,1,'shelf zone',k===0?`<span style="font-size:9px;">${anEsc(z.name)}</span>`+(n?`<span class="lm-n">${n}</span>`:''):'',`onclick="lmPickShelf('${z.id}')"`);});});
+  for(let r=1;r<=L.rows;r++)for(let c=0;c<L.cols;c++)if(!occ.has(c+','+r)){
+    const on=zoneMode&&_lmZone.some(q=>q[0]===c&&q[1]===r);
+    h+=zoneMode?`<div class="lm-c" onclick="lmZoneCell(${c},${r})" style="grid-column:${c+1};grid-row:${r};cursor:pointer;${on?'background:#ffe599;border-color:#bf9000;':'border-style:dashed;'}"></div>`:`<div class="lm-c" style="grid-column:${c+1};grid-row:${r};"></div>`;}
+  G('lm-map').innerHTML=`<div class="lm-grid">${h}</div><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px;">點<b style="color:#e07020;">橘色／黃色的地方</b>看上面放了什麼（右下角數字＝商品數）。<b>灰色家具也可以點一下，設成放商品的地方</b>。綠色＝門　藍色＝樓梯</div>`;
+}
+async function lmFurn(i){
+  const b=LOCMAP_1F.blocks[i];
+  const n=await toastSelect('「'+b.l+'」要設成放商品的地方嗎？有幾層可以放？',[{label:'1 層（整個一起放）',value:'1'},{label:'2 層（上／下）',value:'2'},{label:'3 層（高／中／低）',value:'3'},{label:'4 層',value:'4'}]);
+  if(!n)return;
+  lmCfg().placeCfg['F'+i]={on:true,layers:Number(n)};_locRouteCache={};
+  _lmSel='F'+i;_lmPick=null;lmRender();
+}
+function lmZoneCell(c,r){
+  const k=_lmZone.findIndex(q=>q[0]===c&&q[1]===r);
+  if(k>=0)_lmZone.splice(k,1);else _lmZone.push([c,r]);
+  lmRender();
+}
+async function lmZoneDone(){
+  const name=await toastPrompt('這個地板放置區叫什麼名字？（例如：門口地上、桌旁紙箱）','');
+  if(!name||!name.trim())return;
+  const n=await toastSelect('有幾層可以疊？（地上直接放＝1 層）',[{label:'1 層',value:'1'},{label:'2 層',value:'2'},{label:'3 層',value:'3'}]);
+  if(!n)return;
+  const z=lmCfg().zones;const id='Z'+(Date.now().toString(36));
+  z.push({id,name:name.trim(),cells:_lmZone.slice().sort((p,q)=>p[1]-q[1]||p[0]-q[0]),layers:Number(n)});
+  _lmZone=null;_locRouteCache={};_lmSel=id;_lmPick=null;lmRender();
+}
+function lmSetLayers(id,n){
+  if(lmCount(id)){showToast('這裡還有商品，請先把商品換到別的地方，才能改層數','warn',3500);lmShelfView();return;}
+  lmCfg().placeCfg[id]=Object.assign({},lmCfg().placeCfg[id]||{},{layers:Number(n),on:true});
+  const z=lmCfg().zones.find(x=>x.id===id);if(z)z.layers=Number(n);
+  _locRouteCache={};lmShelfView();
+}
+async function lmRemovePlace(id){
+  if(lmCount(id)){showToast('這裡還有商品，請先把商品換到別的地方','warn',3500);return;}
+  if(!(await toastConfirm('確定不要把這裡當成放商品的地方嗎？','確定','取消')))return;
+  if(id[0]==='Z')db.locConfig.zones=lmCfg().zones.filter(z=>z.id!==id);else delete lmCfg().placeCfg[id];
+  _locRouteCache={};_lmSel=null;lmRender();
+}
+function lmPickShelf(id){_lmSel=id;_lmPick=null;_lmFocusPid=null;lmRender();}
+function lmBack(){_lmSel=null;_lmPick=null;lmRender();}
+function lmCard(p){
+  const img=p.image?`<img src="${p.image}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-size:18px;color:var(--text3);">${anEsc((p.name||'?').slice(0,1))}</span>`;
+  const sel=_lmPick===p.id,foc=_lmFocusPid===p.id;
+  return `<div draggable="true" ondragstart="lmDragStart(event,'${p.id}')" onclick="lmSelCard('${p.id}')" id="lmc-${p.id}"
+    ondragover="event.preventDefault()" ondrop="lmDrop(event,{stackBefore:'${p.id}'})"
+    style="width:84px;border:2px solid ${sel?'var(--brown)':foc?'#e07020':'var(--border)'};border-radius:10px;background:${foc?'#fff4d6':'var(--surface)'};padding:3px;cursor:pointer;text-align:center;">
+    <div style="width:100%;height:56px;background:var(--surface2);border-radius:6px;overflow:hidden;display:flex;align-items:center;justify-content:center;">${img}</div>
+    <div style="font-size:11px;line-height:1.2;margin-top:2px;max-height:2.4em;overflow:hidden;">${anEsc(p.name)}</div></div>`;
+}
+function lmGap(lv,beforePid){
+  return `<div ondragover="event.preventDefault();this.style.background='#ffe599'" ondragleave="this.style.background=''" ondrop="lmDrop(event,${beforePid?`{colBefore:'${beforePid}'}`:'{end:true}'},'${lv}')"
+    style="flex:0 0 14px;align-self:stretch;min-height:60px;border-radius:6px;"></div>`;
+}
+function lmShelfView(){
+  const sh=locShelfInfo('一樓',_lmSel);
+  const rows=sh.layers.map(lv=>{
+    const cols=lmGetCols(sh.id,lv),n=cols.reduce((a,c)=>a+c.length,0);
+    return `<div style="margin-bottom:10px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${lvLabel(lv)} <span style="font-weight:400;color:var(--text3);">${n} 個</span></div>
+      <div ondragover="event.preventDefault()" ondrop="lmDrop(event,{end:true},'${lv}')" style="display:flex;align-items:flex-start;overflow-x:auto;min-height:104px;padding:8px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">
+        ${cols.map(col=>lmGap(lv,col[0].id)+`<div style="flex:0 0 auto;display:flex;flex-direction:column;gap:4px;${col.length>1?'padding:3px;border:1px dashed var(--brown-light);border-radius:12px;background:rgba(255,255,255,.5);':''}">${col.length>1?`<div style="font-size:10px;color:var(--text3);text-align:center;">疊放 ${col.length} 個</div>`:''}${col.map(lmCard).join('')}</div>`).join('')+lmGap(lv,null)}
+        ${cols.length?'':'<span style="font-size:12px;color:var(--text3);align-self:center;padding:0 8px;">空的</span>'}</div>
+      <div style="position:relative;margin-top:4px;"><input placeholder="＋ 加到「${lvLabel(lv)}」最後面（輸入商品名稱或條碼）" oninput="lmAddSearch(this,'${lv}')" style="width:100%;font-size:13px;">
+        <div class="lm-add-res" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--surface);border:1px solid var(--border);border-radius:10px;max-height:200px;overflow-y:auto;box-shadow:0 6px 18px rgba(0,0,0,.12);"></div></div></div>`;}).join('');
+  const sel=_lmPick?db.products.find(x=>x.id===_lmPick):null;
+  let tools='';
+  if(sel){
+    const cols=lmGetCols(sh.id,sel.level),ci=cols.findIndex(c=>c.some(x=>x.id===sel.id)),inStack=ci>=0&&cols[ci].length>1;
+    const otherShelves=locPlaces().filter(x=>x.id!==sh.id);
+    tools=`<div style="position:sticky;top:0;z-index:4;background:var(--surface);border:2px solid var(--brown);border-radius:10px;padding:8px 10px;margin-bottom:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px;">已選：${anEsc(sel.name)}${inStack?'（疊放中）':''}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+        <button class="btn btn-secondary btn-sm" onclick="lmMove(-1)">◀ 往左</button><button class="btn btn-secondary btn-sm" onclick="lmMove(1)">往右 ▶</button>
+        <button class="btn btn-secondary btn-sm" onclick="lmStack(-1)" ${ci<=0?'disabled':''}>疊到左邊那欄</button><button class="btn btn-secondary btn-sm" onclick="lmStack(1)" ${ci>=cols.length-1?'disabled':''}>疊到右邊那欄</button>
+        ${inStack?`<button class="btn btn-secondary btn-sm" onclick="lmUnstack()">單獨一欄</button><button class="btn btn-secondary btn-sm" onclick="lmZ(-1)">▲ 疊放往前</button><button class="btn btn-secondary btn-sm" onclick="lmZ(1)">▼ 疊放往後</button>`:''}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text2);">
+        換到：${sh.layers.filter(v=>v!==sel.level).map(v=>`<button class="btn btn-secondary btn-sm" onclick="lmAssign('${sel.id}','${v}')">${lvLabel(v)}</button>`).join('')}
+        ${otherShelves.map(x=>`<button class="btn btn-secondary btn-sm" onclick="lmToShelf('${sel.id}','${x.id}')">${x.name}</button>`).join('')}
+        <button class="btn btn-secondary btn-sm" onclick="lmToFloor('${sel.id}','地下室')">地下室</button><button class="btn btn-secondary btn-sm" onclick="lmToFloor('${sel.id}','二樓')">二樓</button>
+        <button class="btn btn-secondary btn-sm" onclick="_lmPick=null;lmShelfView()">取消選取</button></div></div>`;
+  }
+  G('lm-panel').innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <button class="btn btn-secondary btn-sm" onclick="lmBack()">← 回位置圖</button>
+      <div style="font-size:16px;font-weight:700;">${anEsc(sh.name)}　<span style="font-size:11px;font-weight:400;color:var(--text3);">${sh.face}</span></div></div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;margin-bottom:6px;">層數：<select style="width:auto;" onchange="lmSetLayers('${sh.id}',this.value)">${[1,2,3,4,5].map(n=>`<option value="${n}" ${n===sh.layers.length?'selected':''}>${n} 層</option>`).join('')}</select>${sh.kind!=='shelf'?`<button class="btn btn-secondary btn-sm" onclick="lmRemovePlace('${sh.id}')">不要放商品了</button>`:''}</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">每一排從左到右就是實際擺放的位置（站在它前面看），<b>同一欄的商品是疊在一起的</b>（虛線框）。點一張卡片可以移動；電腦可以直接拖曳：拖到另一張卡片上＝疊上去，拖到兩欄中間的空隙＝自己一欄。</div>
+    ${tools}${rows}`;
+  if(_lmFocusPid)setTimeout(()=>{G('lmc-'+_lmFocusPid)?.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});_lmFocusPid=null;},80);
+}
+// 還沒安排貨架的舊商品（以後新增的商品一建立就一定有位置，這裡只會出現「系統改版前就存在、位置只填了樓層」的商品）
+function lmUnplaced(){return db.products.filter(p=>!p.discontinued&&p.location==='一樓'&&!locShelfInfo('一樓',p.shelf));}
+function lmUnplacedHtml(){
+  const un=lmUnplaced();
+  if(!un.length)return '<div style="font-size:12px;color:var(--green);">一樓的商品都已經安排好貨架了 👍</div>';
+  return `<div style="border:1px solid var(--orange);background:var(--orange-bg);border-radius:10px;padding:10px 12px;">
+    <div style="font-size:13px;font-weight:700;color:var(--orange);">還有 ${un.length} 個商品（舊資料）只有樓層，還沒指定貨架</div>
+    <div style="font-size:11px;color:var(--text2);margin:2px 0 6px;">這是系統改版前建立的商品。以後新增商品一定要選貨架和層，不會再有這種情況。先點進貨架，再用該層下面的輸入框加入，或在下面點商品直接指定。</div>
+    <div style="max-height:160px;overflow-y:auto;">${un.slice(0,80).map(p=>`<span class="lm-chip add" onclick="lmQuickAdd('${p.id}')">${anEsc(p.name)}</span>`).join('')}${un.length>80?'<div style="font-size:11px;color:var(--text3);">只列前 80 個，其他請用搜尋。</div>':''}</div></div>`;
+}
+async function lmQuickAdd(pid){
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  const shId=_lmSel||await toastSelect('「'+p.name+'」放在哪個位置？',locPlaces().map(x=>({label:x.name,value:x.id})));
+  if(!shId)return;
+  const lv=await toastSelect('「'+p.name+'」放在「'+locShelfInfo('一樓',shId).name+'」的哪一層？',locShelfInfo('一樓',shId).layers.map(v=>({label:lvLabel(v),value:v})));
+  if(lv){lmPlace(pid,shId,lv,{end:true});_lmPick=pid;lmRender();}
+}
+function lmAssign(pid,lv){lmPlace(pid,_lmSel,lv,{end:true});_lmPick=pid;lmRender();}
+function lmToShelf(pid,shId){const p=db.products.find(x=>x.id===pid);const _ly=locShelfInfo('一樓',shId).layers;lmPlace(pid,shId,_ly.includes(p.level)?p.level:_ly[Math.floor((_ly.length-1)/2)],{end:true});_lmSel=shId;_lmPick=pid;lmRender();showToast('已移到'+locShelfInfo('一樓',shId).name,'info',2000);}
+function lmToFloor(pid,floor){
+  const p=db.products.find(x=>x.id===pid);if(!p)return;
+  _lmSnap(p);lmDetach(p);p.location=floor;p.shelf='';p.level='';p.pos=0;p.z=0;_lmDirty.add(pid);
+  _lmPick=null;lmRender();showToast('「'+p.name+'」改放在'+floor+'（這一層還沒有位置圖）','info',3500);
+}
+function lmSelCard(pid){_lmPick=_lmPick===pid?null:pid;lmShelfView();}
+function lmCurCols(){const p=db.products.find(x=>x.id===_lmPick);if(!p)return null;const cols=lmGetCols(_lmSel,p.level);return {p,cols,ci:cols.findIndex(c=>c.some(x=>x.id===p.id))};}
+function lmMove(d){
+  const c=lmCurCols();if(!c)return;const {p,cols,ci}=c;
+  if(cols[ci].length===1){const j=ci+d;if(j<0||j>=cols.length)return;[cols[ci],cols[j]]=[cols[j],cols[ci]];}
+  else{cols[ci]=cols[ci].filter(x=>x.id!==p.id);cols.splice(d<0?ci:ci+1,0,[p]);}
+  lmCommit(_lmSel,p.level,cols);lmRender();
+}
+function lmStack(d){
+  const c=lmCurCols();if(!c)return;const {p,cols,ci}=c;const j=ci+d;if(j<0||j>=cols.length)return;
+  cols[ci]=cols[ci].filter(x=>x.id!==p.id);cols[j].push(p);
+  lmCommit(_lmSel,p.level,cols.filter(x=>x.length));lmRender();
+}
+function lmUnstack(){
+  const c=lmCurCols();if(!c)return;const {p,cols,ci}=c;if(cols[ci].length<2)return;
+  cols[ci]=cols[ci].filter(x=>x.id!==p.id);cols.splice(ci+1,0,[p]);
+  lmCommit(_lmSel,p.level,cols);lmRender();
+}
+function lmZ(d){
+  const c=lmCurCols();if(!c)return;const {p,cols,ci}=c;const col=cols[ci],i=col.findIndex(x=>x.id===p.id),j=i+d;
+  if(j<0||j>=col.length)return;col.splice(i,1);col.splice(j,0,p);lmCommit(_lmSel,p.level,cols);lmRender();
+}
+let _lmDragPid=null;
+function lmDragStart(e,pid){_lmDragPid=pid;e.dataTransfer.effectAllowed='move';}
+function lmDrop(e,where,lv){
+  e.preventDefault();e.stopPropagation();
+  if(!_lmDragPid)return;
+  const pid=_lmDragPid;_lmDragPid=null;
+  let level=lv;
+  if(!level){const t=where.stackBefore||where.colBefore;const tp=t&&db.products.find(x=>x.id===t);level=tp?tp.level:null;}
+  if(!level)return;
+  if(where.stackBefore===pid||where.colBefore===pid)return;
+  lmPlace(pid,_lmSel,level,where);_lmPick=pid;lmRender();
+}
+function lmAddSearch(inp,lv){
+  const q=inp.value.trim().toLowerCase(),box=inp.nextElementSibling;
+  if(!q){box.style.display='none';return;}
+  const hits=db.products.filter(p=>!p.discontinued&&((p.name||'').toLowerCase().includes(q)||String(p.barcode||'').includes(q))).slice(0,8);
+  box.style.display=hits.length?'block':'none';
+  box.innerHTML=hits.map(p=>{const where=(p.location==='一樓'&&locShelfInfo('一樓',p.shelf))?'目前在：'+locLabelOf(p):(p.location?'目前在：'+p.location:'');
+    return `<div style="padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);" onclick="lmAssign('${p.id}','${lv}')">${anEsc(p.name)}<div style="font-size:11px;color:var(--text3);">${anEsc(p.barcode||'')} ${where}</div></div>`;}).join('');
+}
+function lmSearch(){
+  const q=G('lm-search').value.trim().toLowerCase(),box=G('lm-search-res');
+  if(!q){box.style.display='none';return;}
+  const hits=db.products.filter(p=>!p.discontinued&&((p.name||'').toLowerCase().includes(q)||String(p.barcode||'').includes(q))).slice(0,8);
+  box.style.display='block';
+  box.innerHTML=hits.map(p=>`<div style="padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);" onclick="lmFind('${p.id}')">${anEsc(p.name)}<div style="font-size:11px;color:var(--text3);">${locLabelOf(p)==='—'?'還沒設定位置':locLabelOf(p)}</div></div>`).join('')||'<div style="padding:8px 10px;font-size:12px;color:var(--text3);">找不到</div>';
+}
+function lmFind(pid){
+  const p=db.products.find(x=>x.id===pid);G('lm-search-res').style.display='none';G('lm-search').value='';if(!p)return;
+  const sh=p.location==='一樓'&&locShelfInfo('一樓',p.shelf);
+  if(sh){_lmSel=sh.id;_lmFocusPid=pid;_lmPick=null;lmRender();}
+  else showToast(p.name+'：'+(locLabelOf(p)==='—'?'還沒設定位置':locLabelOf(p)+'（這一層還沒有位置圖）'),'info',4000);
+}
+async function saveLocMap(){
+  const inPick=db.orders.filter(o=>['picking','picked','boxing','packed','mod_picking','mod_picked','mod_boxing'].includes(o.status));
+  if(inPick.length&&(_lmDirty.size||lmCfgChanged())){
+    const ok=await toastConfirm('目前有 '+inPick.length+' 張抄貨單正在撿貨或裝箱中。改了位置之後，這些單的撿貨順序會變，已經勾的項目可能會對錯位置。\n\n建議等這些單做完再儲存。要現在儲存嗎？','現在儲存','先不要');
+    if(!ok)return;
+  }
+  lmCfg();Object.assign(db.locConfig,{start:G('lm-start').value,end:G('lm-end').value,level:G('lm-level').value});_lmCfgOrig=JSON.stringify({p:db.locConfig.placeCfg,z:db.locConfig.zones});
+  _locRouteCache={};
+  const btn=G('btn-lm-save');btn.disabled=true;btn.textContent='儲存中…';
+  try{await saveMultiple(['products','meta']);}catch(e){toastAlert('儲存失敗：'+e.message,'error');btn.disabled=false;btn.textContent='儲存';return;}
+  btn.disabled=false;btn.textContent='儲存';
+  _lmDirty=new Set();_lmOrig={};lmRender();renderProducts();
+  showToast('位置已儲存','success',2500);
+}
+// ── END 商品位置圖 ──────────────────────────
+
 // ── 毛利試算 ──────────────────────────────────
 const GP_DEFAULT_RATE=57; // 預設成本率：佔客戶進價的 57%（相當於毛利 43%）
 let _gpDim='cust';
@@ -6257,7 +6752,7 @@ function openEditConfirm(orderId){
       <tbody>${changedItems.map((i,idx)=>`<tr>
         <td><input type="checkbox" id="ec-cb-${idx}" onchange="updateEditConfirmBtn()" style="width:18px;height:18px;cursor:pointer;"></td>
         <td><span class="badge ${i.type==='新增'||i.type==='增加'?'badge-green':'badge-orange'}">${i.type}</span></td>
-        <td><span class="badge badge-blue">${i.location||'—'}</span></td>
+        <td><span class="badge badge-blue">${locLabelOf(i)}</span></td>
         <td>${i.hasInspMark?'<span style="color:var(--text3);">-</span>':'<span class="badge badge-orange">'+(i.batchNo||'無批號')+'</span>'}</td>
         <td><strong>${i.name}</strong></td>
         <td>${i.variant?i.variant:(i.excludeVariants&&i.excludeVariants.length?`<span style="color:var(--orange);">任選（不含：${i.excludeVariants.join('、')}）</span>`:'—')}</td>
@@ -6848,9 +7343,11 @@ async function openLabelPrintWindow(priceQtyList,prefix,orderId){
     // 以「這次要用」減「這張單上次已扣」的差額調整庫存
     const allKeys=new Set([...Object.keys(useMap),...Object.keys(prevUse)]);
     let changed=false;
+    const _c=ordObj?db.customers.find(x=>x.id===ordObj.customerId):null;
+    const _note=ordObj?((_c?_c.name:'')+(ordObj.date?' '+ordObj.date+' 的抄貨單':'')):'';
     allKeys.forEach(k=>{
       const delta=(prevUse[k]||0)-(useMap[k]||0); // 正=把上次用掉的還回來
-      if(delta){bcStockAdjust(k,delta,delta<0?'列印時使用庫存':'重新處理，退回上次扣的庫存');changed=true;}
+      if(delta){bcStockAdjust(k,delta,delta<0?'列印時使用庫存':'重新處理，退回上次扣的庫存',_note);changed=true;}
     });
     if(ordObj){ordObj.bcStockUsed=Object.keys(useMap).length?{...useMap}:undefined;if(!ordObj.bcStockUsed)delete ordObj.bcStockUsed;}
     if(!changed&&!ordObj)return;
