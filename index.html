@@ -251,27 +251,36 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 .an-ta-res{display:none;position:absolute;top:100%;left:0;right:0;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;box-shadow:var(--shadow);margin-top:2px}
 .an-ta-res div{padding:9px 12px;font-size:13px;cursor:pointer}
 .an-ta-res div:hover{background:var(--surface2)}
-.lm-grid{display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(9,1fr);aspect-ratio:12/9;gap:2px;max-width:460px;margin:0 auto;}
-.lm-c{border-radius:4px;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:clamp(8px,1.6vw,11px);line-height:1.15;overflow:hidden;position:relative;color:#444;background:var(--surface);border:1px solid var(--border);}
+.lm-grid{position:relative;display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:repeat(9,1fr);aspect-ratio:12/9;gap:2px;max-width:760px;margin:0 auto;}
+.lm-c{border-radius:4px;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:clamp(10px,1.7vw,15px);line-height:1.15;overflow:hidden;position:relative;color:#444;background:var(--surface);border:1px solid var(--border);}
 .lm-c.furn{background:#d9d9d9;border-color:#c4c4c4;}
 .lm-c.door{background:#b6d7a8;border-color:#93c47d;}
 .lm-c.stair{background:#a4c2f4;border-color:#6fa8dc;}
 .lm-c.shelf{background:#f6b26b;border-color:#e07020;cursor:pointer;font-weight:700;color:#5a2d00;}
-.lp-wrap{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;align-items:start;}
+.lm-row,.lm-card,[data-drag]{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+#dg-ghost{position:fixed;z-index:99999;pointer-events:none;background:#fff4d6;border:2px solid #e07020;color:#5a2d00;border-radius:10px;padding:6px 12px;font-size:13px;font-weight:700;box-shadow:0 8px 20px rgba(0,0,0,.25);max-width:60vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+body.dg-active{cursor:grabbing;}
+.dg-over{outline:3px solid #e07020!important;outline-offset:1px;background:#ffe599!important;}
+.lm-row{cursor:grab;}
+.page.lp-page{max-width:1500px;}
+#tab-locations .btn-sm{padding:9px 14px;font-size:14px;}
+#tab-locations select,#tab-locations input{font-size:15px;}
+#tab-locations .lm-n{font-size:12px;padding:1px 6px;}
+.lp-wrap{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:12px;align-items:start;}
 .lp-main{min-width:0;}
 .lp-side{position:sticky;top:8px;max-height:calc(100vh - 100px);display:flex;flex-direction:column;padding:10px;}
 .lp-list{overflow-y:auto;flex:1;min-height:120px;}
 .lp-bar{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;padding:10px 0;background:var(--bg,#fff);border-top:1px solid var(--border);margin-top:6px;z-index:6;}
 @media(max-width:900px){.lp-wrap{grid-template-columns:1fr;}.lp-side{position:static;max-height:none;}.lp-list{max-height:55vh;}}
-.lm-tgt{font-size:12px;border:1px dashed var(--border);border-radius:8px;padding:6px 8px;color:var(--text2);}
+.lm-tgt{font-size:14px;border:1px dashed var(--border);border-radius:8px;padding:6px 8px;color:var(--text2);}
 .lm-tgt.on{border:2px solid #e07020;background:#fff4d6;color:#5a2d00;}
-.lm-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;}
+.lm-row{font-size:15px;display:flex;align-items:center;gap:10px;padding:8px 8px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;}
 .lm-row:hover{background:var(--surface2);}
-.lm-row .th{width:34px;height:34px;flex:0 0 34px;border-radius:6px;background:var(--surface2);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--text3);}
+.lm-row .th{width:48px;height:48px;flex:0 0 48px;font-size:18px;border-radius:6px;background:var(--surface2);overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--text3);}
 .lm-slot{cursor:pointer;border-radius:8px;align-self:stretch;}
-.lm-slot.gap{flex:0 0 14px;}
+.lm-slot.gap{flex:0 0 20px;}
 .lm-slot.gap:hover,.lm-slot.gap.drag,.lm-slot.gap.act{background:#ffe599;}
-.lm-slot.end{flex:0 0 56px;min-height:70px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:22px;margin-left:2px;}
+.lm-slot.end{flex:0 0 76px;min-height:110px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:22px;margin-left:2px;}
 .lm-slot.end:hover,.lm-slot.end.drag,.lm-slot.end.act{border-color:#e07020;background:#fff4d6;color:#e07020;}
 .lm-c.shelf.zone{background:#ffe599;border-color:#bf9000;}
 .lm-c.shelf.fpl{background:#f9cb9c;}
@@ -584,13 +593,14 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
   <details class="card an-card gp-fold"><summary>設定（固定支出、成本率）▸</summary><div id="gp-settings" style="margin-top:10px;"></div></details>
 </div>
 
-<div id="tab-locations" class="page">
+<div id="tab-locations" class="page lp-page">
   <div class="page-header"><div><h2>商品位置</h2><p id="lm-progress"></p></div></div>
   <div class="lp-wrap">
     <div class="lp-main">
       <div id="lm-floors" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;"></div>
       <div class="card" style="padding:10px;margin-bottom:10px;"><div id="lm-map"></div></div>
       <div class="card" style="padding:10px;margin-bottom:10px;" id="lm-shelf"></div>
+      <div class="card" style="padding:12px;margin-bottom:10px;" id="lm-test"></div>
       <details class="card" style="padding:10px 12px;margin-bottom:10px;">
         <summary style="font-size:13px;font-weight:700;cursor:pointer;">撿貨路線設定（之後才會啟用）</summary>
         <div class="form-grid" style="margin-top:8px;">
@@ -5502,6 +5512,7 @@ function renderLocations(){
     G('lm-start').value=cfg.start||'garage';G('lm-end').value=cfg.end||'garage';G('lm-level').value=cfg.level||'high';
     _lmCfgOrig=JSON.stringify({p:cfg.placeCfg||{},z:cfg.zones||[]});_lmZone=null;
     _lmDirty=new Set();_lmOrig={};_lmSel=null;_lmPick=null;_lmFocusPid=null;_lmTarget=null;G('lm-q').value='';
+    _lmTest.carry=cfg.carry||_lmTest.carry||6;_lmTest.table=Number.isInteger(cfg.table)?cfg.table:null;_lmTest.res=null;
     _lmActive=true;
   }
   const p=_lmInitPid?db.products.find(x=>x.id===_lmInitPid):null;_lmInitPid=null;
@@ -5566,7 +5577,7 @@ function lmRender(){
   lmMapRender();
   if(_lmZone)lmZonePanel();else if(_lmSel)lmShelfView();
   else G('lm-shelf').innerHTML='<div style="font-size:13px;color:var(--text2);padding:6px;">👆 點上面地圖的<b style="color:#e07020;">橘色貨架</b>，看它上面放了什麼。<br>灰色家具也可以點一下，設成放商品的地方。</div><div style="margin-top:6px;"><button class="btn btn-secondary btn-sm" onclick="_lmZone=[];lmRender()">＋ 新增地板放置區</button></div>';
-  lmSideRender();
+  lmSideRender();lmTestRender();
 }
 function lmMapRender(){
   const L=LOC_MAPS[_lmFloor],places=locPlaces(_lmFloor),zoneMode=!!_lmZone;
@@ -5574,7 +5585,7 @@ function lmMapRender(){
   const place=(c,r,w,h,cls,label,extra='')=>{for(let x=c;x<c+w;x++)for(let y=r;y<r+h;y++)occ.add(x+','+y);
     return `<div class="lm-c ${cls}" style="grid-column:${c+1}/span ${w};grid-row:${r}/span ${h};" ${extra}>${label}</div>`;};
   const sel=id=>id===_lmSel?' sel':'';
-  const dz=id=>`ondragover="event.preventDefault()" ondrop="lmDropMap(event,'${id}')"`;
+  const dz=id=>`data-drop="map" data-id="${id}"`;
   let h='';
   L.blocks.forEach((b,i)=>{
     const pl=places.find(x=>x.id===L.fp+i);
@@ -5590,11 +5601,11 @@ function lmMapRender(){
   for(let r=1;r<=L.rows;r++)for(let c=0;c<L.cols;c++)if(!occ.has(c+','+r)){
     const on=zoneMode&&_lmZone.some(q=>q[0]===c&&q[1]===r);
     h+=zoneMode?`<div class="lm-c" onclick="lmZoneCell(${c},${r})" style="grid-column:${c+1};grid-row:${r};cursor:pointer;${on?'background:#ffe599;border-color:#bf9000;':'border-style:dashed;'}"></div>`:`<div class="lm-c" style="grid-column:${c+1};grid-row:${r};"></div>`;}
-  G('lm-map').innerHTML=`<div class="lm-grid" style="grid-template-columns:repeat(${L.cols},1fr);grid-template-rows:repeat(${L.rows},1fr);aspect-ratio:${L.cols}/${L.rows};">${h}</div><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px;">橘／黃＝可放商品（數字＝商品數）；灰色家具點一下可設成放商品的地方；也可以把右邊商品直接拖到貨架上</div>`;
+  G('lm-map').innerHTML=`<div class="lm-grid" style="grid-template-columns:repeat(${L.cols},1fr);grid-template-rows:repeat(${L.rows},1fr);aspect-ratio:${L.cols}/${L.rows};">${h}${lmTestOverlay()}</div><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px;">橘／黃＝可放商品（數字＝商品數）；灰色家具點一下可設成放商品的地方；也可以把右邊商品直接拖到貨架上</div>`;
 }
 function lmZonePanel(){
   G('lm-shelf').innerHTML=`<div style="font-size:13px;"><b>畫地板放置區：</b>點上面地圖的<b>空白格子</b>圈出範圍（再點一次取消）。已選 ${_lmZone.length} 格。
-    <div style="margin-top:6px;display:flex;gap:6px;"><button class="btn btn-primary btn-sm" onclick="lmZoneDone()" ${_lmZone.length?'':'disabled'}>完成並命名</button><button class="btn btn-secondary btn-sm" onclick="_lmZone=null;lmRender()">取消</button></div></div>`;
+    <div style="margin-top:6px;display:flex;gap:6px;"><button class="btn btn-primary btn-sm" onclick="lmZoneDone()" ${_lmZone.length?'':'disabled'}>完成</button><button class="btn btn-secondary btn-sm" onclick="_lmZone=null;lmRender()">取消</button></div></div>`;
 }
 function lmTgt(){
   const sh=_lmSel?locById(_lmSel):null;
@@ -5622,7 +5633,7 @@ function lmSideRender(){
   G('lm-list').innerHTML=list.map(p=>{
     const here=locShelfInfo(p.location,p.shelf);
     const img=p.image?`<img src="${p.image}" style="width:100%;height:100%;object-fit:cover;">`:anEsc((p.name||'?').slice(0,1));
-    return `<div class="lm-row" draggable="true" ondragstart="lmDragStart(event,'${p.id}')" onclick="lmPickProd('${p.id}')">
+    return `<div class="lm-row" data-drag="${p.id}" onclick="lmPickProd('${p.id}')">
       <div class="th">${img}</div>
       <div style="flex:1;min-width:0;"><div style="font-size:13px;line-height:1.25;">${anEsc(p.name)}</div>
       <div style="font-size:11px;color:${here?'var(--text3)':'var(--orange)'};">${here?anEsc(locLabelOf(p)):(locHasMap(p.location)?anEsc(p.location)+' 還沒放':anEsc(p.location||'未設定'))}</div></div>
@@ -5637,12 +5648,6 @@ function lmPickProd(pid){
   lmPlace(pid,_lmSel,t.lv,t.where);_lmPick=null;_lmFocusPid=pid;lmRender();
   showToast('「'+p.name+'」已放到 '+locById(_lmSel).name+'・'+lvLabel(t.lv),'success',1800);
   lmScrollTo('lm-shelf');
-}
-function lmDropMap(e,id){
-  e.preventDefault();if(!_lmDragPid)return;
-  const pid=_lmDragPid;_lmDragPid=null;
-  const sh=locById(id);if(!sh)return;
-  lmPlace(pid,id,sh.layers[0],{end:true});_lmSel=id;_lmTarget={lv:sh.layers[0],where:{end:true}};_lmFocusPid=pid;lmRender();
 }
 async function lmFurn(i){
   const M=LOC_MAPS[_lmFloor],b=M.blocks[i],id=M.fp+i;let n;
@@ -5661,14 +5666,14 @@ function lmZoneCell(c,r){
   if(k>=0)_lmZone.splice(k,1);else _lmZone.push([c,r]);
   lmRender();
 }
-async function lmZoneDone(){
-  const name=await toastPrompt('這個地板放置區叫什麼名字？（例如：門口地上、桌旁紙箱）','');
-  if(!name||!name.trim())return;
-  const n=await toastSelect('有幾層可以疊？（地上直接放＝1 層）',[{label:'1 層',value:'1'},{label:'2 層',value:'2'},{label:'3 層',value:'3'}]);
-  if(!n)return;
-  const z=lmCfg().zones;const id='Z'+(Date.now().toString(36));
-  z.push({id,floor:_lmFloor,name:name.trim(),cells:_lmZone.slice().sort((p,q)=>p[1]-q[1]||p[0]-q[0]),layers:Number(n)});
+function lmZoneDone(){
+  const zs=lmCfg().zones;
+  const used=zs.filter(z=>(z.floor||'一樓')===_lmFloor).map(z=>Number((String(z.name).match(/^地板(\d+)$/)||[])[1])||0);
+  const name='地板'+(Math.max(0,...used)+1);
+  const id='Z'+Date.now().toString(36);
+  zs.push({id,floor:_lmFloor,name,cells:_lmZone.slice().sort((p,q)=>p[1]-q[1]||p[0]-q[0]),layers:1});
   _lmZone=null;_locRouteCache={};lmPickShelf(id);
+  showToast('已建立「'+name+'」，可以直接放商品','success',2200);
 }
 function lmSetLayers(id,n){
   if(lmCount(id)){showToast('這裡還有商品，請先把商品換到別的地方，才能改層數','warn',3500);lmShelfView();return;}
@@ -5688,26 +5693,25 @@ function lmPickShelf(id){
   lmRender();lmScrollTo('lm-shelf');
 }
 function lmCard(p){
-  const img=p.image?`<img src="${p.image}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-size:18px;color:var(--text3);">${anEsc((p.name||'?').slice(0,1))}</span>`;
+  const img=p.image?`<img src="${p.image}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-size:26px;color:var(--text3);">${anEsc((p.name||'?').slice(0,1))}</span>`;
   const sel=_lmPick===p.id,foc=_lmFocusPid===p.id;
-  return `<div draggable="true" ondragstart="lmDragStart(event,'${p.id}')" onclick="lmSelCard('${p.id}')" id="lmc-${p.id}"
-    ondragover="event.preventDefault()" ondrop="lmDrop(event,{stackBefore:'${p.id}'})"
-    style="width:84px;border:2px solid ${sel?'var(--brown)':foc?'#e07020':'var(--border)'};border-radius:10px;background:${foc?'#fff4d6':'var(--surface)'};padding:3px;cursor:pointer;text-align:center;">
-    <div style="width:100%;height:56px;background:var(--surface2);border-radius:6px;overflow:hidden;display:flex;align-items:center;justify-content:center;">${img}</div>
-    <div style="font-size:11px;line-height:1.2;margin-top:2px;max-height:2.4em;overflow:hidden;">${anEsc(p.name)}</div></div>`;
+  return `<div data-drag="${p.id}" data-drop="stack" data-pid="${p.id}" onclick="lmSelCard('${p.id}')" id="lmc-${p.id}"
+    style="width:112px;border:2px solid ${sel?'var(--brown)':foc?'#e07020':'var(--border)'};border-radius:10px;background:${foc?'#fff4d6':'var(--surface)'};padding:3px;cursor:pointer;text-align:center;">
+    <div style="width:100%;height:78px;background:var(--surface2);border-radius:6px;overflow:hidden;display:flex;align-items:center;justify-content:center;">${img}</div>
+    <div style="font-size:14px;line-height:1.2;margin-top:3px;max-height:2.5em;overflow:hidden;">${anEsc(p.name)}</div></div>`;
 }
-function lmGap(lv,beforePid){
+function lmGap(lv,beforePid){ /* 放大版 */
   const t=_lmTarget,act=t&&t.lv===lv&&((beforePid&&t.where.colBefore===beforePid)||(!beforePid&&t.where.end));
   const where=beforePid?`{colBefore:'${beforePid}'}`:'{end:true}';
-  return `<div class="lm-slot ${beforePid?'gap':'end'} ${act?'act':''}" onclick="lmSetTarget('${lv}',${where})" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="lmDrop(event,${where},'${lv}')">${beforePid?'':'＋'}</div>`;
+  return `<div class="lm-slot ${beforePid?'gap':'end'} ${act?'act':''}" onclick="lmSetTarget('${lv}',${where})" data-drop="slot" data-lv="${lv}" data-where="${(beforePid?JSON.stringify({colBefore:beforePid}):'{"end":true}').replace(/"/g,'&quot;')}">${beforePid?'':'＋'}</div>`;
 }
 function lmShelfView(){
   const sh=locById(_lmSel);
   const rows=sh.layers.map(lv=>{
     const cols=lmGetCols(sh.id,lv),n=cols.reduce((a,c)=>a+c.length,0);
     return `<div style="margin-bottom:10px;">
-      <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${lvLabel(lv)} <span style="font-weight:400;color:var(--text3);">${n} 個</span></div>
-      <div ondragover="event.preventDefault()" ondrop="lmDrop(event,{end:true},'${lv}')" style="display:flex;align-items:flex-start;overflow-x:auto;min-height:104px;padding:8px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">
+      <div style="font-size:16px;font-weight:700;margin-bottom:5px;">${lvLabel(lv)} <span style="font-weight:400;color:var(--text3);">${n} 個</span></div>
+      <div data-drop="slot" data-lv="${lv}" data-where="{&quot;end&quot;:true}" style="display:flex;align-items:flex-start;overflow-x:auto;min-height:140px;padding:10px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">
         ${cols.map(col=>lmGap(lv,col[0].id)+`<div style="flex:0 0 auto;display:flex;flex-direction:column;gap:4px;${col.length>1?'padding:3px;border:1px dashed var(--brown-light);border-radius:12px;background:rgba(255,255,255,.5);':''}">${col.length>1?`<div style="font-size:10px;color:var(--text3);text-align:center;">疊放 ${col.length} 個</div>`:''}${col.map(lmCard).join('')}</div>`).join('')+lmGap(lv,null)}
         ${cols.length?'':'<span style="font-size:12px;color:var(--text3);align-self:center;padding:0 8px;">空的</span>'}</div>
       </div>`;}).join('');
@@ -5729,9 +5733,9 @@ function lmShelfView(){
         <button class="btn btn-secondary btn-sm" onclick="_lmPick=null;lmShelfView()">取消選取</button></div></div>`;
   }
   G('lm-shelf').innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-      <div style="font-size:16px;font-weight:700;">${anEsc(sh.name)}　<span style="font-size:11px;font-weight:400;color:var(--text3);">${sh.face}</span></div></div>
+      <div style="font-size:20px;font-weight:700;">${anEsc(sh.name)}　<span style="font-size:11px;font-weight:400;color:var(--text3);">${sh.face}</span></div></div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;margin-bottom:6px;">${sh.kind==='stair'?'階數':'層數'}：<select style="width:auto;" onchange="lmSetLayers('${sh.id}',this.value)">${(sh.kind==='stair'?Array.from({length:30},(_,i)=>i+1):[1,2,3,4,5]).map(n=>`<option value="${n}" ${n===sh.layers.length?'selected':''}>${n} ${sh.kind==='stair'?'階':'層'}</option>`).join('')}</select>${sh.kind!=='shelf'?`<button class="btn btn-secondary btn-sm" onclick="lmRemovePlace('${sh.id}')">不要放商品了</button>`:''}</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">每一排從左到右就是實際擺放的位置（站在它前面看），<b>同一欄的商品是疊在一起的</b>（虛線框）。點商品卡片可以移動／疊放。要新增商品：點<b>＋</b>或兩欄中間的空隙，再到右邊點商品；電腦也可以把右邊商品拖進來（拖到卡片上＝疊上去）。</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:8px;">每一排從左到右就是實際擺放的位置（站在它前面看），<b>同一欄的商品是疊在一起的</b>（虛線框）。點商品卡片可以移動／疊放。<b>放商品</b>：點<b>＋</b>再到右邊點商品；或直接<b>拖</b>右邊的商品過來（拖到卡片上＝疊上去，拖到＋或兩欄中間＝自己一欄）。手機請<b>長按商品 0.3 秒</b>再拖。</div>
     ${tools}${rows}`;
   if(_lmFocusPid)setTimeout(()=>{G('lmc-'+_lmFocusPid)?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});_lmFocusPid=null;},80);
 }
@@ -5764,18 +5768,83 @@ function lmZ(d){
   const c=lmCurCols();if(!c)return;const {p,cols,ci}=c;const col=cols[ci],i=col.findIndex(x=>x.id===p.id),j=i+d;
   if(j<0||j>=col.length)return;col.splice(i,1);col.splice(j,0,p);lmCommit(_lmSel,p.level,cols);lmRender();
 }
-let _lmDragPid=null;
-function lmDragStart(e,pid){_lmDragPid=pid;e.dataTransfer.effectAllowed='move';}
-function lmDrop(e,where,lv){
-  e.preventDefault();e.stopPropagation();
-  if(!_lmDragPid)return;
-  const pid=_lmDragPid;_lmDragPid=null;
+// ── 拖曳（滑鼠＋手機都能用）：滑鼠直接拖；手機「長按一下」再拖 ──
+let _dg=null,_dgSuppress=0;
+function lmDropDo(pid,where,lv){
   let level=lv;
   if(!level){const t=where.stackBefore||where.colBefore;const tp=t&&db.products.find(x=>x.id===t);level=tp?tp.level:null;}
-  if(!level)return;
+  if(!level||!_lmSel)return;
   if(where.stackBefore===pid||where.colBefore===pid)return;
-  lmPlace(pid,_lmSel,level,where);_lmPick=pid;lmRender();
+  lmPlace(pid,_lmSel,level,where);_lmPick=pid;_lmFocusPid=pid;lmRender();
 }
+function lmDropMapDo(pid,id){
+  const sh=locById(id);if(!sh)return;
+  lmPlace(pid,id,sh.layers[0],{end:true});_lmSel=id;_lmFloor=sh.floor;_lmTarget={lv:sh.layers[0],where:{end:true}};_lmFocusPid=pid;lmRender();
+}
+function dgGhost(txt){const g=document.createElement('div');g.id='dg-ghost';g.textContent=txt;document.body.appendChild(g);return g;}
+function dgMove(x,y){
+  if(!_dg||!_dg.on)return;
+  _dg.ghost.style.left=(x+12)+'px';_dg.ghost.style.top=(y+12)+'px';
+  const el=document.elementFromPoint(x,y);
+  const t=el&&el.closest('[data-drop]');
+  if(_dg.over&&_dg.over!==t)_dg.over.classList.remove('dg-over');
+  if(t&&t!==_dg.over)t.classList.add('dg-over');
+  _dg.over=t||null;
+  // 靠近畫面上下緣時自動捲動
+  _dg.scroll=y<70?-14:(y>window.innerHeight-70?14:0);
+  if(_dg.scroll&&!_dg.raf){const f=()=>{if(!_dg||!_dg.scroll){if(_dg)_dg.raf=0;return;}window.scrollBy(0,_dg.scroll);_dg.raf=requestAnimationFrame(f);};_dg.raf=requestAnimationFrame(f);}
+}
+function dgEnd(drop){
+  if(!_dg)return;
+  const d=_dg;_dg=null;
+  clearTimeout(d.timer);if(d.raf)cancelAnimationFrame(d.raf);
+  if(d.over)d.over.classList.remove('dg-over');
+  if(d.ghost)d.ghost.remove();
+  document.body.classList.remove('dg-active');
+  if(!d.on)return;
+  _dgSuppress=Date.now()+350;
+  if(!drop||!d.over)return;
+  const t=d.over,ds=t.dataset;
+  if(ds.drop==='slot')lmDropDo(d.pid,JSON.parse(ds.where),ds.lv);
+  else if(ds.drop==='stack')lmDropDo(d.pid,{stackBefore:ds.pid});
+  else if(ds.drop==='map')lmDropMapDo(d.pid,ds.id);
+}
+function dgStart(el,x,y){
+  const p=db.products.find(z=>z.id===_dg.pid);if(!p){_dg=null;return;}
+  _dg.on=true;_dg.ghost=dgGhost(p.name);document.body.classList.add('dg-active');
+  if(navigator.vibrate)try{navigator.vibrate(20);}catch(e){}
+  dgMove(x,y);
+}
+document.addEventListener('mousedown',e=>{
+  if(e.button!==0)return;
+  const el=e.target.closest&&e.target.closest('#tab-locations [data-drag]');if(!el||e.target.closest('button'))return;
+  _dg={pid:el.dataset.drag,x:e.clientX,y:e.clientY,on:false,touch:false};
+});
+document.addEventListener('mousemove',e=>{
+  if(!_dg||_dg.touch)return;
+  if(!_dg.on){if(Math.hypot(e.clientX-_dg.x,e.clientY-_dg.y)>6)dgStart(null,e.clientX,e.clientY);}
+  else dgMove(e.clientX,e.clientY);
+});
+document.addEventListener('mouseup',e=>{if(_dg&&!_dg.touch)dgEnd(true);});
+document.addEventListener('touchstart',e=>{
+  const el=e.target.closest&&e.target.closest('#tab-locations [data-drag]');if(!el||e.target.closest('button')||e.touches.length!==1)return;
+  const t=e.touches[0];
+  _dg={pid:el.dataset.drag,x:t.clientX,y:t.clientY,on:false,touch:true};
+  _dg.timer=setTimeout(()=>{if(_dg)dgStart(el,_dg.x,_dg.y);},320); // 長按 0.3 秒才開始拖曳，平常照樣能捲動
+},{passive:true});
+document.addEventListener('touchmove',e=>{
+  if(!_dg||!_dg.touch)return;
+  const t=e.touches[0];
+  if(!_dg.on){ // 還沒長按到就移動 → 當作在捲動，取消
+    if(Math.hypot(t.clientX-_dg.x,t.clientY-_dg.y)>10){clearTimeout(_dg.timer);_dg=null;}
+    return;
+  }
+  e.preventDefault();dgMove(t.clientX,t.clientY);
+},{passive:false});
+document.addEventListener('touchend',e=>{if(_dg&&_dg.touch)dgEnd(true);});
+document.addEventListener('touchcancel',e=>{if(_dg&&_dg.touch)dgEnd(false);});
+document.addEventListener('contextmenu',e=>{if(_dg&&_dg.touch)e.preventDefault();});
+document.addEventListener('click',e=>{if(Date.now()<_dgSuppress){e.stopPropagation();e.preventDefault();}},true);
 function lmFind(pid){
   const p=db.products.find(x=>x.id===pid);if(!p)return;
   const sh=locShelfInfo(p.location,p.shelf);
@@ -5788,13 +5857,154 @@ async function saveLocMap(){
     const ok=await toastConfirm('目前有 '+inPick.length+' 張抄貨單正在撿貨或裝箱中。改了位置之後，這些單的撿貨順序會變，已經勾的項目可能會對錯位置。\n\n建議等這些單做完再儲存。要現在儲存嗎？','現在儲存','先不要');
     if(!ok)return;
   }
-  lmCfg();Object.assign(db.locConfig,{start:G('lm-start').value,end:G('lm-end').value,level:G('lm-level').value});_lmCfgOrig=JSON.stringify({p:db.locConfig.placeCfg,z:db.locConfig.zones});
+  lmCfg();Object.assign(db.locConfig,{start:G('lm-start').value,end:G('lm-end').value,level:G('lm-level').value,carry:_lmTest.carry,table:locTableIdx()});_lmCfgOrig=JSON.stringify({p:db.locConfig.placeCfg,z:db.locConfig.zones});
   _locRouteCache={};
   const btn=G('btn-lm-save');btn.disabled=true;btn.textContent='儲存中…';
   try{await saveMultiple(['products','meta']);}catch(e){toastAlert('儲存失敗：'+e.message,'error');btn.disabled=false;btn.textContent='儲存';return;}
   btn.disabled=false;btn.textContent='儲存';
   _lmDirty=new Set();_lmOrig={};lmRender();renderProducts();
   showToast('位置已儲存','success',2500);
+}
+// ── 路線測試：沒有推車，一趟拿幾樣就要回工作桌放好，再出發 ──────────
+let _lmTest={carry:6,table:null,orderId:'',res:null};
+function locTableIdx(){
+  const cfg=db.locConfig||{};
+  if(Number.isInteger(_lmTest.table))return _lmTest.table;
+  if(Number.isInteger(cfg.table))return cfg.table;
+  let best=-1,ba=0;LOCMAP_1F.blocks.forEach((b,i)=>{if(b.t==='furn'&&b.l==='桌子'&&b.w*b.h>ba){ba=b.w*b.h;best=i;}});
+  return best;
+}
+function locPath(blocked,a,b){ // 格子上的最短路徑（含起終點）
+  const L=LOCMAP_1F,ka=a.join(','),kb=b.join(','),par={};par[ka]=null;const q=[a];
+  while(q.length){const [x,y]=q.shift();if(x+','+y===kb)break;
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const nx=x+dx,ny=y+dy,k=nx+','+ny;
+      if(nx<0||nx>=L.cols||ny<1||ny>L.rows||par[k]!==undefined)return;
+      if(blocked.has(k)&&k!==kb)return;par[k]=x+','+y;q.push([nx,ny]);});}
+  if(par[kb]===undefined)return [a,b];
+  const out=[];let k=kb;while(k){out.unshift(k.split(',').map(Number));k=par[k];}return out;
+}
+function locPlanTrips(items,carry){ // items:[{pid,name,placeId,level,pos,z}]（都在一樓）
+  const L=LOCMAP_1F,blocked=locWalkGrid(),places=locPlaces('一樓');
+  const tb=L.blocks[locTableIdx()];if(!tb)return {err:'還沒指定工作桌'};
+  const tcells=[];
+  for(let x=tb.c;x<tb.c+tb.w;x++)for(let y=tb.r;y<tb.r+tb.h;y++)[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+    const nx=x+dx,ny=y+dy,k=nx+','+ny;
+    if(nx<0||nx>=L.cols||ny<1||ny>L.rows||blocked.has(k)||tcells.some(c=>c[0]===nx&&c[1]===ny))return;tcells.push([nx,ny]);});
+  if(!tcells.length)return {err:'工作桌旁邊沒有可以站的位置'};
+  // 多起點 BFS：離工作桌多遠
+  const dT={};const q=[];tcells.forEach(c=>{dT[c.join(',')]=0;q.push(c);});
+  while(q.length){const [x,y]=q.shift();const d=dT[x+','+y];[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const nx=x+dx,ny=y+dy,k=nx+','+ny;
+    if(nx<0||nx>=L.cols||ny<1||ny>L.rows||blocked.has(k)||dT[k]!==undefined)return;dT[k]=d+1;q.push([nx,ny]);});}
+  const standOf=id=>{
+    const pl=places.find(x=>x.id===id);if(!pl)return null;
+    if(pl.stand)return pl.stand;
+    const own=new Set(pl.cells.map(c=>c.join(',')));let best=null,bd=Infinity;
+    pl.cells.forEach(([x,y])=>[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const nx=x+dx,ny=y+dy,k=nx+','+ny;
+      if(nx<0||nx>=L.cols||ny<1||ny>L.rows||blocked.has(k)||own.has(k))return;
+      const d=dT[k];if(d!==undefined&&d<bd){bd=d;best=[nx,ny];}}));
+    return best||pl.cells[0];
+  };
+  items.forEach(i=>{i.stand=standOf(i.placeId);});
+  const ok=items.filter(i=>i.stand);
+  const sk=p=>p.join(',');
+  const standList=[...new Set(ok.map(i=>sk(i.stand)))];
+  // 起點：工作桌旁邊離所有要拿的位置總距離最小的那一格
+  let start=tcells[0],bs=Infinity;
+  tcells.forEach(c=>{const d=locBfs(blocked,c);const t=standList.reduce((a,k)=>a+(d[k]!==undefined?d[k]:99),0);if(t<bs){bs=t;start=c;}});
+  const nodes=[sk(start),...standList];const D={};nodes.forEach(n=>{D[n]=locBfs(blocked,n.split(',').map(Number));});
+  const dd=(a,b)=>(D[a]&&D[a][b]!==undefined)?D[a][b]:99;
+  // 所有位置排成一圈（最短），再切成一趟一趟
+  let order=standList.slice();
+  if(standList.length<=8){let best=null,bl=Infinity;
+    const perm=(arr,cur,len,last)=>{if(!arr.length){const t=len+dd(last,nodes[0]);if(t<bl){bl=t;best=cur.slice();}return;}if(len>=bl)return;
+      arr.forEach((n,i)=>{cur.push(n);perm(arr.slice(0,i).concat(arr.slice(i+1)),cur,len+dd(last,n),n);cur.pop();});};
+    perm(standList,[],0,nodes[0]);order=best||order;
+  }else{let left=standList.slice(),last=nodes[0];order=[];while(left.length){left.sort((a,b)=>dd(last,a)-dd(last,b));last=left.shift();order.push(last);}}
+  const rank={};order.forEach((k,i)=>{rank[k]=i;});
+  const units=ok.slice().sort((a,b)=>rank[sk(a.stand)]-rank[sk(b.stand)]||(a.li-b.li)||((a.pos||0)-(b.pos||0))||((a.z||0)-(b.z||0)));
+  const n=units.length,cap=Math.max(1,carry|0||6);
+  const segCost=(i,j)=>{let last=nodes[0],t=0,prev=null;for(let x=i;x<j;x++){const k=sk(units[x].stand);if(k!==prev){t+=dd(last,k);last=k;prev=k;}}return t+dd(last,nodes[0]);};
+  const f=Array(n+1).fill(Infinity),from=Array(n+1).fill(0);f[0]=0;
+  for(let j=1;j<=n;j++)for(let i=Math.max(0,j-cap);i<j;i++){const c=f[i]+segCost(i,j);if(c<f[j]){f[j]=c;from[j]=i;}}
+  const trips=[];for(let j=n;j>0;j=from[j]){const i=from[j];trips.unshift({units:units.slice(i,j),steps:segCost(i,j)});}
+  // 每一趟的走法（畫圖用）
+  trips.forEach(t=>{
+    let cur=start;const path=[start];
+    const seq=[];t.units.forEach(u=>{const k=sk(u.stand);if(!seq.length||seq[seq.length-1]!==k)seq.push(k);});
+    seq.forEach(k=>{const to=k.split(',').map(Number);const seg=locPath(blocked,cur,to);seg.slice(1).forEach(c=>path.push(c));cur=to;});
+    locPath(blocked,cur,start).slice(1).forEach(c=>path.push(c));
+    t.path=path;t.stops=seq;
+  });
+  return {trips,start,total:trips.reduce((a,t)=>a+t.steps,0),skipped:items.length-ok.length};
+}
+function lmTestItems(){
+  const sel=G('lm-test-src')?.value||'';
+  let src;
+  if(sel==='random'){
+    const placed=db.products.filter(p=>!p.discontinued&&locShelfInfo(p.location,p.shelf)&&p.location==='一樓');
+    const pick=placed.slice().sort(()=>Math.random()-.5).slice(0,12);src=pick.map(p=>({productId:p.id}));
+  }else{const o=db.orders.find(x=>x.id===sel);src=(o?.items||[]).map(i=>({productId:i.productId}));}
+  const out={one:[],other:[],none:[]};
+  src.forEach(i=>{
+    const p=db.products.find(x=>x.id===i.productId);if(!p)return;
+    const pl=locShelfInfo(p.location,p.shelf);
+    const pos=locPlaces().find(x=>x.id===locNorm(p.shelf));
+    const it={pid:p.id,name:p.name,placeId:pl?pl.id:'',place:pl,level:p.level,li:pl?Math.max(0,(pl.layers.slice().indexOf(p.level))):0,pos:Number(p.pos)||0,z:Number(p.z)||0};
+    if(pl&&pl.floor==='一樓')out.one.push(it);else if(pl)out.other.push(it);else out.none.push(it);
+  });
+  return out;
+}
+const LM_TRIP_COLORS=['#d93025','#1a73e8','#188038','#f29900','#9334e6','#00897b','#e8710a','#c2185b'];
+function lmTestRender(){
+  const el=G('lm-test');if(!el)return;
+  const ords=db.orders.slice().filter(o=>(o.items||[]).length).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,30);
+  const cur=G('lm-test-src')?.value||_lmTest.orderId||'random';
+  const tbIdx=locTableIdx();
+  const tbOpts=LOCMAP_1F.blocks.map((b,i)=>({b,i})).filter(x=>x.b.t==='furn').map(({b,i})=>{const x=b.c+b.w/2,y=b.r+b.h/2;return `<option value="${i}" ${i===tbIdx?'selected':''}>${(x<4?'左':x<8?'中':'右')+(y<4?'上':y<7?'中':'下')} ${anEsc(b.l)}</option>`;}).join('');
+  el.innerHTML=`<div style="font-size:17px;font-weight:700;margin-bottom:4px;">🧪 路線測試 <span style="font-size:12px;font-weight:400;color:var(--text3);">只是試算，不會影響真的撿貨單</span></div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">沒有推車：一趟拿滿就回工作桌放好，再出發拿下一趟。目前只算一樓。</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+      <div><div style="font-size:12px;color:var(--text3);">用哪一張單測試</div><select id="lm-test-src" style="min-width:200px;"><option value="random" ${cur==='random'?'selected':''}>隨機挑 12 個已放好的商品</option>${ords.map(o=>`<option value="${o.id}" ${cur===o.id?'selected':''}>${anEsc(o.date||'')} ${anEsc(db.customers.find(c=>c.id===o.customerId)?.name||'')}（${(o.items||[]).length} 項）</option>`).join('')}</select></div>
+      <div><div style="font-size:12px;color:var(--text3);">一趟最多拿幾樣</div><input id="lm-test-carry" type="number" min="1" max="30" value="${_lmTest.carry}" style="width:90px;" onchange="_lmTest.carry=Math.max(1,parseInt(this.value)||6)"></div>
+      <div><div style="font-size:12px;color:var(--text3);">工作桌是哪一個</div><select id="lm-test-table" onchange="_lmTest.table=Number(this.value)">${tbOpts}</select></div>
+      <button class="btn btn-primary" onclick="lmRunTest()">開始測試</button>
+      ${_lmTest.res?'<button class="btn btn-secondary" onclick="_lmTest.res=null;lmRender()">清除路線</button>':''}
+    </div><div id="lm-test-res" style="margin-top:10px;">${_lmTest.res?lmTestResHtml():''}</div>`;
+}
+function lmRunTest(){
+  _lmTest.orderId=G('lm-test-src').value;_lmTest.carry=Math.max(1,parseInt(G('lm-test-carry').value)||6);_lmTest.table=Number(G('lm-test-table').value);
+  const it=lmTestItems();
+  if(!it.one.length&&!it.other.length&&!it.none.length){showToast('這張單沒有商品','warn');return;}
+  const plan=it.one.length?locPlanTrips(it.one,_lmTest.carry):{trips:[],total:0,start:null};
+  if(plan.err){showToast(plan.err,'warn',3000);return;}
+  _lmTest.res={plan,other:it.other,none:it.none};
+  if(_lmFloor!=='一樓'){_lmFloor='一樓';_lmSel=null;_lmTarget=null;}
+  lmRender();setTimeout(()=>G('lm-map')?.scrollIntoView({behavior:'smooth',block:'start'}),50);
+}
+function lmTestResHtml(){
+  const r=_lmTest.res;if(!r)return '';const p=r.plan;
+  let h=`<div style="font-size:15px;margin-bottom:6px;">一樓 <b>${p.trips.reduce((a,t)=>a+t.units.length,0)}</b> 樣，要走 <b>${p.trips.length}</b> 趟，合計約 <b>${p.total}</b> 步（一格算一步）</div>`;
+  p.trips.forEach((t,ti)=>{
+    h+=`<div style="border-left:6px solid ${LM_TRIP_COLORS[ti%8]};background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:8px;">
+      <div style="font-size:14px;font-weight:700;">第 ${ti+1} 趟 <span style="font-weight:400;color:var(--text3);">約 ${t.steps} 步</span></div>
+      ${t.units.map((u,k)=>`<div style="font-size:14px;">${k+1}. ${anEsc(u.place?u.place.name:'')} ${anEsc(lvLabel(u.level||''))}　<b>${anEsc(u.name)}</b></div>`).join('')}
+      <div style="font-size:13px;color:var(--text2);margin-top:2px;">→ 回工作桌放好</div></div>`;
+  });
+  if(r.other.length)h+=`<div style="font-size:13px;color:var(--orange);margin-bottom:4px;">其他樓層 ${r.other.length} 樣（${[...new Set(r.other.map(i=>i.place.floor))].join('、')}）：這裡還沒算，要另外跑：${r.other.map(i=>anEsc(i.name)).join('、')}</div>`;
+  if(r.none.length)h+=`<div style="font-size:13px;color:var(--orange);">還沒放位置 ${r.none.length} 樣，沒有排進去：${r.none.map(i=>anEsc(i.name)).join('、')}</div>`;
+  return h;
+}
+function lmTestOverlay(){ // 把各趟路線畫在地圖上
+  const r=_lmTest.res;if(!r||_lmFloor!=='一樓'||!r.plan.start)return '';
+  const L=LOCMAP_1F,pt=c=>`${c[0]+.5},${c[1]-.5}`;
+  let svg=`<svg viewBox="0 0 ${L.cols} ${L.rows}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">`;
+  r.plan.trips.forEach((t,ti)=>{
+    const col=LM_TRIP_COLORS[ti%8],off=(ti%4-1.5)*0.07;
+    svg+=`<polyline points="${t.path.map(c=>`${c[0]+.5+off},${c[1]-.5+off}`).join(' ')}" fill="none" stroke="${col}" stroke-width="0.12" stroke-linejoin="round" opacity=".85"/>`;
+    t.stops.forEach((k,si)=>{const c=k.split(',').map(Number);svg+=`<circle cx="${c[0]+.5+off}" cy="${c[1]-.5+off}" r="0.22" fill="${col}"/><text x="${c[0]+.5+off}" y="${c[1]-.5+off+0.09}" font-size="0.28" fill="#fff" text-anchor="middle" font-weight="700">${si+1}</text>`;});
+  });
+  svg+=`<rect x="${r.plan.start[0]+.2}" y="${r.plan.start[1]-.8}" width="0.6" height="0.6" fill="#5a2d00"/><text x="${r.plan.start[0]+.5}" y="${r.plan.start[1]-.37}" font-size="0.3" fill="#fff" text-anchor="middle">桌</text></svg>`;
+  return svg;
 }
 // ── END 商品位置圖 ──────────────────────────
 
