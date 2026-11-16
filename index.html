@@ -262,35 +262,39 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fdfcfb}
 body.dg-active{cursor:grabbing;}
 .dg-over{outline:3px solid #e07020!important;outline-offset:1px;background:#ffe599!important;}
 .lm-row{cursor:grab;}
-.page.lp-page{max-width:1500px;}
+.page.lp-page{max-width:none;}
+.lp-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+.lp-head h2{font-size:20px;margin:0;}
+.lp-mapcard{padding:8px;width:fit-content;max-width:100%;}
 #tab-locations .btn-sm{padding:9px 14px;font-size:14px;}
 #tab-locations select,#tab-locations input{font-size:15px;}
 #tab-locations .lm-n{font-size:12px;padding:1px 6px;}
-.lp-wrap{display:grid;grid-template-columns:var(--lpl,minmax(0,1.15fr)) 12px minmax(0,1fr);gap:0;align-items:start;}
-.lp-split{align-self:stretch;cursor:col-resize;touch-action:none;position:relative;min-height:200px;}
-.lp-split::after{content:'';position:absolute;left:5px;top:0;bottom:0;width:2px;background:var(--border);border-radius:2px;}
-.lp-split:hover::after,.lp-split.drag::after{background:#e07020;width:4px;left:4px;}
-.lp-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
+.lm-grid{width:min(100%,calc((100vh - 170px)*var(--ar,1.33)));margin:0;}
+.lp-float{position:fixed;right:18px;top:96px;width:440px;height:calc(100vh - 130px);max-height:calc(100vh - 110px);min-width:320px;min-height:140px;display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.3);z-index:60;resize:both;overflow:hidden;}
+.lp-float.hide{display:none;}
+@media(max-width:1000px){.lp-float{left:8px!important;right:8px!important;top:auto!important;bottom:8px!important;width:auto!important;height:auto!important;max-height:56vh;resize:none;}.lp-ph{cursor:default;}.lm-grid{width:min(100%,calc(62vh*var(--ar,1.33)));}.lp-mapcard{margin-bottom:60vh;}}
+.lp-float.min{height:auto!important;min-height:0;resize:none;}
+.lp-float.min .lp-pb{display:none;}
+.lp-ph{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-bottom:1px solid var(--border);cursor:move;user-select:none;touch-action:none;font-size:15px;}
+.lp-ph b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.lp-b{border:none;background:transparent;font-size:16px;cursor:pointer;padding:2px 8px;border-radius:6px;color:var(--text2);}
+.lp-b:hover{background:rgba(0,0,0,.08);}
+.lp-pb{overflow:auto;flex:1;padding:10px;}
 .lp-sec{padding:10px 12px;margin-bottom:10px;}
 .lp-sec-h{display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:16px;font-weight:700;user-select:none;}
 .lp-sec-h .ar{transition:transform .15s;color:var(--text3);}
 .lp-sec.closed .lp-sec-b{display:none;}
 .lp-sec.closed .ar{transform:rotate(-90deg);}
 .lp-sec-b{margin-top:8px;}
-.lp-right{zoom:var(--lpz,1);}
-.lp-left{position:sticky;top:60px;min-width:0;}
-.lp-right{min-width:0;}
-.lm-grid{width:min(100%,calc((100vh - 290px)*var(--ar,1.33)));}
+.lp-side{display:flex;flex-direction:column;}
+.lp-list{overflow-y:auto;max-height:46vh;min-height:120px;}
+.lm-tgt{font-size:14px;border:1px dashed var(--border);border-radius:8px;padding:6px 8px;color:var(--text2);}
+.lm-tgt.on{border:2px solid #e07020;background:#fff4d6;color:#5a2d00;}
 .lm-c.cell{cursor:pointer;color:#bbb;}
 .lm-c.cell .cl{font-size:10px;}
 .lm-c.cell:hover{background:#fff4d6;}
 .lm-c.cell.has{background:#ffe599;border-color:#bf9000;color:#5a2d00;}
 .lm-c.cell.sel{outline:3px solid var(--brown);outline-offset:1px;}
-.lp-main{min-width:0;}
-.lp-side{display:flex;flex-direction:column;}
-.lp-list{overflow-y:auto;max-height:46vh;min-height:120px;}
-.lp-bar{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;padding:10px 0;background:var(--bg,#fff);border-top:1px solid var(--border);margin-top:6px;z-index:6;}
-@media(max-width:1000px){.lp-wrap{grid-template-columns:1fr;}.lp-split{display:none;}.lp-right{margin-top:10px;}.lp-left{position:static;}.lm-grid{width:min(100%,calc((75vh)*var(--ar,1.33)));}.lp-list{max-height:55vh;}}
 .lm-tgt{font-size:14px;border:1px dashed var(--border);border-radius:8px;padding:6px 8px;color:var(--text2);}
 .lm-tgt.on{border:2px solid #e07020;background:#fff4d6;color:#5a2d00;}
 .lm-row{font-size:15px;display:flex;align-items:center;gap:10px;padding:8px 8px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;}
@@ -613,15 +617,18 @@ body.dg-active{cursor:grabbing;}
 </div>
 
 <div id="tab-locations" class="page lp-page">
-  <div class="page-header"><div><h2>商品位置 <span style="font-size:12px;font-weight:400;color:var(--text3);">測試中・不影響其他頁面</span></h2><p id="lm-progress"></p></div><div id="lm-dirty" style="font-size:13px;color:var(--text3);"></div></div>
-  <div class="lp-wrap">
-    <div class="lp-left">
-      <div id="lm-floors" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;"></div>
-      <div class="card" style="padding:10px;"><div id="lm-map"></div></div>
-    </div>
-    <div class="lp-split" id="lp-split" title="左右拖曳可以調整寬度（連點兩下還原）"></div>
-    <div class="lp-right">
-      <div class="card lp-sec" data-sec="shelf"><div class="lp-sec-h" onclick="lpToggle('shelf')"><span>📦 貨架正面</span><span class="ar">▾</span></div><div class="lp-sec-b" id="lm-shelf"></div></div>
+  <div class="lp-head">
+    <h2>商品位置 <span style="font-size:12px;font-weight:400;color:var(--text3);">測試中・不影響其他頁面</span></h2>
+    <div id="lm-floors" style="display:flex;gap:6px;"></div>
+    <span id="lm-progress" style="font-size:13px;color:var(--text2);"></span>
+    <span id="lm-dirty" style="font-size:13px;color:var(--text3);"></span>
+    <button class="btn btn-secondary btn-sm" onclick="lpShow()" style="margin-left:auto;">📋 開啟面板</button>
+  </div>
+  <div class="card lp-mapcard"><div id="lm-map"></div></div>
+  <div class="lp-float" id="lp-panel">
+    <div class="lp-ph" id="lp-ph"><b id="lp-title">📋 位置工具</b><span><button class="lp-b" onclick="lpMin()" title="縮小／展開">—</button><button class="lp-b" onclick="lpClose()" title="關閉（右上角可再開啟）">✕</button></span></div>
+    <div class="lp-pb">
+<div class="card lp-sec" data-sec="shelf"><div class="lp-sec-h" onclick="lpToggle('shelf')"><span>📦 貨架正面</span><span class="ar">▾</span></div><div class="lp-sec-b" id="lm-shelf"></div></div>
       <div class="card lp-sec" data-sec="list"><div class="lp-sec-h" onclick="lpToggle('list')"><span>🔍 商品清單</span><span class="ar">▾</span></div>
         <div class="lp-sec-b"><div id="lm-target"></div>
           <input id="lm-q" placeholder="搜尋商品名稱或條碼" oninput="lmSideRender()" style="width:100%;margin:6px 0;">
@@ -1533,7 +1540,10 @@ window.addEventListener('popstate',handleHashChange);
 // 點擊背景不再自動關閉視窗，避免不小心誤觸把畫面關掉（一定要按 × 才會關閉）
 
 // ── FIRESTORE ────────────────────────────────
+function lmSyncSettings(){const cfg=db.locConfig||{};if(G('lm-start')){G('lm-start').value=cfg.start||'garage';G('lm-end').value=cfg.end||'garage';G('lm-level').value=cfg.level||'high';}
+  _lmTest.carry=cfg.carry||6;_lmTest.table=Number.isInteger(cfg.table)?cfg.table:null;}
 function renderAll(){
+  if(typeof _lmActive!=='undefined'&&_lmActive&&G('tab-locations')?.classList.contains('active')){try{lmSyncSettings();lmRender();}catch(e){console.warn(e);}}
   renderDashboard();renderProducts();renderCustomers();renderOrders();renderShipments();renderReturns();renderRestock();
   updateRestockBadge();
 }
@@ -5625,6 +5635,7 @@ function lmRender(){
     return `<button class="btn btn-sm ${f===_lmFloor?'btn-primary':'btn-secondary'}" onclick="lmSetFloor('${f}')">${f}${n?` <span style="opacity:.85;">（${n} 個沒放）</span>`:''}</button>`;}).join('');
   G('lm-progress').innerHTML=_lmFloor+' '+oneF.length+' 個商品，已放進位置圖 '+placed+' 個'+(oneF.length-placed?' · <b style="color:var(--orange);">還有 '+(oneF.length-placed)+' 個沒放</b>':' · ✓ 全部放好了');
   lmStatus();
+  {const t=G('lp-title');if(t){const pl=_lmSel&&locById(_lmSel);t.textContent=pl?'📦 '+pl.name:'📋 位置工具';}}
   lmMapRender();
   if(_lmSel)lmShelfView();
   else G('lm-shelf').innerHTML='<div style="font-size:15px;color:var(--text2);padding:6px;">點左邊地圖上的位置（橘色貨架、空地都可以）</div>';
@@ -5740,7 +5751,7 @@ async function lmRemovePlace(id){
   _locRouteCache={};lmQueueSave();_lmSel=null;lmRender();
 }
 function lmPickShelf(id){
-  _lmSel=id;_lmPick=null;_lmFocusPid=null;_lmZone=null;lpOpen('shelf');
+  _lmSel=id;_lmPick=null;_lmFocusPid=null;_lmZone=null;lpOpen('shelf');lpEnsureOpen();
   const sh=locById(id);_lmTarget=sh?{lv:sh.layers[0],where:{end:true}}:null;
   lmRender();lmScrollTo('lm-shelf');
 }
@@ -5904,7 +5915,7 @@ document.addEventListener('click',e=>{if(Date.now()<_dgSuppress){e.stopPropagati
 function lmFind(pid){
   const p=lmProducts().find(x=>x.id===pid);if(!p)return;
   const sh=locShelfInfo(p.location,p.shelf);
-  if(sh){_lmFloor=sh.floor;_lmSel=sh.id;_lmFocusPid=pid;_lmPick=pid;_lmZone=null;_lmTarget={lv:sh.layers[0],where:{end:true}};lmRender();lmScrollTo('lm-shelf');}
+  if(sh){lpEnsureOpen();_lmFloor=sh.floor;_lmSel=sh.id;_lmFocusPid=pid;_lmPick=pid;_lmZone=null;_lmTarget={lv:sh.layers[0],where:{end:true}};lmRender();lmScrollTo('lm-shelf');}
   else showToast(p.name+'：'+(locLabelOf(p)==='—'?'還沒設定位置':locLabelOf(p)+'（這一層還沒有位置圖）'),'info',4000);
 }
 // ── 路線測試：沒有推車，一趟拿幾樣就要回工作桌放好，再出發 ──────────
@@ -5914,23 +5925,41 @@ function lpSave(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 function lpApply(){
   const st=lpLoad('lp_secs',{});
   document.querySelectorAll('#tab-locations .lp-sec').forEach(el=>{const k=el.dataset.sec;const closed=(k in st)?st[k]:!!LP_DEF_CLOSED[k];el.classList.toggle('closed',closed);});
-  const w=lpLoad('lp_split',null),wrap=document.querySelector('#tab-locations .lp-wrap');
-  if(wrap){if(w)wrap.style.setProperty('--lpl',w+'px');else wrap.style.removeProperty('--lpl');wrap.style.setProperty('--lpz',lpLoad('lp_zoom',1));}
+  lpApplyPanel();
 }
 function lpToggle(k){const el=document.querySelector('#tab-locations .lp-sec[data-sec="'+k+'"]');if(!el)return;el.classList.toggle('closed');
   const st=lpLoad('lp_secs',{});st[k]=el.classList.contains('closed');lpSave('lp_secs',st);}
 function lpOpen(k){const el=document.querySelector('#tab-locations .lp-sec[data-sec="'+k+'"]');if(el&&el.classList.contains('closed'))lpToggle(k);}
 function lpAll(open){const st={};document.querySelectorAll('#tab-locations .lp-sec').forEach(el=>{el.classList.toggle('closed',!open);st[el.dataset.sec]=!open;});lpSave('lp_secs',st);}
-function lpZoom(d){const z=Math.max(0.7,Math.min(1.6,Math.round((lpLoad('lp_zoom',1)+d)*10)/10));lpSave('lp_zoom',z);document.querySelector('#tab-locations .lp-wrap').style.setProperty('--lpz',z);}
-(function(){ // 拖曳中間的分隔線調整左右寬度
-  let drag=null;
-  const down=e=>{const sp=e.target.closest&&e.target.closest('#lp-split');if(!sp)return;drag={wrap:sp.parentElement,sp};sp.classList.add('drag');e.preventDefault();};
-  const move=e=>{if(!drag)return;const r=drag.wrap.getBoundingClientRect(),x=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
-    const w=Math.max(r.width*0.28,Math.min(r.width*0.78,x));drag.wrap.style.setProperty('--lpl',w+'px');drag.w=w;if(e.cancelable)e.preventDefault();};
-  const up=()=>{if(!drag)return;drag.sp.classList.remove('drag');if(drag.w)lpSave('lp_split',Math.round(drag.w));drag=null;};
+function lpPanelState(){return lpLoad('lp_panel',{});}
+function lpSavePanel(p){lpSave('lp_panel',Object.assign(lpPanelState(),p));}
+function lpApplyPanel(){
+  const el=G('lp-panel');if(!el)return;const st=lpPanelState();
+  el.classList.toggle('hide',st.closed===true);el.classList.toggle('min',st.min===true);
+  if(window.innerWidth>1000){
+    if(st.w)el.style.width=Math.max(320,Math.min(st.w,innerWidth-30))+'px';
+    if(st.h&&!st.min)el.style.height=Math.max(140,Math.min(st.h,innerHeight-80))+'px';
+    if(st.x!=null){el.style.left=Math.max(0,Math.min(st.x,innerWidth-140))+'px';el.style.top=Math.max(56,Math.min(st.y,innerHeight-60))+'px';el.style.right='auto';}
+  }
+}
+function lpMin(){lpSavePanel({min:!lpPanelState().min});lpApplyPanel();}
+function lpClose(){lpSavePanel({closed:true});lpApplyPanel();}
+function lpShow(){lpSavePanel({closed:false,min:false});lpApplyPanel();}
+function lpEnsureOpen(){const st=lpPanelState();if(st.closed||st.min)lpShow();}
+(function(){ // 拖曳標題列移動、拉右下角改大小（記住位置和大小）
+  let drag=null;const pt=e=>e.touches?e.touches[0]:e;
+  const down=e=>{if(window.innerWidth<=1000)return;const h=e.target.closest&&e.target.closest('#lp-ph');if(!h||e.target.closest('button'))return;
+    const el=G('lp-panel'),r=el.getBoundingClientRect(),q=pt(e);drag={el,dx:q.clientX-r.left,dy:q.clientY-r.top};e.preventDefault();};
+  const move=e=>{if(!drag)return;const q=pt(e);
+    const x=Math.max(0,Math.min(innerWidth-140,q.clientX-drag.dx)),y=Math.max(56,Math.min(innerHeight-50,q.clientY-drag.dy));
+    drag.el.style.left=x+'px';drag.el.style.top=y+'px';drag.el.style.right='auto';drag.x=x;drag.y=y;if(e.cancelable)e.preventDefault();};
+  const up=()=>{if(!drag)return;if(drag.x!=null)lpSavePanel({x:Math.round(drag.x),y:Math.round(drag.y)});drag=null;};
   document.addEventListener('mousedown',down);document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);
   document.addEventListener('touchstart',down,{passive:false});document.addEventListener('touchmove',move,{passive:false});document.addEventListener('touchend',up);
-  document.addEventListener('dblclick',e=>{if(e.target.closest&&e.target.closest('#lp-split')){try{localStorage.removeItem('lp_split');}catch(_){}document.querySelector('#tab-locations .lp-wrap').style.removeProperty('--lpl');}});
+  let t=null;
+  window.addEventListener('load',()=>{const el=G('lp-panel');if(!el||!window.ResizeObserver)return;
+    new ResizeObserver(()=>{if(window.innerWidth<=1000||el.classList.contains('min')||el.classList.contains('hide')||drag)return;
+      clearTimeout(t);t=setTimeout(()=>lpSavePanel({w:el.offsetWidth,h:el.offsetHeight}),400);}).observe(el);});
 })();
 let _lmTest={carry:6,table:null,orderId:'',res:null};
 function locTableIdx(){
