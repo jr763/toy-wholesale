@@ -269,8 +269,9 @@ body.dg-active{cursor:grabbing;}
 #tab-locations .btn-sm{padding:9px 14px;font-size:14px;}
 #tab-locations select,#tab-locations input{font-size:15px;}
 #tab-locations .lm-n{font-size:12px;padding:1px 6px;}
-#lm-map{height:max(360px,calc(100vh - 202px));width:calc(100vw - 84px);container-type:size;}
-.lm-grid{width:100%;height:100%;margin:0;}
+#lm-map{height:max(360px,calc(100vh - 230px));width:calc(100vw - 100px);container-type:size;display:flex;flex-direction:column;}
+.lm-grid{width:100%;flex:1;min-height:0;margin:0;}
+.lp-mapcard{overflow:hidden!important;}
 .lp-float{position:fixed;right:18px;top:150px;width:440px;height:calc(100vh - 175px);max-height:calc(100vh - 160px);min-width:320px;min-height:140px;display:flex;flex-direction:column;background:var(--surface,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.3);z-index:60;resize:both;overflow:hidden;}
 .lp-float.hide{display:none;}
 @media(max-width:1000px){#lm-map{height:auto;width:min(100vw - 40px,calc(62vh*var(--ar,1.33)));container-type:inline-size;}.lm-grid{height:auto;aspect-ratio:var(--ar,1.33);}.lp-float{left:8px!important;right:8px!important;top:auto!important;bottom:8px!important;width:auto!important;height:auto!important;max-height:56vh;resize:none;}.lp-ph{cursor:default;}.lp-mapcard{margin-bottom:60vh;}}
@@ -5637,11 +5638,22 @@ function lmRender(){
   G('lm-progress').innerHTML=_lmFloor+' '+oneF.length+' 個商品，已放進位置圖 '+placed+' 個'+(oneF.length-placed?' · <b style="color:var(--orange);">還有 '+(oneF.length-placed)+' 個沒放</b>':' · ✓ 全部放好了');
   lmStatus();
   {const t=G('lp-title');if(t){const pl=_lmSel&&locById(_lmSel);t.textContent=pl?'📦 '+pl.name:'📋 位置工具';}}
-  lmMapRender();
+  lmFit();lmMapRender();lmFit();requestAnimationFrame(lmFit);
   if(_lmSel)lmShelfView();
   else G('lm-shelf').innerHTML='<div style="font-size:15px;color:var(--text2);padding:6px;">點左邊地圖上的位置（橘色貨架、空地都可以）</div>';
   lmSideRender();lmTestRender();
 }
+function lmFit(){
+  const m=G('lm-map');if(!m||!m.offsetParent)return;
+  if(window.innerWidth<=1000){m.style.width='';m.style.height='';return;}
+  const card=m.parentElement,pg=card.parentElement;
+  const top=m.getBoundingClientRect().top+window.scrollY;
+  const cs=getComputedStyle(pg);
+  const h=Math.max(300,window.innerHeight-top-8-8-(parseFloat(cs.paddingBottom)||0)-8);
+  const w=Math.max(300,pg.clientWidth-(parseFloat(cs.paddingLeft)||0)-(parseFloat(cs.paddingRight)||0)-16-2);
+  m.style.height=h+'px';m.style.width=w+'px';card.style.width='auto';
+}
+window.addEventListener('resize',()=>{try{lmFit()}catch(e){}});
 function lmMapRender(){
   const L=LOC_MAPS[_lmFloor],places=locPlaces(_lmFloor),zoneMode=!!_lmZone;
   const occ=new Set();
@@ -5666,7 +5678,7 @@ function lmMapRender(){
     const id='C|'+_lmFloor+'|'+c+','+r,n=cellCnt[id]||0;
     h+=`<div class="lm-c cell${n?' has':''}${id===_lmSel?' sel':''}" onclick="lmPickShelf('${id}')" ${dz(id)} style="grid-column:${c+1};grid-row:${r};">${n?`<span class="lm-n">${n}</span>`:`<span class="cl">${String.fromCharCode(65+c)}${r}</span>`}</div>`;}
   G('lm-map').style.setProperty('--ar',L.cols/L.rows);
-  G('lm-map').innerHTML=`<div class="lm-grid" style="grid-template-columns:repeat(${L.cols},1fr);grid-template-rows:repeat(${L.rows},1fr);">${h}${lmTestOverlay()}</div><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px;">橘＝貨架／已設定的家具；黃＝地板上已有商品（數字＝商品數）；空白格＝地板（都能放）；灰色家具點一下可設成放商品的地方</div>`;
+  G('lm-map').innerHTML=`<div class="lm-grid" style="grid-template-columns:repeat(${L.cols},1fr);grid-template-rows:repeat(${L.rows},1fr);">${h}${lmTestOverlay()}</div><div style="font-size:11px;color:var(--text3);text-align:center;margin-top:4px;flex:none;">橘＝貨架／已設定的家具；黃＝地板上已有商品（數字＝商品數）；空白格＝地板（都能放）；灰色家具點一下可設成放商品的地方</div>`;
 }
 function lmZonePanel(){
   G('lm-shelf').innerHTML=`<div style="font-size:13px;"><b>畫地板放置區：</b>點上面地圖的<b>空白格子</b>圈出範圍（再點一次取消）。已選 ${_lmZone.length} 格。
@@ -6027,14 +6039,25 @@ function locPlanTrips(items,carry){ // items:[{pid,name,placeId,level,pos,z}]（
   for(let j=1;j<=n;j++)for(let i=Math.max(0,j-cap);i<j;i++){const c=f[i]+segCost(i,j);if(c<f[j]){f[j]=c;from[j]=i;}}
   const trips=[];for(let j=n;j>0;j=from[j]){const i=from[j];trips.unshift({units:units.slice(i,j),steps:segCost(i,j)});}
   // 每一趟的走法（畫圖用）
-  trips.forEach(t=>{
-    let cur=start;const path=[start];
+  const doorStand=key=>{const d=L.doors[key];if(!d)return null;
+    const cs=[];for(let x=d.c;x<d.c+d.w;x++)for(let y=d.r;y<d.r+d.h;y++)cs.push([x,y]);
+    const free=cs.find(c=>!blocked.has(c.join(',')));if(free)return free;
+    for(const [x,y] of cs)for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;
+      if(nx>=0&&nx<L.cols&&ny>=1&&ny<=L.rows&&!blocked.has(nx+','+ny))return [nx,ny];}
+    return null;};
+  const cfg=db.locConfig||{};
+  const startPt=doorStand(cfg.start||'garage'),endPt=doorStand(cfg.end||'garage');
+  trips.forEach((t,ti)=>{
+    let cur=(ti===0&&startPt)?startPt:start;const path=[cur];
     const seq=[];t.units.forEach(u=>{const k=sk(u.stand);if(!seq.length||seq[seq.length-1]!==k)seq.push(k);});
     seq.forEach(k=>{const to=k.split(',').map(Number);const seg=locPath(blocked,cur,to);seg.slice(1).forEach(c=>path.push(c));cur=to;});
     locPath(blocked,cur,start).slice(1).forEach(c=>path.push(c));
-    t.path=path;t.stops=seq;
+    t.path=path;t.stops=seq;t.steps=path.length-1;t.fromDoor=(ti===0&&startPt)?(L.doors[cfg.start||'garage']||{}).name||'':'';
   });
-  return {trips,start,total:trips.reduce((a,t)=>a+t.steps,0),skipped:items.length-ok.length};
+  let final=null;
+  if(endPt&&trips.length){final=locPath(blocked,start,endPt);}
+  const endName=(L.doors[cfg.end||'garage']||{}).name||'';
+  return {trips,start,startPt,endPt,final,endName,total:trips.reduce((a,t)=>a+t.steps,0)+(final?final.length-1:0),skipped:items.length-ok.length};
 }
 function lmTestItems(){
   const sel=G('lm-test-src')?.value||'';
@@ -6085,10 +6108,11 @@ function lmTestResHtml(){
   let h=`<div style="font-size:15px;margin-bottom:6px;">一樓 <b>${p.trips.reduce((a,t)=>a+t.units.length,0)}</b> 樣，要走 <b>${p.trips.length}</b> 趟，合計約 <b>${p.total}</b> 步（一格算一步）</div>`;
   p.trips.forEach((t,ti)=>{
     h+=`<div style="border-left:6px solid ${LM_TRIP_COLORS[ti%8]};background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:8px;">
-      <div style="font-size:14px;font-weight:700;">第 ${ti+1} 趟 <span style="font-weight:400;color:var(--text3);">約 ${t.steps} 步</span></div>
+      <div style="font-size:14px;font-weight:700;">第 ${ti+1} 趟${t.fromDoor?`（從${anEsc(t.fromDoor)}出發）`:'（從工作桌出發）'} <span style="font-weight:400;color:var(--text3);">約 ${t.steps} 步</span></div>
       ${t.units.map((u,k)=>`<div style="font-size:14px;">${k+1}. ${anEsc(u.place?u.place.name:'')} ${anEsc(lvLabel(u.level||''))}　<b>${anEsc(u.name)}</b></div>`).join('')}
       <div style="font-size:13px;color:var(--text2);margin-top:2px;">→ 回工作桌放好</div></div>`;
   });
+  if(p.final&&p.endName)h+=`<div style="font-size:13px;color:var(--text2);margin-bottom:8px;">全部放好後，走到 <b>${anEsc(p.endName)}</b>（${p.final.length-1} 步）</div>`;
   if(r.other.length)h+=`<div style="font-size:13px;color:var(--orange);margin-bottom:4px;">其他樓層 ${r.other.length} 樣（${[...new Set(r.other.map(i=>i.place.floor))].join('、')}）：這裡還沒算，要另外跑：${r.other.map(i=>anEsc(i.name)).join('、')}</div>`;
   if(r.none.length)h+=`<div style="font-size:13px;color:var(--orange);">還沒放位置 ${r.none.length} 樣，沒有排進去：${r.none.map(i=>anEsc(i.name)).join('、')}</div>`;
   return h;
@@ -6102,6 +6126,8 @@ function lmTestOverlay(){ // 把各趟路線畫在地圖上
     svg+=`<polyline points="${t.path.map(c=>`${c[0]+.5+off},${c[1]-.5+off}`).join(' ')}" fill="none" stroke="${col}" stroke-width="0.12" stroke-linejoin="round" opacity=".85"/>`;
     t.stops.forEach((k,si)=>{const c=k.split(',').map(Number);svg+=`<circle cx="${c[0]+.5+off}" cy="${c[1]-.5+off}" r="0.22" fill="${col}"/><text x="${c[0]+.5+off}" y="${c[1]-.5+off+0.09}" font-size="0.28" fill="#fff" text-anchor="middle" font-weight="700">${si+1}</text>`;});
   });
+  if(r.plan.final&&r.plan.final.length>1)svg+=`<polyline points="${r.plan.final.map(c=>`${c[0]+.5},${c[1]-.5}`).join(' ')}" fill="none" stroke="#666" stroke-width="0.1" stroke-dasharray="0.25 0.2" opacity=".8"/>`;
+  if(r.plan.startPt)svg+=`<circle cx="${r.plan.startPt[0]+.5}" cy="${r.plan.startPt[1]-.5}" r="0.3" fill="#188038"/><text x="${r.plan.startPt[0]+.5}" y="${r.plan.startPt[1]-.5+0.1}" font-size="0.3" fill="#fff" text-anchor="middle">起</text>`;
   svg+=`<rect x="${r.plan.start[0]+.2}" y="${r.plan.start[1]-.8}" width="0.6" height="0.6" fill="#5a2d00"/><text x="${r.plan.start[0]+.5}" y="${r.plan.start[1]-.37}" font-size="0.3" fill="#fff" text-anchor="middle">桌</text></svg>`;
   return svg;
 }
