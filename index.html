@@ -636,14 +636,9 @@ body.dg-active{cursor:grabbing;}
           <input id="lm-q" placeholder="搜尋商品名稱或條碼" oninput="lmSideRender()" style="width:100%;margin:6px 0;">
           <div id="lm-filter" style="display:flex;gap:6px;margin-bottom:6px;"></div>
           <div id="lm-list" class="lp-list"></div></div></div>
-      <div class="card lp-sec closed" data-sec="test"><div class="lp-sec-h" onclick="lpToggle('test')"><span>🧪 進階：路線測試</span><span class="ar">▾</span></div>
+      <div class="card lp-sec closed" data-sec="test"><div class="lp-sec-h" onclick="lpToggle('test')"><span>🧭 撿貨順序（照地圖）</span><span class="ar">▾</span></div>
         <div class="lp-sec-b"><div id="lm-test"></div>
-          <div style="font-size:12px;color:var(--text3);margin:10px 0 4px;">撿貨路線設定（之後才會啟用）</div>
-          <div class="form-grid">
-            <div class="form-group"><label>從哪裡開始撿</label><select id="lm-start" onchange="lmQueueSave()"></select></div>
-            <div class="form-group"><label>撿完走到哪裡</label><select id="lm-end" onchange="lmQueueSave()"></select></div>
-            <div class="form-group"><label>同一格裡，先拿哪一層</label>
-              <select id="lm-level" onchange="lmQueueSave()"><option value="high">高 → 中 → 低</option><option value="low">低 → 中 → 高</option></select></div></div></div></div>
+        </div></div>
     </div>
   </div>
 </div>
@@ -1543,7 +1538,7 @@ window.addEventListener('popstate',handleHashChange);
 
 // ── FIRESTORE ────────────────────────────────
 function lmSyncSettings(){const cfg=db.locConfig||{};if(G('lm-start')){G('lm-start').value=cfg.start||'garage';G('lm-end').value=cfg.end||'garage';G('lm-level').value=cfg.level||'high';}
-  _lmTest.carry=cfg.carry||6;_lmTest.table=Number.isInteger(cfg.table)?cfg.table:null;}
+  _lmTest.carry=cfg.carry||6;_lmTest.table=Number.isInteger(cfg.table)?cfg.table:null;_lmTest.center=cfg.center||_lmTest.center||null;}
 function renderAll(){
   if(typeof _lmActive!=='undefined'&&_lmActive&&G('tab-locations')?.classList.contains('active')){try{lmSyncSettings();lmRender();}catch(e){console.warn(e);}}
   renderDashboard();renderProducts();renderCustomers();renderOrders();renderShipments();renderReturns();renderRestock();
@@ -3244,7 +3239,7 @@ async function saveOrder(status){
     const oldItems=oldItemsForStock;
     const savedState=(db.pickingState||{})[editOrderId]||{};
     // 撿貨記錄的位置是「排序後清單」的位置，所以新舊清單都要先照撿貨畫面的順序排好再對應
-    const sOld=getPickSortedItems(oldItems), sNew=getPickSortedItems(orderItems);
+    const sOld=getPickSortedItems(oldItems,editOrderId), sNew=getPickSortedItems(orderItems,editOrderId);
     const inPickFlow=['picking','picked','boxing','packed','mod_picking','mod_picked','mod_boxing'].includes(oldOrder.status);
     const isCompleted=oldOrder.status==='completed';
 
@@ -3733,18 +3728,47 @@ function locRouteOrder(cells){ // cells: 要拿貨的放置處代碼 → 回傳 
 }
 const LM_FORM_ON=false; // 位置圖測試中：商品表單先不要求/不寫入位置
 const LOC_ROUTE_ON=false; // 位置都放好之前先不依位置圖排撿貨順序；之後改成 true 就啟用
-function getPickSortedItems(items){
-  const list=[...(items||[])].map(i=>{
-    const p=db.products.find(x=>x.id===i.productId);
-    return {...i,location:i.location||p?.location||'',shelf:locNorm(p?.shelf||''),level:p?.level||'',pos:Number(p?.pos)||0,z:Number(p?.z)||0,
-      hasInspMark:p?p.hasInspectionMark!==false:true,
-      batchNo:p?.inspectionBatchNo||''};
+// 撿貨單「照地圖順序排」：開關和中心存在 locConfig（routeOn / center），預設關閉＝完全維持原本的排法。
+// 撿貨記錄是用「排序後的位置」存的，所以每張單第一次打開時就決定要不要照地圖排，之後固定（locConfig.routeOrders），不會因為開關或位置變動而錯位。
+function lmRouteRanks(list){
+  const c=(db.locConfig||{}).center;if(!c)return null;
+  const lowFirst=((db.locConfig||{}).lvFirst||'low')==='low';const its=[];
+  list.forEach((i,k)=>{
+    if(i.location!=='一樓')return;const pl=locShelfInfo('一樓',i.shelf);if(!pl)return;
+    const lv=pl.layers.slice();if(lowFirst)lv.reverse();
+    its.push({pid:k,placeId:pl.id,level:i.level,li:Math.max(0,lv.indexOf(i.level)),pos:i.pos||0,z:i.z||0});});
+  if(!its.length)return null;
+  const plan=locPlanTrips(its,9999,c);if(plan.err||!plan.trips)return null;
+  const rr={};let n=0;plan.trips.forEach(t=>t.units.forEach(u=>{rr[u.pid]=n++;}));return rr;
+}
+function getPickSortedItems(items,orderId){
+  const cfg0=db.locConfig||{};
+  let oid=orderId;if(!oid&&items){const o=db.orders.find(x=>x.items===items);if(o)oid=o.id;}
+  // 是否用地圖：已經決定過就照決定；沒決定過，要有開關、有中心、這張單狀態已載入且還沒開始撿，才決定用
+  let mapMode=false;
+  if(cfg0.center&&oid){
+    const ro=cfg0.routeOrders||{};
+    if(ro[oid])mapMode=true;
+    else if(cfg0.routeOn&&db.pickingState&&(oid in db.pickingState)){
+      const st=db.pickingState[oid]||{};
+      if(!Object.values(st).some(Boolean)){mapMode=true;try{lmCfg();db.locConfig.routeOrders=db.locConfig.routeOrders||{};db.locConfig.routeOrders[oid]=true;lmQueueSave();}catch(e){}}
+    }
+  }
+  const showMap=!!cfg0.routeOn||mapMode; // 顯示位置：開著時用「商品位置」頁放的位置
+  const pv=showMap?new Map(lmProducts().map(x=>[x.id,x])):null;
+  const list=[...(items||[])].map((i,k)=>{
+    const p0=db.products.find(x=>x.id===i.productId);const p=(pv&&pv.get(i.productId))||p0;
+    return {...i,_k:k,location:(showMap&&p?.location)||i.location||p0?.location||'',shelf:locNorm(p?.shelf||''),level:p?.level||'',pos:Number(p?.pos)||0,z:Number(p?.z)||0,
+      hasInspMark:p0?p0.hasInspectionMark!==false:true,
+      batchNo:p0?.inspectionBatchNo||''};
   });
+  const rr=mapMode?(()=>{try{return lmRouteRanks(list);}catch(e){console.warn(e);return null;}})():null;
   const cells1F=!LOC_ROUTE_ON?[]:[...new Set(list.filter(i=>i.location==='一樓'&&locShelfInfo('一樓',i.shelf)).map(i=>i.shelf))];
   const route=cells1F.length?locRouteOrder(cells1F):{};
-  const lowFirst=((db.locConfig||{}).level||'high')==='low';
+  const lowFirst=((db.locConfig||{}).lvFirst||'low')==='low';
   const rank=i=>{
     const f=LOC_FLOORS.indexOf(i.location);
+    if(rr)return [f<0?99:f,rr[i._k]!==undefined?rr[i._k]:(i.shelf?5000:99999),String(i.shelf||'')];
     const sr=(i.location==='一樓'&&route[i.shelf]!==undefined)?route[i.shelf]:(i.shelf?5000:99999);
     const pl=locShelfInfo(i.location,i.shelf);
     const lv=(pl?pl.layers:['高','中','低']).slice();if(lowFirst)lv.reverse();
@@ -3759,13 +3783,46 @@ function getPickSortedItems(items){
     return (a.variant||'').localeCompare(b.variant||'');
   });
 }
+const PICK_MAP_ON=true; // 撿貨單上的位置小地圖（只是多顯示一塊，預設收合，不改變撿貨清單/順序/勾選）
+function lmPickMiniMap(items){
+  if(!PICK_MAP_ON)return '';
+  try{
+    const prods=new Map(lmProducts().map(x=>[x.id,x]));
+    const byFloor={};let total=0;
+    (items||[]).forEach(i=>{
+      const pr=prods.get(i.productId);if(!pr)return;
+      const pl=locShelfInfo(pr.location,pr.shelf);if(!pl)return;
+      const f=pl.floor;(byFloor[f]=byFloor[f]||{})[pl.id]=(byFloor[f][pl.id]||{pl,n:0});byFloor[f][pl.id].n+=1;total++;
+    });
+    if(!total)return '';
+    let body='';
+    Object.keys(LOC_MAPS).forEach(f=>{
+      const g=byFloor[f];if(!g)return;const L=LOC_MAPS[f];
+      const cell=(c,r,w,h,bg,txt,extra='')=>`<div style="grid-column:${c+1}/span ${w};grid-row:${r}/span ${h};background:${bg};${extra}display:flex;align-items:center;justify-content:center;font-size:9px;color:#555;overflow:hidden;border-radius:2px;">${txt||''}</div>`;
+      let h='';
+      L.blocks.forEach(b=>{h+=cell(b.c,b.r,b.w,b.h,'#e4e4e4',b.l);});
+      Object.values(L.doors).forEach(d=>{h+=cell(d.c,d.r,d.w,d.h,d.l.startsWith('往')?'#cfe0fb':'#d6ead0',d.l);});
+      L.shelves.forEach(sh=>{h+=cell(sh.c,sh.r,sh.w,sh.h,'#f3d9bd',sh.short);});
+      Object.values(g).forEach(({pl,n})=>{
+        pl.cells.forEach(([x,y],k)=>{h+=cell(x,y,1,1,'#f08c3a','','outline:2px solid #c2410c;z-index:2;position:relative;');});
+        const [x0,y0]=pl.cells[0];
+        h+=`<div style="grid-column:${x0+1};grid-row:${y0};z-index:3;display:flex;align-items:center;justify-content:center;pointer-events:none;"><span style="background:#c2410c;color:#fff;border:2px solid #fff;border-radius:11px;min-width:22px;height:22px;padding:0 5px;font:700 12px/18px system-ui,sans-serif;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.4);">${n}</span></div>`;
+      });
+      const names=Object.values(g).map(({pl,n})=>`${anEsc(pl.name)}×${n}`).join('、');
+      body+=`<div style="margin-top:8px;"><div style="font-size:13px;font-weight:700;margin-bottom:4px;">${anEsc(f)}</div>
+        <div style="display:grid;grid-template-columns:repeat(${L.cols},1fr);grid-template-rows:repeat(${L.rows},1fr);gap:1px;width:100%;max-width:380px;aspect-ratio:${L.cols}/${L.rows};">${h}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px;">${names}</div></div>`;
+    });
+    return `<details style="margin-bottom:12px;border:1px solid var(--border);border-radius:10px;padding:8px 12px;background:var(--surface2);"><summary style="cursor:pointer;font-size:14px;font-weight:600;">🗺 位置小地圖（${total} 樣）</summary>${body}<div style="font-size:11px;color:var(--text3);margin-top:6px;">橘色＝要去拿的位置，數字＝在那裡要拿幾樣（只是參考，不影響下面的撿貨）</div></details>`;
+  }catch(e){console.warn('pick map',e);return '';}
+}
 async function viewOrderReadonly(id){
   const o=db.orders.find(x=>x.id===id);if(!o)return;
   await ensureOrderStateLoaded(id); // 撿貨記錄用到才抓
   const cust=db.customers.find(x=>x.id===o.customerId);
   const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
   G('od-title').textContent=cust?cust.name:'撿貨單';
-  const items=getPickSortedItems(o.items);
+  const items=getPickSortedItems(o.items,o.id);
   const savedState=(db.pickingState||{})[id]||{};
   G('od-body').innerHTML=`
     <div style="margin-bottom:12px;">
@@ -3801,7 +3858,7 @@ async function viewOrder(id){
   const cust=db.customers.find(x=>x.id===o.customerId);
   const total=(o.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
   G('od-title').textContent=cust?cust.name:'撿貨單';
-  const items=getPickSortedItems(o.items);
+  const items=getPickSortedItems(o.items,o.id);
   window._pickItems=items;
   window._pickOrderId=id;
   // 商品永遠都顯示在清單上，已撿的用淡化+劃線表示，不再把已撿的隱藏掉（之前隱藏的設計會讓人誤以為東西不見了）
@@ -3818,6 +3875,7 @@ async function viewOrder(id){
       <input id="pick-price-search" type="number" placeholder="輸入售價搜尋，例如 50" oninput="filterPickByPrice()" style="flex:1;min-width:140px;">
     </div>
     <div id="bc-summary-inline" style="display:none;margin-bottom:12px;"></div>
+    ${lmPickMiniMap(items)}
     ${isPacked2?'<div style="font-size:12px;color:var(--orange);padding:6px 0;margin-bottom:6px;">⚠️ 這張單已經撿過一部分了，淡化劃線的是已撿的，請把剩下的撿完</div>':''}
     <div class="table-wrap"><table>
       <thead><tr><th><input type="checkbox" id="pick-cb-all" onchange="toggleAllPicked(this)" title="全選/取消全選"></th><th>存放地點</th><th>商檢標</th><th>商品名稱</th><th>種類</th><th>數量</th><th>售價</th></tr></thead>
@@ -3923,7 +3981,7 @@ async function markPacked(orderId){
     return;
   }
   const savedState=(db.pickingState||{})[orderId]||{};
-  const items=getPickSortedItems(o.items);
+  const items=getPickSortedItems(o.items,o.id);
   const missing=items.filter((_,i)=>!savedState[i]);
   const allDone=missing.length===0;
   const msg=allDone?'所有商品已撿齊，確認撿貨完成？':`有 ${missing.length} 項商品未撿（${missing.map(i=>i.name).join('、')}），確認撿貨完成？`;
@@ -5558,7 +5616,7 @@ function lmQueueSave(){_lmSaveState='saving';lmStatus();clearTimeout(_lmSaveT);_
 async function lmDoSave(){
   clearTimeout(_lmSaveT);_lmSaveT=null;
   try{
-    if(_lmActive&&G('lm-start')){lmCfg();Object.assign(db.locConfig,{start:G('lm-start').value,end:G('lm-end').value,level:G('lm-level').value,carry:_lmTest.carry,table:locTableIdx()});}
+    if(_lmActive&&G('lm-start')){lmCfg();Object.assign(db.locConfig,{start:G('lm-start').value,end:G('lm-end').value,level:G('lm-level').value,carry:_lmTest.carry,table:locTableIdx(),center:_lmTest.center||null});}
     _locRouteCache={};
     isSaving=true;const ok=await trySave('meta');setTimeout(()=>{isSaving=false;},2000);
     if(!ok){queuePendingBackup('meta');throw new Error('save failed');}
@@ -5581,13 +5639,10 @@ function openLocMap(pid){
 function renderLocations(){
   if(!_lmActive){
     const cfg=db.locConfig||{};
-    const dopts=Object.entries(LOCMAP_1F.doors).map(([k,d])=>`<option value="${k}">${d.name}</option>`).join('');
-    G('lm-start').innerHTML=dopts;G('lm-end').innerHTML=dopts;
-    G('lm-start').value=cfg.start||'garage';G('lm-end').value=cfg.end||'garage';G('lm-level').value=cfg.level||'high';
     _lmCfgOrig=JSON.stringify({p:cfg.placeCfg||{},z:cfg.zones||[]});_lmZone=null;
     _lmDirty=new Set();_lmOrig={};_lmSel=null;_lmPick=null;_lmFocusPid=null;_lmTarget=null;G('lm-q').value='';
     lpApply();
-    _lmTest.carry=cfg.carry||_lmTest.carry||6;_lmTest.table=Number.isInteger(cfg.table)?cfg.table:null;_lmTest.res=null;
+    _lmTest.carry=cfg.carry||_lmTest.carry||6;_lmTest.table=Number.isInteger(cfg.table)?cfg.table:null;_lmTest.res=null;_lmTest.center=cfg.center||null;
     _lmActive=true;
   }
   const p=_lmInitPid?lmProducts().find(x=>x.id===_lmInitPid):null;_lmInitPid=null;
@@ -5994,9 +6049,9 @@ function locPath(blocked,a,b){ // 格子上的最短路徑（含起終點）
   if(par[kb]===undefined)return [a,b];
   const out=[];let k=kb;while(k){out.unshift(k.split(',').map(Number));k=par[k];}return out;
 }
-function locPlanTrips(items,carry){ // items:[{pid,name,placeId,level,pos,z}]（都在一樓）
+function locPlanTrips(items,carry,centerArg){ // items:[{pid,name,placeId,level,pos,z}]（都在一樓）
   const L=LOCMAP_1F,blocked=locWalkGrid(),places=locPlaces('一樓');
-  const ct=_lmTest.center;if(!ct)return {err:'先在地圖上點一下「中心」'};
+  const ct=centerArg||_lmTest.center;if(!ct)return {err:'先在地圖上點一下「中心」'};
   const tcells=[];
   if(!blocked.has(ct.join(',')))tcells.push([ct[0],ct[1]]);
   else [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const nx=ct[0]+dx,ny=ct[1]+dy;
@@ -6071,7 +6126,7 @@ function lmTestItems(){
     const p=lmProducts().find(x=>x.id===i.productId);if(!p)return;
     const pl=locShelfInfo(p.location,p.shelf);
     const pos=locPlaces().find(x=>x.id===locNorm(p.shelf));
-    const it={pid:p.id,name:p.name,placeId:pl?pl.id:'',place:pl,level:p.level,li:pl?Math.max(0,(pl.layers.slice().indexOf(p.level))):0,pos:Number(p.pos)||0,z:Number(p.z)||0};
+    const it={pid:p.id,name:p.name,placeId:pl?pl.id:'',place:pl,level:p.level,li:pl?Math.max(0,((((db.locConfig||{}).lvFirst||'low')==='low'?pl.layers.slice().reverse():pl.layers.slice()).indexOf(p.level))):0,pos:Number(p.pos)||0,z:Number(p.z)||0};
     if(pl&&pl.floor==='一樓')out.one.push(it);else if(pl)out.other.push(it);else out.none.push(it);
   });
   return out;
@@ -6085,7 +6140,9 @@ function lmTestRender(){
   const tbOpts=LOCMAP_1F.blocks.map((b,i)=>({b,i})).filter(x=>x.b.t==='furn').map(({b,i})=>{const x=b.c+b.w/2,y=b.r+b.h/2;return `<option value="${i}" ${i===tbIdx?'selected':''}>${(x<4?'左':x<8?'中':'右')+(y<4?'上':y<7?'中':'下')} ${anEsc(b.l)}</option>`;}).join('');
   el.innerHTML=`<div style="font-size:12px;color:var(--text3);margin-bottom:4px;">只是試算，不會影響真的撿貨單</div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">先在地圖上點一個「中心」，再按開始測試，會畫出拿東西的順序。目前只算一樓。</div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;margin-bottom:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);cursor:pointer;"><input type="checkbox" ${(db.locConfig||{}).routeOn?'checked':''} onchange="lmRouteToggle(this.checked)" style="margin-top:3px;"><span><b>撿貨單照地圖順序排</b><br><span style="font-size:12px;color:var(--text3);">開啟後，之後新打開的撿貨單會用這裡點的「中心」排順序、顯示商品位置；已經在撿的單不會變。要先放好商品位置、點好中心。</span>${(db.locConfig||{}).routeOn&&!_lmTest.center?'<br><span style="font-size:12px;color:var(--orange);">⚠️ 還沒點中心，順序暫時照原本的</span>':''}</span></label>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+      <div><div style="font-size:12px;color:var(--text3);">同一個位置，先拿哪一層</div><select onchange="lmLvFirst(this.value)"><option value="low" ${((db.locConfig||{}).lvFirst||'low')==='low'?'selected':''}>先低 → 中 → 高</option><option value="high" ${((db.locConfig||{}).lvFirst||'low')==='high'?'selected':''}>先高 → 中 → 低</option></select></div>
       <div><div style="font-size:12px;color:var(--text3);">用哪一張單測試</div><select id="lm-test-src" style="min-width:200px;"><option value="random" ${cur==='random'?'selected':''}>隨機挑 12 個已放好的商品</option>${ords.map(o=>`<option value="${o.id}" ${cur===o.id?'selected':''}>${anEsc(o.date||'')} ${anEsc(db.customers.find(c=>c.id===o.customerId)?.name||'')}（${(o.items||[]).length} 項）</option>`).join('')}</select></div>
       <div><div style="font-size:12px;color:var(--text3);">中心（從這裡出發、拿完回來）</div>
         <button class="btn ${_lmTest.pick?'btn-primary':'btn-secondary'}" onclick="lmPickCenter()">${_lmTest.pick?'👆 請點地圖上的位置…':(_lmTest.center?'📍 已選，點此重選':'📍 在地圖上點選中心')}</button></div>
@@ -6093,6 +6150,8 @@ function lmTestRender(){
       ${_lmTest.res?'<button class="btn btn-secondary" onclick="_lmTest.res=null;lmRender()">清除路線</button>':''}
     </div><div id="lm-test-res" style="margin-top:10px;">${_lmTest.res?lmTestResHtml():''}</div>`;
 }
+function lmLvFirst(v){lmCfg();db.locConfig.lvFirst=v;lmQueueSave();if(_lmTest.res)lmRunTest();}
+function lmRouteToggle(on){lmCfg();db.locConfig.routeOn=!!on;lmQueueSave();lmTestRender();}
 function lmPickCenter(){
   if(_lmFloor!=='一樓'){_lmFloor='一樓';_lmSel=null;_lmTarget=null;lmRender();}
   _lmTest.pick=!_lmTest.pick;lmTestRender();
@@ -6105,7 +6164,7 @@ document.addEventListener('click',e=>{
   const L=LOCMAP_1F,r=g.getBoundingClientRect();
   const c=Math.min(L.cols-1,Math.max(0,Math.floor((e.clientX-r.left)/r.width*L.cols)));
   const y=Math.min(L.rows,Math.max(1,Math.floor((e.clientY-r.top)/r.height*L.rows)+1));
-  _lmTest.center=[c,y];_lmTest.pick=false;m.style.cursor='';
+  _lmTest.center=[c,y];_lmTest.pick=false;m.style.cursor='';lmQueueSave();
   if(_lmTest.res){try{lmRunTest();return;}catch(x){}}
   lmRender();
 },true);
@@ -6135,19 +6194,24 @@ function lmTestResHtml(){
   if(r.none.length)h+=`<div style="font-size:13px;color:var(--orange);">還沒放位置 ${r.none.length} 樣，沒有排進去：${r.none.map(i=>anEsc(i.name)).join('、')}</div>`;
   return h;
 }
-function lmTestOverlay(){ // 把各趟路線畫在地圖上
+function lmTestOverlay(){ // 把拿貨路線畫在地圖上（線用固定粗細、標記用圓角小標籤，不會被地圖拉伸變形）
   const r=_lmTest.res;if(!r||_lmFloor!=='一樓'||!r.plan.start)return '';
-  const L=LOCMAP_1F,pt=c=>`${c[0]+.5},${c[1]-.5}`;
-  let svg=`<svg viewBox="0 0 ${L.cols} ${L.rows}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">`;
-  r.plan.trips.forEach((t,ti)=>{
-    const col=LM_TRIP_COLORS[ti%8],off=(ti%4-1.5)*0.07;
-    svg+=`<polyline points="${t.path.map(c=>`${c[0]+.5+off},${c[1]-.5+off}`).join(' ')}" fill="none" stroke="${col}" stroke-width="0.12" stroke-linejoin="round" opacity=".85"/>`;
-    t.stops.forEach((k,si)=>{const c=k.split(',').map(Number);svg+=`<circle cx="${c[0]+.5+off}" cy="${c[1]-.5+off}" r="0.22" fill="${col}"/><text x="${c[0]+.5+off}" y="${c[1]-.5+off+0.09}" font-size="0.28" fill="#fff" text-anchor="middle" font-weight="700">${si+1}</text>`;});
+  const L=LOCMAP_1F,X=c=>(c[0]+.5)/L.cols*100,Y=c=>(c[1]-.5)/L.rows*100;
+  let h=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;">`;
+  r.plan.trips.forEach(t=>{
+    const pts=t.path.map(c=>X(c).toFixed(2)+','+Y(c).toFixed(2)).join(' ');
+    h+=`<polyline points="${pts}" fill="none" stroke="#fff" stroke-width="7" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity=".9"/>`;
+    h+=`<polyline points="${pts}" fill="none" stroke="#e8590c" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="1 0" vector-effect="non-scaling-stroke"/>`;
   });
-  if(r.plan.final&&r.plan.final.length>1)svg+=`<polyline points="${r.plan.final.map(c=>`${c[0]+.5},${c[1]-.5}`).join(' ')}" fill="none" stroke="#666" stroke-width="0.1" stroke-dasharray="0.25 0.2" opacity=".8"/>`;
-  if(r.plan.startPt)svg+=`<circle cx="${r.plan.startPt[0]+.5}" cy="${r.plan.startPt[1]-.5}" r="0.3" fill="#188038"/><text x="${r.plan.startPt[0]+.5}" y="${r.plan.startPt[1]-.5+0.1}" font-size="0.3" fill="#fff" text-anchor="middle">起</text>`;
-  svg+=`<rect x="${r.plan.start[0]+.2}" y="${r.plan.start[1]-.8}" width="0.6" height="0.6" fill="#5a2d00"/><text x="${r.plan.start[0]+.5}" y="${r.plan.start[1]-.37}" font-size="0.3" fill="#fff" text-anchor="middle">中</text></svg>`;
-  return svg;
+  h+='</svg>';
+  const badge=(c,txt,bg)=>`<div style="position:absolute;left:${X(c)}%;top:${Y(c)}%;transform:translate(-50%,-50%);min-width:26px;height:26px;padding:0 6px;border-radius:13px;background:${bg};color:#fff;font:700 14px/26px system-ui,sans-serif;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);pointer-events:none;z-index:3;">${txt}</div>`;
+  let n=0;
+  r.plan.trips.forEach(t=>{
+    const g=[];t.units.forEach(u=>{n++;const k=u.stand.join(',');const l=g[g.length-1];if(l&&l.k===k)l.to=n;else g.push({k,c:u.stand,from:n,to:n});});
+    g.forEach(x=>{h+=badge(x.c,x.from===x.to?x.from:x.from+'–'+x.to,'#d9480f');});
+  });
+  h+=badge(r.plan.start,'中','#2b6e3f');
+  return h;
 }
 // ── END 商品位置圖 ──────────────────────────
 
@@ -6790,7 +6854,7 @@ async function openBoxingModal(orderId){
   await ensureOrderStateLoaded(orderId); // 撿貨/裝箱記錄用到才抓，不整包常駐
   const cust=db.customers.find(x=>x.id===o.customerId);
   const savedState=(db.pickingState||{})[orderId]||{};
-  const pickedItems=getPickSortedItems(o.items).filter((_,i)=>savedState[i]);
+  const pickedItems=getPickSortedItems(o.items,o.id).filter((_,i)=>savedState[i]);
   const priceMap={};
   pickedItems.forEach(item=>{const k='$'+fmt(item.price);priceMap[k]=(priceMap[k]||0)+item.qty;});
   const rows=Object.entries(priceMap).sort((a,b)=>parseFloat(a[0].replace('$',''))-parseFloat(b[0].replace('$','')));
@@ -6866,7 +6930,7 @@ async function confirmBoxing(){
     return;
   }
   const savedState=(db.pickingState||{})[_boxingOrderId]||{};
-  const missing=getPickSortedItems(o.items).filter((_,i)=>!savedState[i]);
+  const missing=getPickSortedItems(o.items,o.id).filter((_,i)=>!savedState[i]);
   const idx=db.orders.findIndex(x=>x.id===_boxingOrderId);
   const wasRe=['re_boxing','re_picking'].includes(db.orders[idx]?.status);
   const isMod=['mod_boxing','mod_picked'].includes(db.orders[idx]?.status);
